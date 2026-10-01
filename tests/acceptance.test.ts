@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { Ajv2020 } from "ajv/dist/2020.js";
-import { afterEach, describe, expect, test } from "vitest";
+import { afterEach, describe, expect, expectTypeOf, test } from "vitest";
 import { RegistryError } from "../src/error.js";
 import { loadRegistry } from "../src/load-registry.js";
 import { resolveRegistryPath } from "../src/path.js";
@@ -319,10 +319,14 @@ describe("acceptance", () => {
     const fullRegistry = { format: 1, models: { "model-a": fullModel } };
     expect(validate(fullRegistry)).toBe(true);
 
-    // Property tables. Deferred fields are declared as false so the loader
-    // can name them without a second source of truth.
-    const modelKeys: readonly (keyof Model)[] = ["family", "notes", "routes"];
-    const routeKeys: readonly (keyof Route)[] = [
+    // Property tables. Each tuple is exhaustive: its element union must
+    // equal keyof of the matching TypeScript type at compile time, so a new
+    // field on Model or Route that the tuple and schema miss fails the
+    // typecheck instead of passing silently.
+    const modelKeys = ["family", "notes", "routes"] as const;
+    expectTypeOf<(typeof modelKeys)[number]>().toEqualTypeOf<keyof Model>();
+    const deferredModelKeys = ["ratings", "maxEffort", "fixedEffort"] as const;
+    const routeKeys = [
       "harness",
       "modelId",
       "provider",
@@ -332,7 +336,9 @@ describe("acceptance", () => {
       "rateLimitRpm",
       "responseSeconds",
       "notes",
-    ];
+    ] as const;
+    expectTypeOf<(typeof routeKeys)[number]>().toEqualTypeOf<keyof Route>();
+    const deferredRouteKeys = ["capabilities", "meter"] as const;
 
     const propertyNames = (properties: Record<string, unknown>, deferred: boolean) =>
       Object.entries(properties)
@@ -340,13 +346,13 @@ describe("acceptance", () => {
         .map(([name]) => name)
         .sort();
     expect(propertyNames(schema.$defs.model.properties, false)).toEqual([...modelKeys].sort());
-    expect(propertyNames(schema.$defs.model.properties, true)).toEqual([
-      "fixedEffort",
-      "maxEffort",
-      "ratings",
-    ]);
+    expect(propertyNames(schema.$defs.model.properties, true)).toEqual(
+      [...deferredModelKeys].sort(),
+    );
     expect(propertyNames(schema.$defs.route.properties, false)).toEqual([...routeKeys].sort());
-    expect(propertyNames(schema.$defs.route.properties, true)).toEqual(["capabilities", "meter"]);
+    expect(propertyNames(schema.$defs.route.properties, true)).toEqual(
+      [...deferredRouteKeys].sort(),
+    );
     expect(propertyNames(schema.properties, false)).toEqual(["format", "models"]);
     expect(propertyNames(schema.properties, true)).toEqual([
       "calibration",
