@@ -6,7 +6,6 @@ import { EFFORT_LADDER } from "./ladder.js";
 import type {
   IndexedRoute,
   JsonValue,
-  Meter,
   Model,
   RegistryErrorCode,
   RegistryFacts,
@@ -14,6 +13,7 @@ import type {
   Route,
   RouteLabel,
 } from "./types.js";
+import { DECLARATION_SECTIONS } from "./types.js";
 
 export interface RegistryIndex {
   registry: RegistryFacts;
@@ -47,7 +47,7 @@ export function isPlainObject(value: unknown): value is Record<string, unknown> 
 }
 
 /** Define a property without routing a key such as `__proto__` through the prototype setter. */
-export function safeSet<TValue>(target: Record<string, TValue>, key: string, value: TValue): void {
+export function safeSet<TValue>(target: object, key: string, value: TValue): void {
   Object.defineProperty(target, key, {
     value,
     enumerable: true,
@@ -68,18 +68,27 @@ function invalidProblem(field: string, message: string, fix: string): RegistryPr
   return { code: "registry-invalid", field, fix, message };
 }
 
-function referenceUnknownProblem(
-  field: string,
-  name: string,
-  kind: "rating" | "capability" | "meter",
-  section: "ratings" | "capabilities" | "meters",
-  fix: string,
-): RegistryProblem {
+const REFERENCE_TARGETS = {
+  capability: { owner: "route", section: "capabilities" },
+  meter: { owner: "route", section: "meters" },
+  rating: { owner: "model", section: "ratings" },
+} as const;
+
+type ReferenceKind = keyof typeof REFERENCE_TARGETS;
+
+interface ReferenceProblemInput {
+  field: string;
+  kind: ReferenceKind;
+  name: string;
+}
+
+function referenceUnknownProblem(input: ReferenceProblemInput): RegistryProblem {
+  const target = REFERENCE_TARGETS[input.kind];
   return {
     code: "reference-unknown",
-    field,
-    fix,
-    message: `the ${kind} "${name}" is not declared in the ${section} section`,
+    field: input.field,
+    fix: `Add "${input.name}" to the ${target.section} section, or remove the ${input.kind} from the ${target.owner}.`,
+    message: `the ${input.kind} "${input.name}" is not declared in the ${target.section} section`,
   };
 }
 
@@ -117,14 +126,13 @@ function walkSegments(
   return { path, value };
 }
 
+function isDeclarationSection(name: string): boolean {
+  return (DECLARATION_SECTIONS as readonly string[]).includes(name);
+}
+
 function pointerIsOwned(pointer: string): boolean {
-  return (
-    pointer === "" ||
-    pointerSegments(pointer)[0] === "models" ||
-    pointerSegments(pointer)[0] === "ratings" ||
-    pointerSegments(pointer)[0] === "capabilities" ||
-    pointerSegments(pointer)[0] === "meters"
-  );
+  const [head] = pointerSegments(pointer);
+  return head === undefined || head === "models" || isDeclarationSection(head);
 }
 
 function genericProblem(field: string, message: string | undefined): RegistryProblem {
@@ -163,14 +171,81 @@ function requiredStringProblem(parent: string, name: string): RegistryProblem {
   );
 }
 
-// Path depth in segments for each owned level. The values are computed once so
-// the depth checks in the keyword handlers below stay readable.
-const MODEL_DEPTH = 2;
-const ROUTE_DEPTH = 4;
+/** The format 1 construct an owned instance path points at, by section name and depth. */
+type OwnedPath =
+  | { kind: "declaration"; name: string; section: "capabilities" | "ratings" }
+  | { kind: "model"; modelKey: string }
+  | { field: string; kind: "modelField"; modelKey: string }
+  | { kind: "modelRating"; modelKey: string; rating: string }
+  | { kind: "meter"; meterName: string }
+  | { field: string; kind: "meterField"; meterName: string }
+  | { kind: "other" }
+  | { kind: "root" }
+  | { kind: "route" }
+  | { field: string; kind: "routeField" }
+  | { kind: "routeCapabilityEntry" }
+  | { kind: "section"; section: "capabilities" | "meters" | "models" | "ratings" };
 
-function ratingValueProblem(path: string, segments: readonly string[]): RegistryProblem {
-  const modelKey = segments[1] ?? "";
-  const rating = segments[3] ?? "";
+function classifyPath(segments: readonly string[]): OwnedPath {
+  const [section, name, container, index, field] = segments;
+  const inModelsRoutes = section === "models" && container === "routes" && index !== undefined;
+  switch (segments.length) {
+    case 0:
+      return { kind: "root" };
+    case 1:
+      switch (section) {
+        case "capabilities":
+        case "meters":
+        case "models":
+        case "ratings":
+          return { kind: "section", section };
+        default:
+          return { kind: "other" };
+      }
+    case 2:
+      switch (section) {
+        case "models":
+          return { kind: "model", modelKey: name ?? "" };
+        case "meters":
+          return { kind: "meter", meterName: name ?? "" };
+        case "capabilities":
+        case "ratings":
+          return { kind: "declaration", name: name ?? "", section };
+        default:
+          return { kind: "other" };
+      }
+    case 3:
+      if (section === "meters") {
+        return { field: container ?? "", kind: "meterField", meterName: name ?? "" };
+      }
+      if (section === "models") {
+        return { field: container ?? "", kind: "modelField", modelKey: name ?? "" };
+      }
+      return { kind: "other" };
+    case 4:
+      if (section === "models" && container === "ratings") {
+        return { kind: "modelRating", modelKey: name ?? "", rating: index ?? "" };
+      }
+      if (section === "models" && container === "routes") {
+        return { kind: "route" };
+      }
+      return { kind: "other" };
+    case 5:
+      if (inModelsRoutes) {
+        return { field: field ?? "", kind: "routeField" };
+      }
+      return { kind: "other" };
+    case 6:
+      if (inModelsRoutes && field === "capabilities") {
+        return { kind: "routeCapabilityEntry" };
+      }
+      return { kind: "other" };
+    default:
+      return { kind: "other" };
+  }
+}
+
+function ratingValueProblem(path: string, modelKey: string, rating: string): RegistryProblem {
   return invalidProblem(
     path,
     `the rating "${rating}" of model "${modelKey}" must be an integer from 1 to 10`,
@@ -178,273 +253,284 @@ function ratingValueProblem(path: string, segments: readonly string[]): Registry
   );
 }
 
-function enumProblem(path: string, segments: readonly string[]): RegistryProblem | undefined {
-  const field = segments.at(-1) ?? "";
-  if (segments.length === 3 && (field === "maxEffort" || field === "fixedEffort")) {
-    return invalidProblem(
-      path,
-      `the field "${field}" must be one of ${EFFORT_LADDER_VALUES}`,
-      `Set "${field}" to one of ${EFFORT_LADDER_VALUES}.`,
-    );
-  }
-  return undefined;
-}
-
 function ownedProblem(root: unknown, error: ErrorObject): RegistryProblem {
   const segments = pointerSegments(error.instancePath);
   const path = walkSegments(root, segments).path;
-  const keyword = error.keyword;
+  const location = classifyPath(segments);
 
-  if (keyword === "required") {
-    const missing = error.params.missingProperty;
-    if (typeof missing === "string") {
-      if (segments.length === 0 && missing === "models") {
+  switch (error.keyword) {
+    case "required":
+      return requiredProblem(location, path, error);
+    case "additionalProperties":
+      return additionalPropertyProblem(location, path, error);
+    case "enum":
+      return enumProblem(location, path, error);
+    case "const":
+      return constProblem(location, path, error);
+    case "type":
+    case "minimum":
+    case "maximum":
+      return typeProblem(location, path) ?? genericProblem(path, error.message);
+    default:
+      return genericProblem(path, error.message);
+  }
+}
+
+function requiredProblem(location: OwnedPath, path: string, error: ErrorObject): RegistryProblem {
+  const missing = error.params.missingProperty;
+  if (typeof missing !== "string") {
+    return genericProblem(path, error.message);
+  }
+  switch (location.kind) {
+    case "root":
+      if (missing === "models") {
         return invalidProblem(
           childPath(path, "models"),
           'the required field "models" is missing',
           "Add a models object with one entry per model.",
         );
       }
-      if (segments.length === MODEL_DEPTH && missing === "family") {
+      break;
+    case "model":
+      if (missing === "family") {
         return requiredStringProblem(path, "family");
       }
-      if (segments.length === MODEL_DEPTH && missing === "routes") {
+      if (missing === "routes") {
         return invalidProblem(
           childPath(path, "routes"),
-          `the model "${segments[1] ?? ""}" is missing the required field "routes"`,
+          `the model "${location.modelKey}" is missing the required field "routes"`,
           "Add a routes array to the model; an empty array is valid.",
         );
       }
-      if (segments.length === ROUTE_DEPTH && missing === "harness") {
+      break;
+    case "route":
+      if (missing === "harness") {
         return requiredStringProblem(path, "harness");
       }
-      if (segments.length === ROUTE_DEPTH && missing === "modelId") {
+      if (missing === "modelId") {
         return requiredStringProblem(path, "modelId");
       }
-      if (segments.length === ROUTE_DEPTH && missing === "hosted") {
+      if (missing === "hosted") {
         return invalidProblem(
           childPath(path, "hosted"),
           'the required field "hosted" is missing',
           'Add a "hosted" boolean; a wrong guess either way is a privacy fault.',
         );
       }
-    }
-    return genericProblem(path, error.message);
+      break;
   }
-
-  if (keyword === "additionalProperties") {
-    const name = error.params.additionalProperty;
-    if (typeof name === "string" && segments.length === 2 && (segments[0] ?? "") === "meters") {
-      return unknownFieldProblem(path, name, "meter");
-    }
-    if (typeof name === "string" && segments.length === MODEL_DEPTH) {
-      return unknownFieldProblem(path, name, "model");
-    }
-    if (typeof name === "string" && segments.length === ROUTE_DEPTH) {
-      return unknownFieldProblem(path, name, "route");
-    }
-    return genericProblem(path, error.message);
-  }
-
-  if (keyword === "type" || keyword === "minimum" || keyword === "maximum") {
-    return typeProblem(segments, path) ?? genericProblem(path, error.message);
-  }
-
-  if (keyword === "enum") {
-    return enumProblem(path, segments) ?? genericProblem(path, error.message);
-  }
-
-  if (keyword === "const") {
-    if (
-      segments.length === 3 &&
-      (segments[0] ?? "") === "meters" &&
-      (segments.at(-1) ?? "") === "spendToZero"
-    ) {
-      const meterName = segments[1] ?? "";
-      return invalidProblem(
-        path,
-        `the meter "${meterName}" field "spendToZero" accepts only the literal true`,
-        'Set "spendToZero" to true, or remove it.',
-      );
-    }
-    return genericProblem(path, error.message);
-  }
-
   return genericProblem(path, error.message);
 }
 
-function typeProblem(segments: string[], path: string): RegistryProblem | undefined {
-  const field = segments.at(-1) ?? "";
-  const section = segments[0] ?? "";
-
-  if (segments.length === 1) {
-    switch (field) {
-      case "models":
-        return invalidProblem(
-          path,
-          'the field "models" must be a JSON object keyed by model key',
-          "Replace models with a JSON object keyed by model key.",
-        );
-      case "ratings":
-        return invalidProblem(
-          path,
-          'the field "ratings" must be a JSON object keyed by rating name',
-          "Replace ratings with a JSON object keyed by rating name.",
-        );
-      case "capabilities":
-        return invalidProblem(
-          path,
-          'the field "capabilities" must be a JSON object keyed by capability name',
-          "Replace capabilities with a JSON object keyed by capability name.",
-        );
-      case "meters":
-        return invalidProblem(
-          path,
-          'the field "meters" must be a JSON object keyed by meter name',
-          "Replace meters with a JSON object keyed by meter name.",
-        );
-    }
-    return undefined;
+function additionalPropertyProblem(
+  location: OwnedPath,
+  path: string,
+  error: ErrorObject,
+): RegistryProblem {
+  const name = error.params.additionalProperty;
+  if (typeof name !== "string") {
+    return genericProblem(path, error.message);
   }
-  if (segments.length === 2) {
-    const name = segments[1] ?? "";
-    if (section === "meters") {
+  switch (location.kind) {
+    case "meter":
+      return unknownFieldProblem(path, name, "meter");
+    case "model":
+      return unknownFieldProblem(path, name, "model");
+    case "route":
+      return unknownFieldProblem(path, name, "route");
+  }
+  return genericProblem(path, error.message);
+}
+
+function enumProblem(location: OwnedPath, path: string, error: ErrorObject): RegistryProblem {
+  if (
+    location.kind === "modelField" &&
+    (location.field === "maxEffort" || location.field === "fixedEffort")
+  ) {
+    return invalidProblem(
+      path,
+      `the field "${location.field}" must be one of ${EFFORT_LADDER_VALUES}`,
+      `Set "${location.field}" to one of ${EFFORT_LADDER_VALUES}.`,
+    );
+  }
+  return genericProblem(path, error.message);
+}
+
+function constProblem(location: OwnedPath, path: string, error: ErrorObject): RegistryProblem {
+  if (location.kind === "meterField" && location.field === "spendToZero") {
+    return invalidProblem(
+      path,
+      `the meter "${location.meterName}" field "spendToZero" accepts only the literal true`,
+      'Set "spendToZero" to true, or remove it.',
+    );
+  }
+  return genericProblem(path, error.message);
+}
+
+function typeProblem(location: OwnedPath, path: string): RegistryProblem | undefined {
+  switch (location.kind) {
+    case "section":
+      switch (location.section) {
+        case "models":
+          return invalidProblem(
+            path,
+            'the field "models" must be a JSON object keyed by model key',
+            "Replace models with a JSON object keyed by model key.",
+          );
+        case "ratings":
+          return invalidProblem(
+            path,
+            'the field "ratings" must be a JSON object keyed by rating name',
+            "Replace ratings with a JSON object keyed by rating name.",
+          );
+        case "capabilities":
+          return invalidProblem(
+            path,
+            'the field "capabilities" must be a JSON object keyed by capability name',
+            "Replace capabilities with a JSON object keyed by capability name.",
+          );
+        case "meters":
+          return invalidProblem(
+            path,
+            'the field "meters" must be a JSON object keyed by meter name',
+            "Replace meters with a JSON object keyed by meter name.",
+          );
+      }
+      return undefined;
+    case "declaration":
+      if (location.section === "ratings") {
+        return invalidProblem(
+          path,
+          `the rating "${location.name}" must be described by a string`,
+          `Describe the rating "${location.name}" with a one-line string.`,
+        );
+      }
       return invalidProblem(
         path,
-        `the meter "${name}" must be a JSON object`,
+        `the capability "${location.name}" must be described by a string`,
+        `Describe the capability "${location.name}" with a one-sentence string.`,
+      );
+    case "meter":
+      return invalidProblem(
+        path,
+        `the meter "${location.meterName}" must be a JSON object`,
         "Replace the meter value with a JSON object.",
       );
-    }
-    if (section === "models") {
+    case "model":
       return invalidProblem(
         path,
-        `the model "${name}" must be a JSON object`,
+        `the model "${location.modelKey}" must be a JSON object`,
         "Replace the model with a JSON object.",
       );
-    }
-    return undefined;
+    case "meterField":
+      if (location.field === "notes") {
+        return invalidProblem(
+          path,
+          `the meter "${location.meterName}" field "notes" must be a string`,
+          `Set the meter "${location.meterName}" notes to a string, or remove it.`,
+        );
+      }
+      return undefined;
+    case "modelField":
+      switch (location.field) {
+        case "family":
+          return invalidProblem(
+            path,
+            'the field "family" must be a string',
+            'Set "family" to a string.',
+          );
+        case "notes":
+          return invalidProblem(
+            path,
+            'the field "notes" must be a string',
+            'Set "notes" to a string, or remove it.',
+          );
+        case "routes":
+          return invalidProblem(
+            path,
+            "the routes field must be an array",
+            "Set routes to an array of route objects.",
+          );
+        case "ratings":
+          return invalidProblem(
+            path,
+            `the model "${location.modelKey}" ratings field must be a JSON object`,
+            `Set the model "${location.modelKey}" ratings to a JSON object of integer ratings.`,
+          );
+      }
+      return undefined;
+    case "modelRating":
+      return ratingValueProblem(path, location.modelKey, location.rating);
+    case "route":
+      return invalidProblem(
+        path,
+        "the route must be a JSON object",
+        "Replace the route with a JSON object.",
+      );
+    case "routeField":
+      switch (location.field) {
+        case "harness":
+        case "modelId":
+          return invalidProblem(
+            path,
+            `the field "${location.field}" must be a string`,
+            `Set "${location.field}" to a string.`,
+          );
+        case "provider":
+        case "notes":
+          return invalidProblem(
+            path,
+            `the field "${location.field}" must be a string`,
+            `Set "${location.field}" to a string, or remove it.`,
+          );
+        case "hosted":
+          return invalidProblem(
+            path,
+            'the field "hosted" must be a boolean',
+            'Set "hosted" to true or false.',
+          );
+        case "privacyEligible":
+          return invalidProblem(
+            path,
+            'the field "privacyEligible" must be a boolean',
+            'Set "privacyEligible" to true or false, or remove it.',
+          );
+        case "cost":
+          return invalidProblem(
+            path,
+            'the field "cost" must be an integer from 1 to 10',
+            'Set "cost" to an integer from 1 (expensive) to 10 (cheap).',
+          );
+        case "rateLimitRpm":
+        case "responseSeconds":
+          return invalidProblem(
+            path,
+            `the field "${location.field}" must be a number of 0 or more`,
+            `Set "${location.field}" to a finite number of 0 or more.`,
+          );
+        case "meter":
+          return invalidProblem(
+            path,
+            'the field "meter" must be a string naming a declared meter',
+            'Set "meter" to a meter name declared in the meters section, or remove it.',
+          );
+        case "capabilities":
+          return invalidProblem(
+            path,
+            'the field "capabilities" must be an array of strings',
+            'Set "capabilities" to an array of capability names declared in the capabilities section, or remove it.',
+          );
+      }
+      return undefined;
+    case "routeCapabilityEntry":
+      return invalidProblem(
+        path,
+        "a route capability entry must be a string",
+        "Set the entry to a capability name declared in the capabilities section, or remove the entry.",
+      );
+    default:
+      return undefined;
   }
-  if (segments.length === 3 && section === "meters") {
-    switch (field) {
-      case "notes":
-        return invalidProblem(
-          path,
-          `the meter "${segments[1] ?? ""}" field "notes" must be a string`,
-          `Set the meter "${segments[1] ?? ""}" notes to a string, or remove it.`,
-        );
-    }
-    return undefined;
-  }
-  if (segments.length === 3 && section === "models") {
-    const modelKey = segments[1] ?? "";
-    switch (field) {
-      case "family":
-        return invalidProblem(
-          path,
-          'the field "family" must be a string',
-          'Set "family" to a string.',
-        );
-      case "notes":
-        return invalidProblem(
-          path,
-          'the field "notes" must be a string',
-          'Set "notes" to a string, or remove it.',
-        );
-      case "routes":
-        return invalidProblem(
-          path,
-          "the routes field must be an array",
-          "Set routes to an array of route objects.",
-        );
-      case "ratings":
-        return invalidProblem(
-          path,
-          `the model "${modelKey}" ratings field must be a JSON object`,
-          `Set the model "${modelKey}" ratings to a JSON object of integer ratings.`,
-        );
-      case "maxEffort":
-      case "fixedEffort":
-        return invalidProblem(
-          path,
-          `the field "${field}" must be one of ${EFFORT_LADDER_VALUES}`,
-          `Set "${field}" to one of ${EFFORT_LADDER_VALUES}.`,
-        );
-    }
-    return undefined;
-  }
-  if (segments.length === 4 && section === "models" && (segments[2] ?? "") === "ratings") {
-    return ratingValueProblem(path, segments);
-  }
-  if (segments.length === 4 && section === "models" && (segments[2] ?? "") === "routes") {
-    return invalidProblem(
-      path,
-      "the route must be a JSON object",
-      "Replace the route with a JSON object.",
-    );
-  }
-  if (segments.length === 5) {
-    switch (field) {
-      case "harness":
-      case "modelId":
-        return invalidProblem(
-          path,
-          `the field "${field}" must be a string`,
-          `Set "${field}" to a string.`,
-        );
-      case "provider":
-      case "notes":
-        return invalidProblem(
-          path,
-          `the field "${field}" must be a string`,
-          `Set "${field}" to a string, or remove it.`,
-        );
-      case "hosted":
-        return invalidProblem(
-          path,
-          'the field "hosted" must be a boolean',
-          'Set "hosted" to true or false.',
-        );
-      case "privacyEligible":
-        return invalidProblem(
-          path,
-          'the field "privacyEligible" must be a boolean',
-          'Set "privacyEligible" to true or false, or remove it.',
-        );
-      case "cost":
-        return invalidProblem(
-          path,
-          'the field "cost" must be an integer from 1 to 10',
-          'Set "cost" to an integer from 1 (expensive) to 10 (cheap).',
-        );
-      case "rateLimitRpm":
-      case "responseSeconds":
-        return invalidProblem(
-          path,
-          `the field "${field}" must be a number of 0 or more`,
-          `Set "${field}" to a finite number of 0 or more.`,
-        );
-      case "meter":
-        return invalidProblem(
-          path,
-          'the field "meter" must be a string naming a declared meter',
-          'Set "meter" to a meter name declared in the meters section, or remove it.',
-        );
-      case "capabilities":
-        return invalidProblem(
-          path,
-          'the field "capabilities" must be an array of strings',
-          'Set "capabilities" to an array of capability names declared in the capabilities section, or remove it.',
-        );
-    }
-  }
-  if (segments.length === 6) {
-    return invalidProblem(
-      path,
-      "a route capability entry must be a string",
-      "Set the entry to a capability name declared in the capabilities section, or remove the entry.",
-    );
-  }
-  return undefined;
 }
 
 /**
@@ -542,41 +628,32 @@ function curateProblems(root: unknown, errors: readonly ErrorObject[]): Registry
   return problems;
 }
 
-/**
- * Report duplicate labels wherever the label components are readable, even
- * when another fact on the same route is invalid. This is a semantic check;
- * the schema cannot express it.
- */
-function collectLabelProblems(root: Record<string, unknown>, problems: RegistryProblem[]): void {
+interface RouteVisit {
+  modelKey: string;
+  route: Record<string, unknown>;
+  routePath: string;
+}
+
+/** Walk every route the models section can yield, skipping anything unreadable; a shape problem already names it. */
+function forEachRoute(
+  root: Record<string, unknown>,
+  visit: (routeVisit: RouteVisit) => void,
+): void {
   const models = root.models;
   if (!isPlainObject(models)) {
     return;
   }
-  const labelOwners = new Map<RouteLabel, string>();
   for (const [modelKey, modelValue] of Object.entries(models)) {
     if (!isPlainObject(modelValue) || !Array.isArray(modelValue.routes)) {
       continue;
     }
+    const modelPath = childPath("$", "models", modelKey);
     modelValue.routes.forEach((routeValue, index) => {
-      if (!isPlainObject(routeValue)) {
-        return;
-      }
-      const providerValid =
-        !Object.hasOwn(routeValue, "provider") || typeof routeValue.provider === "string";
-      if (typeof routeValue.harness !== "string" || !providerValid) {
-        return;
-      }
-      const routePath = childPath("$", "models", modelKey, "routes", index);
-      const label = buildRouteLabel(modelKey, routeValue as Pick<Route, "harness" | "provider">);
-      const owner = labelOwners.get(label);
-      if (owner === undefined) {
-        labelOwners.set(label, routePath);
-      } else {
-        problems.push({
-          code: "label-duplicate",
-          field: routePath,
-          fix: "Change the harness or provider of one of the two routes so that every label is unique.",
-          message: `the route label "${label}" is already used by the route at ${owner}`,
+      if (isPlainObject(routeValue)) {
+        visit({
+          modelKey,
+          route: routeValue,
+          routePath: childPath(modelPath, "routes", index),
         });
       }
     });
@@ -584,26 +661,59 @@ function collectLabelProblems(root: Record<string, unknown>, problems: RegistryP
 }
 
 /**
- * Verify every name the registry mentions against the top-level declarations:
- * model ratings against the ratings section, route capabilities against the
- * capabilities section and route meters against the meters section. An absent
- * section declares nothing, so every reference becomes unknown. The check runs
- * after shape validation so the values are known to be strings; one problem
- * fires per bad reference and the field is the JSONPath of the reference.
+ * Report duplicate labels wherever the label components are readable, even
+ * when another fact on the same route is invalid. This is a semantic check;
+ * the schema cannot express it.
+ */
+function collectLabelProblems(root: Record<string, unknown>, problems: RegistryProblem[]): void {
+  const labelOwners = new Map<RouteLabel, string>();
+  forEachRoute(root, ({ modelKey, route, routePath }) => {
+    const providerValid = !Object.hasOwn(route, "provider") || typeof route.provider === "string";
+    if (typeof route.harness !== "string" || !providerValid) {
+      return;
+    }
+    const label = buildRouteLabel(modelKey, route as Pick<Route, "harness" | "provider">);
+    const owner = labelOwners.get(label);
+    if (owner === undefined) {
+      labelOwners.set(label, routePath);
+    } else {
+      problems.push({
+        code: "label-duplicate",
+        field: routePath,
+        fix: "Change the harness or provider of one of the two routes so that every label is unique.",
+        message: `the route label "${label}" is already used by the route at ${owner}`,
+      });
+    }
+  });
+}
+
+/**
+ * The names a top-level declaration section declares. An absent section
+ * declares nothing; a section that is present but not a JSON object is
+ * already a shape problem, and references to it are skipped rather than
+ * reported unknown, so undefined means "skip this kind".
+ */
+function declaredNames(section: unknown): ReadonlySet<string> | undefined {
+  if (section === undefined) {
+    return new Set<string>();
+  }
+  return isPlainObject(section) ? new Set(Object.keys(section)) : undefined;
+}
+
+/**
+ * Check every reference the models section makes: model ratings against
+ * ratings, route capabilities against capabilities and route meters against
+ * meters. The check runs on every load, including files whose shape already
+ * failed, so it reads only what it can verify itself; one problem fires per
+ * bad reference and the field is the JSONPath of the reference.
  */
 function collectReferenceProblems(
   root: Record<string, unknown>,
   problems: RegistryProblem[],
 ): void {
-  const declaredRatings = isPlainObject(root.ratings)
-    ? new Set(Object.keys(root.ratings))
-    : new Set<string>();
-  const declaredCapabilities = isPlainObject(root.capabilities)
-    ? new Set(Object.keys(root.capabilities))
-    : new Set<string>();
-  const declaredMeters = isPlainObject(root.meters)
-    ? new Set(Object.keys(root.meters))
-    : new Set<string>();
+  const declaredRatings = declaredNames(root.ratings);
+  const declaredCapabilities = declaredNames(root.capabilities);
+  const declaredMeters = declaredNames(root.meters);
 
   const models = root.models;
   if (!isPlainObject(models)) {
@@ -615,61 +725,51 @@ function collectReferenceProblems(
     }
     const modelPath = childPath("$", "models", modelKey);
 
-    if (isPlainObject(modelValue.ratings)) {
+    if (declaredRatings !== undefined && isPlainObject(modelValue.ratings)) {
       for (const rating of Object.keys(modelValue.ratings)) {
         if (!declaredRatings.has(rating)) {
           problems.push(
-            referenceUnknownProblem(
-              childPath(modelPath, "ratings", rating),
-              rating,
-              "rating",
-              "ratings",
-              `Add "${rating}" to the ratings section, or remove the rating from model "${modelKey}".`,
-            ),
+            referenceUnknownProblem({
+              field: childPath(modelPath, "ratings", rating),
+              kind: "rating",
+              name: rating,
+            }),
           );
         }
       }
     }
-
-    if (!Array.isArray(modelValue.routes)) {
-      continue;
-    }
-    modelValue.routes.forEach((routeValue, index) => {
-      if (!isPlainObject(routeValue)) {
-        return;
-      }
-      const routePath = childPath(modelPath, "routes", index);
-
-      if (Array.isArray(routeValue.capabilities)) {
-        routeValue.capabilities.forEach((capability, capabilityIndex) => {
-          if (typeof capability !== "string" || declaredCapabilities.has(capability)) {
-            return;
-          }
-          problems.push(
-            referenceUnknownProblem(
-              childPath(routePath, "capabilities", capabilityIndex),
-              capability,
-              "capability",
-              "capabilities",
-              `Add "${capability}" to the capabilities section, or remove it from this route.`,
-            ),
-          );
-        });
-      }
-
-      if (typeof routeValue.meter === "string" && !declaredMeters.has(routeValue.meter)) {
-        problems.push(
-          referenceUnknownProblem(
-            childPath(routePath, "meter"),
-            routeValue.meter,
-            "meter",
-            "meters",
-            `Add "${routeValue.meter}" to the meters section, or remove it from this route.`,
-          ),
-        );
-      }
-    });
   }
+
+  forEachRoute(root, ({ route, routePath }) => {
+    if (declaredCapabilities !== undefined && Array.isArray(route.capabilities)) {
+      route.capabilities.forEach((capability, capabilityIndex) => {
+        if (typeof capability !== "string" || declaredCapabilities.has(capability)) {
+          return;
+        }
+        problems.push(
+          referenceUnknownProblem({
+            field: childPath(routePath, "capabilities", capabilityIndex),
+            kind: "capability",
+            name: capability,
+          }),
+        );
+      });
+    }
+
+    if (
+      declaredMeters !== undefined &&
+      typeof route.meter === "string" &&
+      !declaredMeters.has(route.meter)
+    ) {
+      problems.push(
+        referenceUnknownProblem({
+          field: childPath(routePath, "meter"),
+          kind: "meter",
+          name: route.meter,
+        }),
+      );
+    }
+  });
 }
 
 function buildRoutes(
@@ -749,27 +849,21 @@ export function validateRegistry(root: unknown): ValidationResult {
 
   const index: RegistryIndex = { registry: { models: {} }, routes: {}, sections: {} };
   for (const [key, value] of Object.entries(root)) {
-    if (key === "format" || key === "models") {
-      continue;
-    }
-    if (key === "ratings" || key === "capabilities" || key === "meters") {
+    if (key === "format" || key === "models" || isDeclarationSection(key)) {
       continue;
     }
     safeSet(index.sections, key, value as JsonValue);
   }
+  // The file passed the published schema, so every present declaration
+  // section already has its declared shape.
   const models = root.models as Record<string, Model>;
-  index.registry = {
-    models,
-    ...(isPlainObject(root.ratings)
-      ? { ratings: root.ratings as Readonly<Record<string, string>> }
-      : {}),
-    ...(isPlainObject(root.capabilities)
-      ? { capabilities: root.capabilities as Readonly<Record<string, string>> }
-      : {}),
-    ...(isPlainObject(root.meters)
-      ? { meters: root.meters as Readonly<Record<string, Meter>> }
-      : {}),
-  };
+  const registry: RegistryFacts = { models };
+  for (const section of DECLARATION_SECTIONS) {
+    if (Object.hasOwn(root, section)) {
+      safeSet(registry, section, root[section]);
+    }
+  }
+  index.registry = registry;
   buildRoutes(models, index.routes);
   return { ok: true, index };
 }
