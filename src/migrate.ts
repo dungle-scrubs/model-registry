@@ -30,10 +30,9 @@ function declaredFormat(parsed: unknown): number | undefined {
 }
 
 /**
- * Apply the steps whose formats the parsed registry passes through, until
- * the format field reads `currentFormat`. Each entry hands its output to
- * the entry for the next format. Stops when the parsed object reaches the
- * target format or when the table has no entry for the current one.
+ * Apply the steps whose formats the parsed registry passes through, until the
+ * format field reads `currentFormat`. Throws when a step's output does not
+ * declare exactly the next format.
  */
 export function applyMigrateSteps(
   parsed: ReadonlyJsonObject,

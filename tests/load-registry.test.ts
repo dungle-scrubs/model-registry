@@ -1,5 +1,5 @@
 import { spawnSync } from "node:child_process";
-import { readFileSync, symlinkSync, writeFileSync } from "node:fs";
+import { chmodSync, readFileSync, symlinkSync, writeFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import { describe, expect, test } from "vitest";
@@ -577,6 +577,37 @@ describe("loadRegistry", () => {
     const error = catchRegistryError(() => loadRegistry({ path: "" }));
     expect(error.code).toBe("registry-missing");
     expect(error.path).toBe("");
+    expect(error.name).toBe("RegistryError");
+    expect(error.message).toBe("no registry file was given, because the path is empty");
+    expect(error.fix).toContain("Give a registry path");
+  });
+
+  test("an unreadable file names the unreadable file", async () => {
+    await withTempDir(async (dir) => {
+      const path = writeJson(dir, "registry.json", validRegistry);
+      chmodSync(path, 0o000);
+      try {
+        const error = catchRegistryError(() => loadRegistry({ path }));
+        expect(error.code).toBe("registry-unreadable");
+        expect(error.message).toBe(`the registry file at "${path}" cannot be read`);
+        expect(error.fix).toBe(
+          "Make the file a readable file, then run model-registry check again.",
+        );
+      } finally {
+        chmodSync(path, 0o600);
+      }
+    });
+  });
+
+  test("a file that is not JSON names the syntax fault", async () => {
+    await withTempDir(async (dir) => {
+      const path = join(dir, "broken.json");
+      writeFileSync(path, "{not json");
+      const error = catchRegistryError(() => loadRegistry({ path }));
+      expect(error.code).toBe("registry-unreadable");
+      expect(error.message).toBe(`the registry file at "${path}" is not valid JSON`);
+      expect(error.fix).toBe("Fix the JSON syntax, then run model-registry check again.");
+    });
   });
 
   test("relative paths resolve against the working directory", async () => {

@@ -212,6 +212,8 @@ describe("a file with no usable format gets check's error", () => {
     ["a file with a fractional format", { format: 1.5, models: {} }],
     ["a file with a string format", { format: "1", models: {} }],
     ["a file with a null format", { format: null, models: {} }],
+    ["a file with an older format", { format: 0, models: {} }],
+    ["a file with a newer format", { format: 2, models: {} }],
   ])("migrate and check report the same error for %s", async (_name, contents) => {
     await withTempDir(async (dir) => {
       const path = writeJson(dir, "registry.json", contents);
@@ -311,6 +313,21 @@ describe("DW2 a synthetic step migrates an older format end to end", () => {
 });
 
 describe("DW3 an existing backup refuses and writes nothing", () => {
+  test("a backup write failure that is not an existing backup propagates", async () => {
+    await withTempDir(async (dir) => {
+      const path = writeJson(dir, "registry.json", {
+        format: 0,
+        models: { "model-a": { family: "family-a", routes: [] } },
+      });
+      chmodSync(dir, 0o500);
+      try {
+        expect(() => runMigrate({ path, steps: [FROM_ZERO] })).toThrow(/EACCES|permission/i);
+      } finally {
+        chmodSync(dir, 0o700);
+      }
+    });
+  });
+
   test("runMigrate returns backup-exists and does not modify the file", async () => {
     await withTempDir(async (dir) => {
       const path = writeJson(dir, "registry.json", {

@@ -192,14 +192,157 @@ describe("runCli in process", () => {
     expect(envelope.error.code).toBe("registry-missing");
   });
 
-  test("an unknown flag exits 2 in process", () => {
+  test("an unknown flag exits 2 with the usage fix in process", () => {
     const stdout = captureStream();
     const stderr = captureStream();
     const exitCode = runCli(["check", "--bogus"], { stdout: stdout.stream, stderr: stderr.stream });
     expect(exitCode).toBe(2);
-    const envelope = JSON.parse(stderr.text()) as { error: { code: string; message: string } };
+    const envelope = JSON.parse(stderr.text()) as {
+      error: { code: string; message: string; fix: string };
+    };
     expect(envelope.error.code).toBe("usage-invalid");
-    expect(envelope.error.message).toContain("--bogus");
+    expect(envelope.error.message).toBe("unknown option '--bogus'");
+    expect(envelope.error.fix).toBe(
+      "Run model-registry --help for the available commands and options.",
+    );
+  });
+
+  test("no command exits 2 with the no-command fix in process", () => {
+    const stdout = captureStream();
+    const stderr = captureStream();
+    const exitCode = runCli([], { stdout: stdout.stream, stderr: stderr.stream });
+    expect(exitCode).toBe(2);
+    const envelope = JSON.parse(stderr.text()) as {
+      error: { code: string; message: string; fix: string };
+    };
+    expect(envelope.error.code).toBe("usage-invalid");
+    expect(envelope.error.message).toBe("no command was given.");
+    expect(envelope.error.fix).toBe(
+      "Run model-registry check, or model-registry --help for the available commands.",
+    );
+  });
+
+  test("an unexpected exception prints the internal fix in process", () => {
+    vi.mocked(loadRegistry).mockImplementation(() => {
+      throw new Error("boom");
+    });
+    const stdout = captureStream();
+    const stderr = captureStream();
+    const exitCode = runCli(["check", "--registry", "examples/registry.json"], {
+      stdout: stdout.stream,
+      stderr: stderr.stream,
+    });
+    expect(exitCode).toBe(1);
+    const envelope = JSON.parse(stderr.text()) as { error: { fix: string } };
+    expect(envelope.error.fix).toBe("Report this failure together with the command you ran.");
+    vi.mocked(loadRegistry).mockRestore();
+  });
+
+  test("--help exits 0 with the command descriptions and the exit-code table in process", () => {
+    const stdout = captureStream();
+    const stderr = captureStream();
+    const exitCode = runCli(["--help"], { stdout: stdout.stream, stderr: stderr.stream });
+    expect(exitCode).toBe(0);
+    expect(stderr.text()).toBe("");
+    const text = stdout.text();
+    expect(text).toContain("Usage: model-registry");
+    expect(text).toContain("Load and validate a versioned model registry.");
+    expect(text).toContain("Load a registry file and print its format, digest and path.");
+    expect(text).toContain("Migrate a registry file to the current format, with a");
+    expect(text).toContain("\n\nExit codes:");
+    expect(text).toContain("Exit codes:");
+    expect(text).toContain("0  the command succeeded");
+  });
+
+  test("migrate --help lists its options in process", () => {
+    const stdout = captureStream();
+    const stderr = captureStream();
+    const exitCode = runCli(["migrate", "--help"], {
+      stdout: stdout.stream,
+      stderr: stderr.stream,
+    });
+    expect(exitCode).toBe(0);
+    const text = stdout.text();
+    expect(text).toContain("--registry <path>");
+    expect(text).toContain("path to the registry file");
+    expect(text).toContain("--dry-run");
+    expect(text).toContain("print the migrated file on stdout and write nothing");
+  });
+
+  test("--version exits 0 with a version line in process", () => {
+    const stdout = captureStream();
+    const stderr = captureStream();
+    const exitCode = runCli(["--version"], { stdout: stdout.stream, stderr: stderr.stream });
+    expect(exitCode).toBe(0);
+    expect(stderr.text()).toBe("");
+    expect(stdout.text()).toMatch(/^\d+\.\d+\.\d+\S*\n$/);
+  });
+
+  test("check prints its success line in process", () => {
+    const stdout = captureStream();
+    const stderr = captureStream();
+    const exitCode = runCli(["check", "--registry", "examples/registry.json"], {
+      stdout: stdout.stream,
+      stderr: stderr.stream,
+    });
+    expect(exitCode).toBe(0);
+    expect(stdout.text()).toBe(
+      `${JSON.stringify({
+        format: 1,
+        digest: `sha256:${sha256Hex(readFileSync(examplePath))}`,
+        path: examplePath,
+      })}\n`,
+    );
+  });
+
+  test("--registry given twice exits 2 with the duplicate-path usage error in process", () => {
+    const stdout = captureStream();
+    const stderr = captureStream();
+    const exitCode = runCli(["check", "--registry", "a.json", "--registry", "b.json"], {
+      stdout: stdout.stream,
+      stderr: stderr.stream,
+    });
+    expect(exitCode).toBe(2);
+    const envelope = JSON.parse(stderr.text()) as {
+      error: { code: string; message: string; fix: string };
+    };
+    expect(envelope.error.code).toBe("usage-invalid");
+    expect(envelope.error.message).toBe("the --registry option was given more than once.");
+    expect(envelope.error.fix).toBe("Give model-registry check exactly one --registry path.");
+  });
+
+  test("an empty --registry value exits 2 with the empty-path usage error in process", () => {
+    const stdout = captureStream();
+    const stderr = captureStream();
+    const exitCode = runCli(["check", "--registry", ""], {
+      stdout: stdout.stream,
+      stderr: stderr.stream,
+    });
+    expect(exitCode).toBe(2);
+    const envelope = JSON.parse(stderr.text()) as {
+      error: { code: string; message: string; fix: string };
+    };
+    expect(envelope.error.code).toBe("usage-invalid");
+    expect(envelope.error.message).toBe("the --registry option was given an empty path.");
+    expect(envelope.error.fix).toBe("Give --registry a non-empty path to a registry file.");
+  });
+
+  test("check with excess arguments exits 2 in process", () => {
+    const stdout = captureStream();
+    const stderr = captureStream();
+    const exitCode = runCli(["check", "extra"], { stdout: stdout.stream, stderr: stderr.stream });
+    expect(exitCode).toBe(2);
+    const envelope = JSON.parse(stderr.text()) as { error: { code: string } };
+    expect(envelope.error.code).toBe("usage-invalid");
+  });
+
+  test("migrate with excess arguments exits 2 in process", () => {
+    const stdout = captureStream();
+    const stderr = captureStream();
+    const exitCode = runCli(["migrate", "extra"], { stdout: stdout.stream, stderr: stderr.stream });
+    expect(exitCode).toBe(2);
+    const envelope = JSON.parse(stderr.text()) as { error: { code: string } };
+    expect(envelope.error.code).toBe("usage-invalid");
   });
 });
 
