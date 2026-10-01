@@ -25,11 +25,11 @@ export interface ValidationResult {
 const LATER_SLICE_FIX =
   "Remove the field; support for it arrives in a later format slice of model-registry.";
 
-// The published schema is the one runtime shape validator. allErrors
-// collects every fault in one pass and strictNumbers rejects non-finite
-// numbers, such as the Infinity JSON.parse builds from 1e400. Coercion,
-// defaults and removal of unknown properties stay disabled.
-const ajv = new Ajv2020({ allErrors: true, strictNumbers: true });
+export const AJV_OPTIONS = { allErrors: true, strictNumbers: true } as const;
+
+// allErrors collects every fault in one pass; strictNumbers rejects
+// non-finite numbers, such as the Infinity JSON.parse builds from 1e400.
+const ajv = new Ajv2020(AJV_OPTIONS);
 const validateShape = ajv.compile(schema);
 
 interface ShapeError {

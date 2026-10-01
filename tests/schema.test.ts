@@ -4,6 +4,7 @@ import { Ajv2020 } from "ajv/dist/2020.js";
 import { describe, expect, test } from "vitest";
 import { loadRegistry } from "../src/load-registry.js";
 import type { Model, RegistryFile, Route } from "../src/types.js";
+import { AJV_OPTIONS } from "../src/validate.js";
 import {
   catchRegistryError,
   deferredProperties,
@@ -24,10 +25,7 @@ const schema = JSON.parse(readFileSync(schemaPath, "utf8")) as {
   };
 };
 
-// The loader compiles the published schema with exactly these settings;
-// the fixtures below assert that both sides reject the same files.
-const ajv = new Ajv2020({ allErrors: true, strictNumbers: true });
-const validate = ajv.compile(schema);
+const validate = new Ajv2020(AJV_OPTIONS).compile(schema);
 
 const fullRoute: Route = {
   harness: "harness-x",

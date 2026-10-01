@@ -6,6 +6,7 @@ import { RegistryError } from "../src/error.js";
 import { loadRegistry } from "../src/load-registry.js";
 import { resolveRegistryPath } from "../src/path.js";
 import type { Model, Route } from "../src/types.js";
+import { AJV_OPTIONS } from "../src/validate.js";
 import {
   catchRegistryError,
   createXdgConfigHome,
@@ -297,10 +298,7 @@ describe("acceptance", () => {
 
   test("DW8 schema and types agree", async () => {
     const schema = JSON.parse(readFileSync(join(repoRoot, "registry.schema.json"), "utf8"));
-    // The loader's own settings: allErrors to collect every fault,
-    // strictNumbers to reject non-finite numbers.
-    const ajv = new Ajv2020({ allErrors: true, strictNumbers: true });
-    const validate = ajv.compile(schema);
+    const validate = new Ajv2020(AJV_OPTIONS).compile(schema);
 
     expect(validate(JSON.parse(exampleBytes.toString("utf8")))).toBe(true);
 
