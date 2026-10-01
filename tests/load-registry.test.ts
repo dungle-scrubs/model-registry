@@ -544,6 +544,19 @@ describe("loadRegistry", () => {
     });
   });
 
+  test("several problems roll up into one error naming check", async () => {
+    await withTempDir(async (dir) => {
+      const path = writeJson(dir, "registry.json", { format: 1, models: { "model-a": {} } });
+      const error = catchRegistryError(() => loadRegistry({ path }));
+      expect(error.code).toBe("registry-invalid");
+      expect(error.problems).toHaveLength(2);
+      expect(error.message).toBe(`the registry file at "${path}" has 2 problems`);
+      expect(error.fix).toBe(
+        "Fix each problem listed in problems, then run model-registry check again.",
+      );
+    });
+  });
+
   test("empty models and empty route arrays are accepted", async () => {
     await withTempDir(async (dir) => {
       const path = writeJson(dir, "empty.json", { format: 1, models: {} });

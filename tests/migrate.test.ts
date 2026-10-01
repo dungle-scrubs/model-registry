@@ -181,14 +181,15 @@ describe("runMigrate error mapping", () => {
     });
   });
 
-  test("an older format with no step names model-registry migrate", async () => {
+  test("an older format with no step says to recreate the file, not to run migrate", async () => {
     await withTempDir(async (dir) => {
       const path = writeJson(dir, "older.json", { format: 0, models: {} });
       const outcome = runMigrate({ path });
       expect(outcome.kind).toBe("error");
       if (outcome.kind !== "error") return;
       expect(outcome.error.code).toBe("format-unsupported");
-      expect(outcome.error.fix).toContain("Run model-registry migrate");
+      expect(outcome.error.fix).toContain("Recreate the file as a format 1 registry");
+      expect(outcome.error.fix).not.toContain("Run model-registry migrate");
     });
   });
 });
@@ -198,6 +199,8 @@ describe("a file with no usable format gets check's error", () => {
     ["a file with no format field", { models: {} }],
     ["a file whose root is an array", []],
     ["a file with a fractional format", { format: 1.5, models: {} }],
+    ["a file with a string format", { format: "1", models: {} }],
+    ["a file with a null format", { format: null, models: {} }],
   ])("migrate and check report the same error for %s", async (_name, contents) => {
     await withTempDir(async (dir) => {
       const path = writeJson(dir, "registry.json", contents);
@@ -412,6 +415,27 @@ describe("DW4 --dry-run prints the migrated file and writes nothing", () => {
 });
 
 describe("DW5 an invalid migrated result exits 4 and replaces nothing", () => {
+  test("several problems in the migrated result roll up into one error naming migrate", async () => {
+    await withTempDir(async (dir) => {
+      const path = writeJson(dir, "registry.json", { format: 0 });
+      const outcome = runMigrate({
+        path,
+        steps: [
+          { from: 0, step: (parsed) => ({ ...parsed, format: 1, models: { "model-a": {} } }) },
+        ],
+      });
+      expect(outcome.kind).toBe("error");
+      if (outcome.kind !== "error") return;
+      expect(outcome.error.code).toBe("registry-invalid");
+      expect(outcome.error.problems).toHaveLength(2);
+      expect(outcome.error.message).toBe(`the registry file at "${path}" has 2 problems`);
+      expect(outcome.error.fix).toBe(
+        "Fix each problem listed in problems, then run model-registry migrate again.",
+      );
+      expect(existsSync(`${path}.format-0.bak`)).toBe(false);
+    });
+  });
+
   test("runMigrate returns the validation error before any write", async () => {
     await withTempDir(async (dir) => {
       const path = writeJson(dir, "registry.json", { format: 0 });

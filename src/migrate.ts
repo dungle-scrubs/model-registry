@@ -1,7 +1,7 @@
 import { existsSync, renameSync, rmSync, writeFileSync } from "node:fs";
 import { basename, dirname, join } from "node:path";
 import { RegistryError } from "./error.js";
-import { readRegistryFile, registryErrorForProblems } from "./load-registry.js";
+import { checkParsedRegistry, readRegistryFile } from "./load-registry.js";
 import {
   CURRENT_FORMAT,
   type JsonObject,
@@ -9,7 +9,8 @@ import {
   type MigrateStepEntry,
   type ReadonlyJsonObject,
 } from "./migrate-steps.js";
-import { isPlainObject, validateRegistry } from "./validate.js";
+import type { JsonValue } from "./types.js";
+import { isPlainObject } from "./validate.js";
 
 export type {
   JsonObject,
@@ -108,55 +109,26 @@ export function runMigrate(options: MigrateOptions = {}): MigrateOutcome {
     throw error;
   }
   const { path, bytes } = read;
-  const value: unknown = read.parsed;
+  const value: JsonValue = read.parsed;
   const declared = declaredFormat(value);
-  if (declared === undefined) {
-    const validation = validateRegistry(value);
-    if (!validation.ok) {
-      return {
-        kind: "error",
-        error: registryErrorForProblems(path, validation.problems, "migrate"),
-      };
+  if (declared === undefined || declared > CURRENT_FORMAT) {
+    const checked = checkParsedRegistry(path, value, "migrate");
+    if (checked.ok) {
+      throw new Error(
+        `validateRegistry accepted a registry at "${path}" whose declared format is unusable`,
+      );
     }
-    throw new Error(`validateRegistry accepted a registry with no usable format at "${path}"`);
+    return { kind: "error", error: checked.error };
   }
-  const startFormat = declared;
-  if (startFormat > CURRENT_FORMAT) {
-    return {
-      kind: "error",
-      error: new RegistryError({
-        code: "format-unsupported",
-        fix: `Upgrade model-registry to a release that supports format ${startFormat}.`,
-        message: `format ${startFormat} is newer than the format ${CURRENT_FORMAT} this model-registry supports`,
-        path,
-        problems: [],
-      }),
-    };
-  }
-  if (startFormat === CURRENT_FORMAT) {
+  if (declared === CURRENT_FORMAT) {
     return { kind: "nothing-to-do", format: CURRENT_FORMAT, path };
   }
 
   // declaredFormat returned an integer, so the parsed value is a JSON object.
   const migrated = applyMigrateSteps(value as ReadonlyJsonObject, steps, CURRENT_FORMAT);
-
-  const migratedFormat = declaredFormat(migrated);
-  if (migratedFormat !== CURRENT_FORMAT) {
-    return {
-      kind: "error",
-      error: new RegistryError({
-        code: "format-unsupported",
-        fix: `Run model-registry migrate once a release ships the migration from format ${migratedFormat} to ${CURRENT_FORMAT}; no such step is available in this release.`,
-        message: `format ${migratedFormat} is older than format ${CURRENT_FORMAT} with no step to upgrade it`,
-        path,
-        problems: [],
-      }),
-    };
-  }
-
-  const validation = validateRegistry(migrated);
-  if (!validation.ok) {
-    return { kind: "error", error: registryErrorForProblems(path, validation.problems, "migrate") };
+  const checked = checkParsedRegistry(path, migrated, "migrate");
+  if (!checked.ok) {
+    return { kind: "error", error: checked.error };
   }
 
   const serialized = serializeMigrated(migrated);
@@ -165,7 +137,7 @@ export function runMigrate(options: MigrateOptions = {}): MigrateOutcome {
     return { kind: "dry-run", format: CURRENT_FORMAT, path, bytes: serialized };
   }
 
-  const backupPath = backupNameFor(path, startFormat);
+  const backupPath = backupNameFor(path, declared);
   if (existsSync(backupPath)) {
     return {
       kind: "error",
@@ -202,7 +174,7 @@ export function runMigrate(options: MigrateOptions = {}): MigrateOutcome {
     path,
     bytes: serialized,
     backupPath,
-    originalFormat: startFormat,
+    originalFormat: declared,
   };
 }
 

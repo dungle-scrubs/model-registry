@@ -1,29 +1,25 @@
 import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { RegistryError } from "./error.js";
+import { CURRENT_FORMAT } from "./migrate-steps.js";
 import { resolveRegistryPath } from "./path.js";
 import type {
+  JsonValue,
   LoadedRegistry,
   LoadRegistryOptions,
   RegistryDigest,
   RegistryProblem,
 } from "./types.js";
-import { aggregateCode, validateRegistry } from "./validate.js";
+import { aggregateCode, type RegistryIndex, validateRegistry } from "./validate.js";
 
 const EXAMPLE_PATH = "examples/registry.json";
 
 export interface ReadRegistryFile {
   path: string;
   bytes: Buffer;
-  parsed: unknown;
+  parsed: JsonValue;
 }
 
-/**
- * Resolve the registry path, read the file as bytes, and parse it as JSON.
- * The failures here use the same codes and messages as `check`: missing,
- * unreadable, not JSON. Validation is left to the caller so the migrate
- * command can apply migration steps first.
- */
 export function readRegistryFile(explicit?: string): ReadRegistryFile {
   if (explicit === "") {
     throw new RegistryError({
@@ -58,7 +54,7 @@ export function readRegistryFile(explicit?: string): ReadRegistryFile {
     });
   }
 
-  let parsed: unknown;
+  let parsed: JsonValue;
   try {
     parsed = JSON.parse(bytes.toString("utf8"));
   } catch {
@@ -74,16 +70,10 @@ export function readRegistryFile(explicit?: string): ReadRegistryFile {
   return { path, bytes, parsed };
 }
 
-/** Format the SHA-256 digest of a byte payload the way the commands print it. */
 export function digestOf(bytes: Buffer): RegistryDigest {
   return `sha256:${createHash("sha256").update(bytes).digest("hex")}`;
 }
 
-/**
- * Build the one RegistryError that reports every validation problem a
- * command found. A single problem passes its own message and fix through;
- * several problems roll up into one envelope naming the command to re-run.
- */
 export function registryErrorForProblems(
   path: string,
   problems: readonly [RegistryProblem, ...RegistryProblem[]],
@@ -104,6 +94,22 @@ export function registryErrorForProblems(
   });
 }
 
+export type CheckedRegistry =
+  | { readonly ok: true; readonly index: RegistryIndex }
+  | { readonly ok: false; readonly error: RegistryError };
+
+export function checkParsedRegistry(
+  path: string,
+  value: JsonValue,
+  commandName: string,
+): CheckedRegistry {
+  const result = validateRegistry(value);
+  if (result.ok) {
+    return { ok: true, index: result.index };
+  }
+  return { ok: false, error: registryErrorForProblems(path, result.problems, commandName) };
+}
+
 /**
  * Load a registry file synchronously. The file is read once as bytes, the
  * digest covers those bytes as read, and the registry file is never changed.
@@ -112,18 +118,18 @@ export function registryErrorForProblems(
 export function loadRegistry(options: LoadRegistryOptions = {}): LoadedRegistry {
   const { path, bytes, parsed } = readRegistryFile(options.path);
 
-  const result = validateRegistry(parsed);
-  if (!result.ok) {
-    throw registryErrorForProblems(path, result.problems, "check");
+  const checked = checkParsedRegistry(path, parsed, "check");
+  if (!checked.ok) {
+    throw checked.error;
   }
 
   const digest: RegistryDigest = digestOf(bytes);
   return {
-    format: 1,
+    format: CURRENT_FORMAT,
     digest,
     path,
-    registry: result.index.registry,
-    routes: result.index.routes,
-    sections: result.index.sections,
+    registry: checked.index.registry,
+    routes: checked.index.routes,
+    sections: checked.index.sections,
   };
 }
