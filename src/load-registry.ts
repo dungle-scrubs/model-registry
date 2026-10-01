@@ -2,7 +2,12 @@ import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { RegistryError } from "./error.js";
 import { resolveRegistryPath } from "./path.js";
-import type { LoadedRegistry, LoadRegistryOptions, RegistryDigest } from "./types.js";
+import type {
+  LoadedRegistry,
+  LoadRegistryOptions,
+  RegistryDigest,
+  RegistryProblem,
+} from "./types.js";
 import { aggregateCode, validateRegistry } from "./validate.js";
 
 const EXAMPLE_PATH = "examples/registry.json";
@@ -69,6 +74,36 @@ export function readRegistryFile(explicit?: string): ReadRegistryFile {
   return { path, bytes, parsed };
 }
 
+/** Format the SHA-256 digest of a byte payload the way the commands print it. */
+export function digestOf(bytes: Buffer): RegistryDigest {
+  return `sha256:${createHash("sha256").update(bytes).digest("hex")}`;
+}
+
+/**
+ * Build the one RegistryError that reports every validation problem a
+ * command found. A single problem passes its own message and fix through;
+ * several problems roll up into one envelope naming the command to re-run.
+ */
+export function registryErrorForProblems(
+  path: string,
+  problems: readonly [RegistryProblem, ...RegistryProblem[]],
+  commandName: string,
+): RegistryError {
+  return new RegistryError({
+    code: aggregateCode(problems),
+    fix:
+      problems.length === 1
+        ? problems[0].fix
+        : `Fix each problem listed in problems, then run model-registry ${commandName} again.`,
+    message:
+      problems.length === 1
+        ? problems[0].message
+        : `the registry file at "${path}" has ${problems.length} problems`,
+    path,
+    problems: [...problems],
+  });
+}
+
 /**
  * Load a registry file synchronously. The file is read once as bytes, the
  * digest covers those bytes as read, and the registry file is never changed.
@@ -79,22 +114,10 @@ export function loadRegistry(options: LoadRegistryOptions = {}): LoadedRegistry 
 
   const result = validateRegistry(parsed);
   if (!result.ok) {
-    throw new RegistryError({
-      code: aggregateCode(result.problems),
-      fix:
-        result.problems.length === 1
-          ? result.problems[0].fix
-          : "Fix each problem listed in problems, then run model-registry check again.",
-      message:
-        result.problems.length === 1
-          ? result.problems[0].message
-          : `the registry file at "${path}" has ${result.problems.length} problems`,
-      path,
-      problems: [...result.problems],
-    });
+    throw registryErrorForProblems(path, result.problems, "check");
   }
 
-  const digest: RegistryDigest = `sha256:${createHash("sha256").update(bytes).digest("hex")}`;
+  const digest: RegistryDigest = digestOf(bytes);
   return {
     format: 1,
     digest,

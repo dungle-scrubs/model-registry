@@ -1,7 +1,6 @@
-import { createHash } from "node:crypto";
 import { Command, CommanderError, Option } from "commander";
 import { RegistryError } from "./error.js";
-import { loadRegistry } from "./load-registry.js";
+import { digestOf, loadRegistry } from "./load-registry.js";
 import { runMigrate } from "./migrate.js";
 import type { RegistryErrorDetails } from "./types.js";
 
@@ -143,11 +142,11 @@ function buildProgram(io: CliIo): Command {
       io.stdout.write(outcome.bytes);
       return;
     }
-    const newDigest = `sha256:${createHash("sha256").update(outcome.bytes).digest("hex")}`;
+    const digest = digestOf(outcome.bytes);
     io.stdout.write(
       `${JSON.stringify({
         format: outcome.format,
-        digest: newDigest,
+        digest,
         path: outcome.path,
         backup: outcome.backupPath,
       })}\n`,

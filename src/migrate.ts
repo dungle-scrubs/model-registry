@@ -1,9 +1,9 @@
 import { existsSync, renameSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { RegistryError } from "./error.js";
-import { readRegistryFile } from "./load-registry.js";
+import { readRegistryFile, registryErrorForProblems } from "./load-registry.js";
 import type { JsonValue } from "./types.js";
-import { aggregateCode, validateRegistry } from "./validate.js";
+import { validateRegistry } from "./validate.js";
 
 /** The current registry format major. Format 1 is the first major this package ships. */
 export const CURRENT_FORMAT = 1 as const;
@@ -162,22 +162,7 @@ export function runMigrate(options: MigrateOptions = {}): MigrateOutcome {
 
   const validation = validateRegistry(migrated);
   if (!validation.ok) {
-    return {
-      kind: "error",
-      error: new RegistryError({
-        code: aggregateCode(validation.problems),
-        fix:
-          validation.problems.length === 1
-            ? validation.problems[0].fix
-            : "Fix each problem listed in problems, then run model-registry migrate again.",
-        message:
-          validation.problems.length === 1
-            ? validation.problems[0].message
-            : `the migrated registry at "${path}" has ${validation.problems.length} problems`,
-        path,
-        problems: [...validation.problems],
-      }),
-    };
+    return { kind: "error", error: registryErrorForProblems(path, validation.problems, "migrate") };
   }
 
   const serialized = serializeMigrated(migrated);
