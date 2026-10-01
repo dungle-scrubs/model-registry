@@ -1,3 +1,5 @@
+import type { EffortLevel } from "./ladder.js";
+
 export type JsonValue =
   | string
   | number
@@ -19,10 +21,20 @@ export type RegistryErrorCode =
   | "reference-unknown"
   | "rating-mismatch";
 
+export type RatingValue = 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10;
+
+export type Meter = {
+  readonly notes?: string;
+  /** The RFC writes spendToZero: true; only that exact value is accepted. */
+  readonly spendToZero?: true;
+};
+
 export type Route = {
-  readonly cost?: 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10;
+  readonly capabilities?: readonly string[];
+  readonly cost?: RatingValue;
   readonly harness: string;
   readonly hosted: boolean;
+  readonly meter?: string;
   readonly modelId: string;
   readonly notes?: string;
   readonly privacyEligible?: boolean;
@@ -33,7 +45,10 @@ export type Route = {
 
 export type Model = {
   readonly family: string;
+  readonly fixedEffort?: EffortLevel;
+  readonly maxEffort?: EffortLevel;
   readonly notes?: string;
+  readonly ratings?: Readonly<Record<string, RatingValue>>;
   readonly routes: readonly Route[];
 };
 
@@ -50,11 +65,8 @@ export type RegistryFile = {
   format: 1;
   models: Record<string, Model>;
 } & ForeignSections & {
-    // Deferred owned sections stay rejected until their format slice ships.
+    /** calibration stays rejected until issue #24 enables it. */
     calibration?: never;
-    capabilities?: never;
-    meters?: never;
-    ratings?: never;
   };
 
 export type IndexedRoute = Route & { model: string };
