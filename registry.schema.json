@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://dungle-scrubs.github.io/model-registry/registry.schema.json",
   "title": "Model registry, format 1",
-  "description": "The format 1 slice supported by this release of model-registry: format, models and routes. The owned sections ratings, capabilities, meters and calibration are not supported yet and are rejected.",
+  "description": "The format 1 slice supported by this release of model-registry: format, models and routes. Every other top-level section is foreign and holds any non-null JSON value with finite numbers; the owned sections ratings, capabilities, meters and calibration are not supported yet and are rejected, as are the deferred model and route fields.",
   "type": "object",
   "properties": {
     "format": {
@@ -10,14 +10,15 @@
     },
     "models": {
       "$ref": "#/$defs/models"
-    }
+    },
+    "ratings": false,
+    "capabilities": false,
+    "meters": false,
+    "calibration": false
   },
   "required": ["format", "models"],
-  "additionalProperties": false,
-  "patternProperties": {
-    "^(?!(format|models|ratings|capabilities|meters|calibration)$).*$": {
-      "$ref": "#/$defs/jsonValue"
-    }
+  "additionalProperties": {
+    "$ref": "#/$defs/jsonValue"
   },
   "$defs": {
     "jsonValue": {
@@ -67,7 +68,10 @@
           "items": {
             "$ref": "#/$defs/route"
           }
-        }
+        },
+        "ratings": false,
+        "maxEffort": false,
+        "fixedEffort": false
       },
       "required": ["family", "routes"],
       "additionalProperties": false
@@ -105,7 +109,9 @@
         },
         "notes": {
           "type": "string"
-        }
+        },
+        "capabilities": false,
+        "meter": false
       },
       "required": ["harness", "modelId", "hosted"],
       "additionalProperties": false

@@ -7,14 +7,31 @@ import { examplePath, repoRoot, schemaPath } from "./helpers.js";
 const schema = JSON.parse(readFileSync(schemaPath, "utf8")) as {
   $schema?: string;
   properties: Record<string, unknown>;
+  additionalProperties: unknown;
   $defs: {
     model: { properties: Record<string, unknown> };
     route: { properties: Record<string, unknown> };
   };
 };
 
-const ajv = new Ajv2020({ allErrors: true });
+// The loader compiles the published schema with exactly these settings;
+// the fixtures below assert that both sides reject the same files.
+const ajv = new Ajv2020({ allErrors: true, strictNumbers: true });
 const validate = ajv.compile(schema);
+
+function supportedProperties(properties: Record<string, unknown>): string[] {
+  return Object.entries(properties)
+    .filter(([, definition]) => definition !== false)
+    .map(([name]) => name)
+    .sort();
+}
+
+function deferredProperties(properties: Record<string, unknown>): string[] {
+  return Object.entries(properties)
+    .filter(([, definition]) => definition === false)
+    .map(([name]) => name)
+    .sort();
+}
 
 const fullRoute: Route = {
   harness: "harness-x",
@@ -46,13 +63,26 @@ describe("registry.schema.json", () => {
   });
 
   test("property tables match the TypeScript types", () => {
-    expect(Object.keys(schema.properties).sort()).toEqual(["format", "models"]);
-    expect(Object.keys(schema.$defs.model.properties).sort()).toEqual([
+    // Supported fields carry real schemas; deferred fields are declared as
+    // false so the loader can name them without a second source of truth.
+    expect(supportedProperties(schema.properties)).toEqual(["format", "models"]);
+    expect(deferredProperties(schema.properties)).toEqual([
+      "calibration",
+      "capabilities",
+      "meters",
+      "ratings",
+    ]);
+    expect(supportedProperties(schema.$defs.model.properties)).toEqual([
       "family",
       "notes",
       "routes",
     ]);
-    expect(Object.keys(schema.$defs.route.properties).sort()).toEqual([
+    expect(deferredProperties(schema.$defs.model.properties)).toEqual([
+      "fixedEffort",
+      "maxEffort",
+      "ratings",
+    ]);
+    expect(supportedProperties(schema.$defs.route.properties)).toEqual([
       "cost",
       "harness",
       "hosted",
@@ -63,6 +93,7 @@ describe("registry.schema.json", () => {
       "rateLimitRpm",
       "responseSeconds",
     ]);
+    expect(deferredProperties(schema.$defs.route.properties)).toEqual(["capabilities", "meter"]);
   });
 
   test("cost range mirrors the rating union", () => {
@@ -209,6 +240,15 @@ describe("registry.schema.json", () => {
     expect(validate(value)).toBe(true);
 
     expect(validate({ format: 1, models: {}, router: { keys: ["a", null] } })).toBe(false);
+  });
+
+  test("foreign sections accept any property name a JSON file can carry", () => {
+    // additionalProperties with the recursive JSON definition admits every
+    // name, including line terminators that a pattern such as .* cannot match.
+    const value = JSON.parse(
+      '{"format":1,"models":{},"extension\\nname":true,"a\\"b":[1],"c\\\\d":{"e":true},"\\u00e9":0,"":false}',
+    );
+    expect(validate(value)).toBe(true);
   });
 
   test("the example and schema agree on the file location this package exports", () => {

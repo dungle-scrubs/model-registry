@@ -295,7 +295,9 @@ describe("acceptance", () => {
 
   test("DW8 schema and types agree", async () => {
     const schema = JSON.parse(readFileSync(join(repoRoot, "registry.schema.json"), "utf8"));
-    const ajv = new Ajv2020({ allErrors: true });
+    // The loader's own settings: allErrors to collect every fault,
+    // strictNumbers to reject non-finite numbers.
+    const ajv = new Ajv2020({ allErrors: true, strictNumbers: true });
     const validate = ajv.compile(schema);
 
     // the published example validates
@@ -317,9 +319,9 @@ describe("acceptance", () => {
     const fullRegistry = { format: 1, models: { "model-a": fullModel } };
     expect(validate(fullRegistry)).toBe(true);
 
-    // property tables agree with the TypeScript types
+    // Property tables. Deferred fields are declared as false so the loader
+    // can name them without a second source of truth.
     const modelKeys: readonly (keyof Model)[] = ["family", "notes", "routes"];
-    expect(Object.keys(schema.$defs.model.properties).sort()).toEqual([...modelKeys].sort());
     const routeKeys: readonly (keyof Route)[] = [
       "harness",
       "modelId",
@@ -331,7 +333,27 @@ describe("acceptance", () => {
       "responseSeconds",
       "notes",
     ];
-    expect(Object.keys(schema.$defs.route.properties).sort()).toEqual([...routeKeys].sort());
+
+    const propertyNames = (properties: Record<string, unknown>, deferred: boolean) =>
+      Object.entries(properties)
+        .filter(([, definition]) => (definition === false) === deferred)
+        .map(([name]) => name)
+        .sort();
+    expect(propertyNames(schema.$defs.model.properties, false)).toEqual([...modelKeys].sort());
+    expect(propertyNames(schema.$defs.model.properties, true)).toEqual([
+      "fixedEffort",
+      "maxEffort",
+      "ratings",
+    ]);
+    expect(propertyNames(schema.$defs.route.properties, false)).toEqual([...routeKeys].sort());
+    expect(propertyNames(schema.$defs.route.properties, true)).toEqual(["capabilities", "meter"]);
+    expect(propertyNames(schema.properties, false)).toEqual(["format", "models"]);
+    expect(propertyNames(schema.properties, true)).toEqual([
+      "calibration",
+      "capabilities",
+      "meters",
+      "ratings",
+    ]);
 
     // negative fixtures fail schema validation
     const negatives: unknown[] = [
