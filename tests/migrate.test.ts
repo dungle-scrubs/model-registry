@@ -15,7 +15,14 @@ import {
   runMigrate,
   serializeMigrated,
 } from "../src/migrate.js";
-import { captureStream, runBuiltCli, sha256Hex, withTempDir, writeJson } from "./helpers.js";
+import {
+  captureStream,
+  catchRegistryError,
+  runBuiltCli,
+  sha256Hex,
+  withTempDir,
+  writeJson,
+} from "./helpers.js";
 
 const VALID_REGISTRY = {
   format: 1,
@@ -134,6 +141,35 @@ describe("runMigrate error mapping", () => {
       if (outcome.kind !== "error") return;
       expect(outcome.error.code).toBe("format-unsupported");
       expect(outcome.error.fix).toContain("Run model-registry migrate");
+    });
+  });
+});
+
+describe("a file with no usable format gets check's error", () => {
+  test.each([
+    ["a file with no format field", { models: {} }],
+    ["a file whose root is an array", []],
+    ["a file with a fractional format", { format: 1.5, models: {} }],
+  ])("migrate and check report the same error for %s", async (_name, contents) => {
+    await withTempDir(async (dir) => {
+      const path = writeJson(dir, "registry.json", contents);
+      const check = runBuiltCli(["check", "--registry", path]);
+      expect(check.exitCode).toBe(4);
+      const migrate = runBuiltCli(["migrate", "--registry", path]);
+      expect(migrate.exitCode).toBe(4);
+      expect(migrate.stderr).toBe(check.stderr);
+    });
+  });
+
+  test("a formatless file fails with format-missing, not a migrate-specific error", async () => {
+    await withTempDir(async (dir) => {
+      const path = writeJson(dir, "registry.json", { models: {} });
+      const outcome = runMigrate({ path });
+      expect(outcome.kind).toBe("error");
+      if (outcome.kind !== "error") return;
+      const check = catchRegistryError(() => loadRegistry({ path }));
+      expect(outcome.error.toJSON()).toEqual(check.toJSON());
+      expect(outcome.error.code).toBe("format-missing");
     });
   });
 });

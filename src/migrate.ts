@@ -29,12 +29,13 @@ function isPlainRecord(value: unknown): value is JsonObject {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
-function readFormat(parsed: unknown): number {
+/** The integer format a parsed registry declares, or NaN when it declares no usable one. */
+function declaredFormat(parsed: unknown): number {
   if (!isPlainRecord(parsed)) {
     return Number.NaN;
   }
   const format = parsed.format;
-  return typeof format === "number" ? format : Number.NaN;
+  return typeof format === "number" && Number.isInteger(format) ? format : Number.NaN;
 }
 
 /**
@@ -49,8 +50,8 @@ export function applyMigrateSteps(
   currentFormat: number = CURRENT_FORMAT,
 ): JsonObject {
   let value: unknown = parsed;
-  while (readFormat(value) < currentFormat) {
-    const step = steps[readFormat(value)];
+  while (declaredFormat(value) < currentFormat) {
+    const step = steps[declaredFormat(value)];
     if (step === undefined) {
       return value as JsonObject;
     }
@@ -116,18 +117,18 @@ export function runMigrate(options: MigrateOptions = {}): MigrateOutcome {
   }
   const { path, bytes } = read;
   const value: unknown = read.parsed;
-  const startFormat = readFormat(value);
+  const startFormat = declaredFormat(value);
   if (Number.isNaN(startFormat)) {
-    return {
-      kind: "error",
-      error: new RegistryError({
-        code: "registry-unreadable",
-        fix: "Make the file a JSON object with a format field, then run model-registry migrate again.",
-        message: `the registry file at "${path}" does not declare a format`,
-        path,
-        problems: [],
-      }),
-    };
+    // No usable format: report the same problem check reports for the
+    // same file, built by the same shared mapping.
+    const validation = validateRegistry(value);
+    if (!validation.ok) {
+      return {
+        kind: "error",
+        error: registryErrorForProblems(path, validation.problems, "migrate"),
+      };
+    }
+    throw new Error(`validateRegistry accepted a registry with no usable format at "${path}"`);
   }
   if (startFormat > CURRENT_FORMAT) {
     return {
@@ -147,13 +148,14 @@ export function runMigrate(options: MigrateOptions = {}): MigrateOutcome {
 
   const migrated = applyMigrateSteps(value, steps, CURRENT_FORMAT);
 
-  if (readFormat(migrated) !== CURRENT_FORMAT) {
+  const migratedFormat = declaredFormat(migrated);
+  if (migratedFormat !== CURRENT_FORMAT) {
     return {
       kind: "error",
       error: new RegistryError({
         code: "format-unsupported",
-        fix: `Run model-registry migrate once a release ships the migration from format ${readFormat(migrated)} to ${CURRENT_FORMAT}; no such step is available in this release.`,
-        message: `format ${readFormat(migrated)} is older than format ${CURRENT_FORMAT} with no step to upgrade it`,
+        fix: `Run model-registry migrate once a release ships the migration from format ${migratedFormat} to ${CURRENT_FORMAT}; no such step is available in this release.`,
+        message: `format ${migratedFormat} is older than format ${CURRENT_FORMAT} with no step to upgrade it`,
         path,
         problems: [],
       }),
