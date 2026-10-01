@@ -96,6 +96,7 @@ describe("public types", () => {
     const digest: RegistryDigest =
       "sha256:0000000000000000000000000000000000000000000000000000000000000000";
     expectTypeOf(digest).toEqualTypeOf<RegistryDigest>();
+    expectTypeOf<RegistryDigest>().toEqualTypeOf<`sha256:${string}`>();
   });
 
   test("positive assignments compile", () => {
@@ -158,6 +159,8 @@ describe("public types", () => {
     const topLevelMeters: RegistryFile = { format: 1, models: {}, meters: 1 };
     // @ts-expect-error deferred top-level section calibration
     const topLevelCalibration: RegistryFile = { format: 1, models: {}, calibration: {} };
+    // @ts-expect-error a digest requires the sha256: prefix
+    const digestWithoutPrefix: RegistryDigest = "00000000000000000000000000000000";
     expectTypeOf(
       Object.keys({
         hostedString,
@@ -181,6 +184,7 @@ describe("public types", () => {
         topLevelCapabilities,
         topLevelMeters,
         topLevelCalibration,
+        digestWithoutPrefix,
       }).length,
     ).toBeNumber();
   });

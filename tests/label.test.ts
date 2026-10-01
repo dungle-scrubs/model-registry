@@ -36,8 +36,10 @@ describe("buildRouteLabel", () => {
   });
 
   test("effort is not part of the label", () => {
-    expect(buildRouteLabel("model-a", { harness: "harness-x" })).not.toContain("low");
-    expect(buildRouteLabel("model-a", { harness: "harness-x" })).not.toContain("max");
+    const low = { effort: "low", harness: "harness-x", provider: "provider-1" };
+    const max = { effort: "max", harness: "harness-x", provider: "provider-1" };
+    expect(buildRouteLabel("model-a", low)).toBe("model-a@harness-x/provider-1");
+    expect(buildRouteLabel("model-a", max)).toBe("model-a@harness-x/provider-1");
   });
 
   test("different component splits can collide", () => {
