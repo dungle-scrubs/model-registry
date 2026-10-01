@@ -480,6 +480,22 @@ describe("atomic replace", () => {
       expect(entries.some((name) => name.endsWith(".tmp"))).toBe(false);
     });
   });
+
+  test("the backup name keeps a backslash in the file name", async () => {
+    await withTempDir(async (dir) => {
+      // On POSIX a backslash is a legal file-name character, so the
+      // backup must be named from the whole file name.
+      const path = join(dir, "weird\\name.json");
+      writeFileSync(path, JSON.stringify({ format: 0, models: {} }));
+      const outcome = runMigrate({ path, steps: [STEP_ZERO_TO_ONE] });
+      expect(outcome).toMatchObject({
+        kind: "applied",
+        backupPath: join(dir, "weird\\name.json.format-0.bak"),
+      });
+      expect(existsSync(join(dir, "weird\\name.json.format-0.bak"))).toBe(true);
+      expect(existsSync(join(dir, "name.json.format-0.bak"))).toBe(false);
+    });
+  });
 });
 
 describe("production step table", () => {

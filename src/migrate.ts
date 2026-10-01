@@ -1,5 +1,5 @@
 import { existsSync, renameSync, writeFileSync } from "node:fs";
-import { dirname, join } from "node:path";
+import { basename, dirname, join } from "node:path";
 import { RegistryError } from "./error.js";
 import { readRegistryFile, registryErrorForProblems } from "./load-registry.js";
 import type { JsonValue } from "./types.js";
@@ -204,11 +204,6 @@ export function runMigrate(options: MigrateOptions = {}): MigrateOutcome {
 
 function backupNameFor(path: string, originalFormat: number): string {
   return join(dirname(path), `${basename(path)}.format-${originalFormat}.bak`);
-}
-
-function basename(path: string): string {
-  const lastSeparator = Math.max(path.lastIndexOf("/"), path.lastIndexOf("\\"));
-  return lastSeparator === -1 ? path : path.slice(lastSeparator + 1);
 }
 
 export function serializeMigrated(parsed: JsonObject): Buffer {
