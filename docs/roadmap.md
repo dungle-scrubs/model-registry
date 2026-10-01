@@ -27,9 +27,12 @@ profile.
 
 **The profile builder skill.** Profiles come with a skill that builds
 one from a plain request, such as "I subscribe to platform X" or "a
-monthly plan on platform Y":
+monthly plan on platform Y", or a combination such as "I have
+platforms X and Y":
 
-1. The skill reads which models that platform offers.
+1. The skill reads which models each named platform offers. With
+   several platforms, the profile draws from all of them as one pool,
+   and a model offered on two platforms becomes two routes.
 2. By default it picks models that cover the full range of scores across
    every rating and capability. The request can ask for fewer models (a
    narrow, cheap set) or more (depth at the top).
@@ -65,5 +68,8 @@ anything is written, and it ends with `model-registry check`.
    refuse it, save it with the gaps listed, or fill the gaps from
    another profile with the user's approval? The completeness rule
    above forbids silent borrowing.
-8. Where does the platform's model list come from (the provider's API,
+8. In a combined profile, when two platforms offer the same model,
+   which route goes first: the cheaper one, the one with more quota
+   left, or the order the user listed the platforms in?
+9. Where does the platform's model list come from (the provider's API,
    the harness, or the user), and how is a stale list detected?
