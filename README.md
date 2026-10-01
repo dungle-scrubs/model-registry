@@ -57,11 +57,25 @@ buildRouteLabel("model-a", { harness: "harness-y", provider: "provider-1" }); //
 
 ## Supported slice of format 1
 
-Accepted and validated in this release: `format`, `models`; model `family`, `notes`, `routes`; route `harness`, `modelId`, `provider`, `hosted`, `privacyEligible`, `cost`, `rateLimitRpm`, `responseSeconds`, `notes`. `cost` is an integer 1 to 10 (higher is cheaper); `rateLimitRpm` and `responseSeconds` are finite numbers of 0 or more. `null` is invalid anywhere, including inside foreign sections. Any other top-level section passes through untouched.
+Accepted and validated in this release: top-level `format`, `ratings`, `capabilities`, `meters`, `models`; model `family`, `notes`, `routes`, `ratings`, `maxEffort`, `fixedEffort`; route `harness`, `modelId`, `provider`, `hosted`, `privacyEligible`, `cost`, `rateLimitRpm`, `responseSeconds`, `notes`, `capabilities`, `meter`. `cost` and a model `ratings` entry are an integer 1 to 10 (higher is cheaper for `cost`). `rateLimitRpm` and `responseSeconds` are finite numbers of 0 or more. `null` is invalid anywhere, including inside foreign sections. Any other top-level section passes through untouched.
 
-Not supported yet: the owned sections `ratings`, `capabilities`, `meters` and `calibration`; model `ratings`, `maxEffort`, `fixedEffort`; route `capabilities` and `meter`. A file carrying one of these fields fails with `registry-invalid` and a fix that names the later slice. Declaration validation arrives in the next tickets.
+A model `ratings` name, a route `capabilities` entry and a route `meter` name must be declared in the matching top-level section; an undeclared reference fails with `reference-unknown` and the field is the JSONPath of the reference. An absent section declares nothing, so every reference then fails.
+
+Not supported yet: the owned section `calibration`. A file carrying `calibration` fails with `registry-invalid` and a fix that names the later slice.
 
 The runtime shape is published as `registry.schema.json` (JSON Schema 2020-12), and `examples/registry.json` holds a complete placeholder example.
+
+## Effort ladder
+
+The ladder is fixed in the format: `low < medium < high < xhigh < max`. `EFFORT_LADDER` is the readonly tuple and `EffortLevel` its element type; the JSON schema enum mirrors the tuple, and `acceptance` asserts the order on every run. A new level is a minor release.
+
+```ts
+import { EFFORT_LADDER } from "@dungle-scrubs/model-registry";
+import type { EffortLevel } from "@dungle-scrubs/model-registry";
+
+EFFORT_LADDER; // readonly ["low", "medium", "high", "xhigh", "max"]
+const effort: EffortLevel = "high";
+```
 
 ## Error codes
 
