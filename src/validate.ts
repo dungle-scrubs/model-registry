@@ -2,7 +2,12 @@ import type { ErrorObject, ValidateFunction } from "ajv/dist/2020.js";
 import { Ajv2020 } from "ajv/dist/2020.js";
 import schema from "../registry.schema.json" with { type: "json" };
 import { buildRouteLabel } from "./label.js";
-import { CURRENT_FORMAT, canMigrateFrom } from "./migrate-steps.js";
+import {
+  CURRENT_FORMAT,
+  canMigrateFrom,
+  MIGRATE_STEPS,
+  type MigrateStepEntry,
+} from "./migrate-steps.js";
 import type {
   IndexedRoute,
   JsonValue,
@@ -62,8 +67,8 @@ function childPath(parent: string, ...parts: Array<string | number>): string {
   return path;
 }
 
-function olderFormatFix(format: number): string {
-  if (canMigrateFrom(format)) {
+function olderFormatFix(format: number, steps: readonly MigrateStepEntry[]): string {
+  if (canMigrateFrom(format, steps)) {
     return `Run model-registry migrate to upgrade the file from format ${format} to format ${CURRENT_FORMAT}.`;
   }
   return `Recreate the file as a format ${CURRENT_FORMAT} registry; no migration step from format ${format} ships in this release.`;
@@ -456,7 +461,10 @@ function failure(problem: RegistryProblem): ValidationResult {
   return { ok: false, problems: [problem] };
 }
 
-export function validateRegistry(root: unknown): ValidationResult {
+export function validateRegistry(
+  root: unknown,
+  steps: readonly MigrateStepEntry[] = MIGRATE_STEPS,
+): ValidationResult {
   if (!isPlainObject(root)) {
     return failure(
       invalidProblem(
@@ -498,7 +506,7 @@ export function validateRegistry(root: unknown): ValidationResult {
     return failure({
       code: "format-unsupported",
       field: childPath("$", "format"),
-      fix: olderFormatFix(format),
+      fix: olderFormatFix(format, steps),
       message: `format ${format} is older than format ${CURRENT_FORMAT}`,
     });
   }

@@ -24,7 +24,10 @@ export interface MigrateStepEntry {
 /** Empty until a format 2 release appends the step from format 1. */
 export const MIGRATE_STEPS: readonly MigrateStepEntry[] = [];
 
-/** True when this release's step table can migrate a registry that declares `format`. */
-export function canMigrateFrom(format: number): boolean {
-  return MIGRATE_STEPS.some((entry) => entry.from === format);
+/** True when `steps` can migrate a registry that declares `format`. */
+export function canMigrateFrom(
+  format: number,
+  steps: readonly MigrateStepEntry[] = MIGRATE_STEPS,
+): boolean {
+  return steps.some((entry) => entry.from === format);
 }

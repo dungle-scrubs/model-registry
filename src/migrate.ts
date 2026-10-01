@@ -111,7 +111,7 @@ export function runMigrate(options: MigrateOptions = {}): MigrateOutcome {
   const value: JsonValue = read.parsed;
   const declared = declaredFormat(value);
   if (declared === undefined || declared > CURRENT_FORMAT) {
-    const checked = checkParsedRegistry(path, value, "migrate");
+    const checked = checkParsedRegistry(path, value, "migrate", steps);
     if (checked.ok) {
       throw new Error(
         `validateRegistry accepted a registry at "${path}" whose declared format is unusable`,
@@ -125,7 +125,7 @@ export function runMigrate(options: MigrateOptions = {}): MigrateOutcome {
 
   // declaredFormat returned an integer, so the parsed value is a JSON object.
   const migrated = applyMigrateSteps(value as ReadonlyJsonObject, steps, CURRENT_FORMAT);
-  const checked = checkParsedRegistry(path, migrated, "migrate");
+  const checked = checkParsedRegistry(path, migrated, "migrate", steps);
   if (!checked.ok) {
     return { kind: "error", error: checked.error };
   }

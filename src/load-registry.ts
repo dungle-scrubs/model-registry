@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { RegistryError } from "./error.js";
-import { CURRENT_FORMAT } from "./migrate-steps.js";
+import { CURRENT_FORMAT, MIGRATE_STEPS, type MigrateStepEntry } from "./migrate-steps.js";
 import { resolveRegistryPath } from "./path.js";
 import type {
   JsonValue,
@@ -102,8 +102,9 @@ export function checkParsedRegistry(
   path: string,
   value: JsonValue,
   commandName: string,
+  steps: readonly MigrateStepEntry[] = MIGRATE_STEPS,
 ): CheckedRegistry {
-  const result = validateRegistry(value);
+  const result = validateRegistry(value, steps);
   if (result.ok) {
     return { ok: true, index: result.index };
   }

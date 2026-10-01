@@ -14,7 +14,7 @@ import { join } from "node:path";
 import { describe, expect, test } from "vitest";
 import { runCli } from "../src/cli-run.js";
 import { RegistryError } from "../src/error.js";
-import { loadRegistry } from "../src/load-registry.js";
+import { checkParsedRegistry, loadRegistry } from "../src/load-registry.js";
 import {
   applyMigrateSteps,
   CURRENT_FORMAT,
@@ -25,6 +25,7 @@ import {
   runMigrate,
   serializeMigrated,
 } from "../src/migrate.js";
+import { canMigrateFrom } from "../src/migrate-steps.js";
 import {
   captureStream,
   catchRegistryError,
@@ -218,6 +219,42 @@ describe("runMigrate error mapping", () => {
       expect(outcome.error.fix).toContain("Recreate the file as a format 1 registry");
       expect(outcome.error.fix).not.toContain("Run model-registry migrate");
     });
+  });
+});
+
+describe("the format-unsupported fix follows the step table in use", () => {
+  test("an older format the table covers names migrate in the fix", () => {
+    const checked = checkParsedRegistry("registry.json", { format: 0, models: {} }, "check", [
+      FROM_ZERO,
+    ]);
+    expect(checked.ok).toBe(false);
+    if (checked.ok) return;
+    expect(checked.error.code).toBe("format-unsupported");
+    expect(checked.error.fix).toBe(
+      "Run model-registry migrate to upgrade the file from format 0 to format 1.",
+    );
+  });
+
+  test("an older format the table does not cover says to recreate the file", () => {
+    const checked = checkParsedRegistry("registry.json", { format: 0, models: {} }, "check", []);
+    expect(checked.ok).toBe(false);
+    if (checked.ok) return;
+    expect(checked.error.code).toBe("format-unsupported");
+    expect(checked.error.fix).toBe(
+      "Recreate the file as a format 1 registry; no migration step from format 0 ships in this release.",
+    );
+  });
+});
+
+describe("canMigrateFrom", () => {
+  test("answers for the step table it is given", () => {
+    expect(canMigrateFrom(0, [FROM_ZERO])).toBe(true);
+    expect(canMigrateFrom(0, [])).toBe(false);
+    expect(canMigrateFrom(1, [FROM_ZERO])).toBe(false);
+  });
+
+  test("the production table covers nothing in this release", () => {
+    expect(canMigrateFrom(0)).toBe(false);
   });
 });
 
