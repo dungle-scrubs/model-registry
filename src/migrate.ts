@@ -154,11 +154,14 @@ export function runMigrate(options: MigrateOptions = {}): MigrateOutcome {
         }),
       };
     }
+    // A failure after the file opened can leave a partial backup that would
+    // make the next run refuse with backup-exists; remove what this run created.
+    removeIfPresent(backupPath);
     throw error;
   }
   const tempPath = `${targetPath}.migrate-${process.pid}-${Date.now()}.tmp`;
   try {
-    writeFileSync(tempPath, serialized);
+    writeFileSync(tempPath, serialized, { mode, flag: "wx" });
     chmodSync(tempPath, mode);
     renameSync(tempPath, targetPath);
   } catch (error) {

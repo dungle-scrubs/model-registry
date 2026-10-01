@@ -1,4 +1,12 @@
-import { existsSync, readdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
+import {
+  chmodSync,
+  existsSync,
+  readdirSync,
+  readFileSync,
+  renameSync,
+  statSync,
+  writeFileSync,
+} from "node:fs";
 import { join } from "node:path";
 import { afterEach, describe, expect, test, vi } from "vitest";
 import { CURRENT_FORMAT, type MigrateStep, runMigrate } from "../src/migrate.js";
@@ -24,6 +32,51 @@ afterEach(() => {
   mockedRename.mockImplementation(actualFs.renameSync);
   mockedWrite.mockReset();
   mockedWrite.mockImplementation(actualFs.writeFileSync);
+});
+
+describe("a failed backup write", () => {
+  test("a failure after the backup file opens removes the partial backup, keeps the original, and rethrows", async () => {
+    await withTempDir(async (dir) => {
+      const path = writeJson(dir, "registry.json", { format: 0, models: {} });
+      const original = readFileSync(path);
+      mockedWrite.mockImplementation((file, data, options) => {
+        if (typeof file === "string" && file.endsWith(".format-0.bak")) {
+          actualFs.writeFileSync(file, "{ partial backup", options);
+          throw new Error("disk full during the backup write");
+        }
+        return actualFs.writeFileSync(file, data, options);
+      });
+
+      expect(() => runMigrate({ path, steps: [{ from: 0, step: STEP_ZERO_TO_ONE }] })).toThrow(
+        "disk full during the backup write",
+      );
+
+      expect(readFileSync(path)).toEqual(original);
+      expect(existsSync(join(dir, "registry.json.format-0.bak"))).toBe(false);
+      expect(readdirSync(dir).some((name) => name.endsWith(".tmp"))).toBe(false);
+    });
+  });
+});
+
+describe("the temp file write", () => {
+  test("creates the temp file exclusively with the registry's mode, then chmods it into place", async () => {
+    await withTempDir(async (dir) => {
+      const path = writeJson(dir, "registry.json", { format: 0, models: {} });
+      chmodSync(path, 0o600);
+      const tempOptions: unknown[] = [];
+      mockedWrite.mockImplementation((file, data, options) => {
+        if (typeof file === "string" && file.endsWith(".tmp")) {
+          tempOptions.push(options);
+        }
+        return actualFs.writeFileSync(file, data, options);
+      });
+
+      runMigrate({ path, steps: [{ from: 0, step: STEP_ZERO_TO_ONE }] });
+
+      expect(tempOptions).toEqual([{ flag: "wx", mode: 0o600 }]);
+      expect(statSync(path).mode & 0o777).toBe(0o600);
+    });
+  });
 });
 
 describe("a failed replacement", () => {
