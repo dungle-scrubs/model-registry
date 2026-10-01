@@ -1,4 +1,4 @@
-import { existsSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, readFileSync, realpathSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, test } from "vitest";
 import { runCli } from "../src/cli-run.js";
@@ -83,7 +83,7 @@ describe("the migrate command's stdout wiring", () => {
           format: 1,
           digest,
           path,
-          backup: join(dir, "registry.json.format-0.bak"),
+          backup: join(realpathSync(dir), "registry.json.format-0.bak"),
         })}\n`,
       );
       expect(readFileSync(path).toString("utf8")).toBe(migrated);

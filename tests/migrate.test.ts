@@ -1,4 +1,15 @@
-import { existsSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
+import {
+  chmodSync,
+  existsSync,
+  lstatSync,
+  mkdirSync,
+  readdirSync,
+  readFileSync,
+  realpathSync,
+  statSync,
+  symlinkSync,
+  writeFileSync,
+} from "node:fs";
 import { join } from "node:path";
 import { describe, expect, test } from "vitest";
 import { runCli } from "../src/cli-run.js";
@@ -266,7 +277,7 @@ describe("DW2 a synthetic step migrates an older format end to end", () => {
       if (outcome.kind !== "applied") return;
       expect(outcome.path).toBe(path);
       expect(outcome.originalFormat).toBe(0);
-      const expectedBackup = join(dir, "registry.json.format-0.bak");
+      const expectedBackup = join(realpathSync(dir), "registry.json.format-0.bak");
       expect(outcome.backupPath).toBe(expectedBackup);
       expect(existsSync(expectedBackup)).toBe(true);
       expect(readFileSync(expectedBackup)).toEqual(originalBytes);
@@ -292,7 +303,7 @@ describe("DW2 a synthetic step migrates an older format end to end", () => {
         format: 1,
         path,
         bytes: Buffer.from(`${JSON.stringify({ ...registry, format: 1 }, null, 2)}\n`, "utf8"),
-        backupPath: join(dir, "registry.json.format-0.bak"),
+        backupPath: join(realpathSync(dir), "registry.json.format-0.bak"),
         originalFormat: 0,
       });
     });
@@ -306,7 +317,7 @@ describe("DW3 an existing backup refuses and writes nothing", () => {
         format: 0,
         models: { "model-a": { family: "family-a", routes: [] } },
       });
-      const backupPath = join(dir, "registry.json.format-0.bak");
+      const backupPath = join(realpathSync(dir), "registry.json.format-0.bak");
       const backupContent = Buffer.from("stale backup contents");
       writeFileSync(backupPath, backupContent);
       const fileBefore = readFileSync(path);
@@ -546,6 +557,39 @@ describe("atomic replace", () => {
     });
   });
 
+  test("the replacement keeps the original file mode", async () => {
+    await withTempDir(async (dir) => {
+      const path = writeJson(dir, "registry.json", { format: 0, models: {} });
+      chmodSync(path, 0o600);
+      runMigrate({ path, steps: [FROM_ZERO] });
+      expect(statSync(path).mode & 0o777).toBe(0o600);
+    });
+  });
+
+  test("a symlinked registry migrates its target and keeps the link", async () => {
+    await withTempDir(async (dir) => {
+      const targetDir = join(dir, "target");
+      mkdirSync(targetDir);
+      const target = writeJson(join(targetDir, ".."), "target/registry.json", {
+        format: 0,
+        models: {},
+      });
+      const link = join(dir, "link.json");
+      symlinkSync(target, link);
+
+      const outcome = runMigrate({ path: link, steps: [FROM_ZERO] });
+
+      expect(outcome).toMatchObject({
+        kind: "applied",
+        path: link,
+        backupPath: join(realpathSync(targetDir), "registry.json.format-0.bak"),
+      });
+      expect(lstatSync(link).isSymbolicLink()).toBe(true);
+      expect(JSON.parse(readFileSync(target, "utf8")).format).toBe(1);
+      expect(existsSync(join(dir, "link.json.format-0.bak"))).toBe(false);
+    });
+  });
+
   test("the backup name keeps a backslash in the file name", async () => {
     await withTempDir(async (dir) => {
       // On POSIX a backslash is a legal file-name character, so the
@@ -555,7 +599,7 @@ describe("atomic replace", () => {
       const outcome = runMigrate({ path, steps: [FROM_ZERO] });
       expect(outcome).toMatchObject({
         kind: "applied",
-        backupPath: join(dir, "weird\\name.json.format-0.bak"),
+        backupPath: join(realpathSync(dir), "weird\\name.json.format-0.bak"),
       });
       expect(existsSync(join(dir, "weird\\name.json.format-0.bak"))).toBe(true);
       expect(existsSync(join(dir, "name.json.format-0.bak"))).toBe(false);

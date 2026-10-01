@@ -1,4 +1,4 @@
-import { existsSync, renameSync, rmSync, writeFileSync } from "node:fs";
+import { chmodSync, realpathSync, renameSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { basename, dirname, join } from "node:path";
 import { RegistryError } from "./error.js";
 import { checkParsedRegistry, readRegistryFile } from "./load-registry.js";
@@ -137,34 +137,33 @@ export function runMigrate(options: MigrateOptions = {}): MigrateOutcome {
     return { kind: "dry-run", format: CURRENT_FORMAT, path, bytes: serialized };
   }
 
-  const backupPath = backupNameFor(path, declared);
-  if (existsSync(backupPath)) {
-    return {
-      kind: "error",
-      error: new RegistryError({
-        code: "backup-exists",
-        fix: `Move or rename the backup at "${backupPath}" so the next migrate can write its backup, then run model-registry migrate again.`,
-        message: `a backup already exists at "${backupPath}"`,
-        path,
-        problems: [],
-      }),
-    };
+  const targetPath = realpathSync(path);
+  const mode = statSync(targetPath).mode & 0o777;
+  const backupPath = backupNameFor(targetPath, declared);
+  try {
+    writeFileSync(backupPath, bytes, { flag: "wx" });
+  } catch (error) {
+    if (error instanceof Error && (error as NodeJS.ErrnoException).code === "EEXIST") {
+      return {
+        kind: "error",
+        error: new RegistryError({
+          code: "backup-exists",
+          fix: `Move or rename the backup at "${backupPath}" so the next migrate can write its backup, then run model-registry migrate again.`,
+          message: `a backup already exists at "${backupPath}"`,
+          path,
+          problems: [],
+        }),
+      };
+    }
+    throw error;
   }
-
-  writeFileSync(backupPath, bytes);
-  const tempPath = `${path}.migrate-${process.pid}-${Date.now()}.tmp`;
+  const tempPath = `${targetPath}.migrate-${process.pid}-${Date.now()}.tmp`;
   try {
     writeFileSync(tempPath, serialized);
-    renameSync(tempPath, path);
+    chmodSync(tempPath, mode);
+    renameSync(tempPath, targetPath);
   } catch (error) {
-    // The replacement failed: drop the half-written temp file, best
-    // effort. The backup stays beside the file, so the original bytes
-    // are never lost; the error itself propagates.
-    try {
-      rmSync(tempPath, { force: true });
-    } catch {
-      // Nothing more can be done here; the original error matters more.
-    }
+    removeIfPresent(tempPath);
     throw error;
   }
 
@@ -180,6 +179,14 @@ export function runMigrate(options: MigrateOptions = {}): MigrateOutcome {
 
 function backupNameFor(path: string, originalFormat: number): string {
   return join(dirname(path), `${basename(path)}.format-${originalFormat}.bak`);
+}
+
+function removeIfPresent(path: string): void {
+  try {
+    rmSync(path, { force: true });
+  } catch {
+    // Best effort: the error that triggered the cleanup matters more.
+  }
 }
 
 export function serializeMigrated(parsed: JsonObject): Buffer {
