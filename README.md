@@ -83,3 +83,5 @@ $ pnpm install
 $ pnpm verify     # lint, typecheck, build, tests
 $ pnpm test:mutation
 ```
+
+Planned work after RFC-01 is in [docs/roadmap.md](docs/roadmap.md).
