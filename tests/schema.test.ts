@@ -1,8 +1,11 @@
-import { readFileSync } from "node:fs";
+import { readFileSync, writeFileSync } from "node:fs";
+import { join } from "node:path";
 import { Ajv2020 } from "ajv/dist/2020.js";
 import { describe, expect, test } from "vitest";
+import { RegistryError } from "../src/error.js";
+import { loadRegistry } from "../src/load-registry.js";
 import type { Model, RegistryFile, Route } from "../src/types.js";
-import { examplePath, repoRoot, schemaPath } from "./helpers.js";
+import { examplePath, repoRoot, schemaPath, withTempDir } from "./helpers.js";
 
 const schema = JSON.parse(readFileSync(schemaPath, "utf8")) as {
   $schema?: string;
@@ -18,6 +21,18 @@ const schema = JSON.parse(readFileSync(schemaPath, "utf8")) as {
 // the fixtures below assert that both sides reject the same files.
 const ajv = new Ajv2020({ allErrors: true, strictNumbers: true });
 const validate = ajv.compile(schema);
+
+function catchRegistryError(fn: () => unknown): RegistryError {
+  try {
+    fn();
+  } catch (error) {
+    if (error instanceof RegistryError) {
+      return error;
+    }
+    throw error;
+  }
+  throw new Error("expected loadRegistry to throw");
+}
 
 function supportedProperties(properties: Record<string, unknown>): string[] {
   return Object.entries(properties)
@@ -249,6 +264,96 @@ describe("registry.schema.json", () => {
       '{"format":1,"models":{},"extension\\nname":true,"a\\"b":[1],"c\\\\d":{"e":true},"\\u00e9":0,"":false}',
     );
     expect(validate(value)).toBe(true);
+  });
+
+  test("the loader and the schema agree on every fixture", async () => {
+    await withTempDir(async (dir) => {
+      const cases: Array<{
+        name: string;
+        // Raw JSON text: JSON.stringify would rewrite Infinity as null.
+        content: string;
+        schemaValid: boolean;
+        loaderCode?: string;
+        loaderField?: string;
+        section?: [string, unknown];
+      }> = [
+        {
+          name: "numeric overflow in a foreign section",
+          content: '{"format":1,"models":{},"router":{"value":1e400}}',
+          schemaValid: false,
+          loaderCode: "registry-invalid",
+          loaderField: '$["router"]["value"]',
+        },
+        {
+          name: "numeric overflow deep in a foreign section",
+          content: '{"format":1,"models":{},"router":{"v":[1,{"w":1e400}]}}',
+          schemaValid: false,
+          loaderCode: "registry-invalid",
+          loaderField: '$["router"]["v"][1]["w"]',
+        },
+        {
+          name: "numeric overflow in an owned metric",
+          content:
+            '{"format":1,"models":{"model-a":{"family":"family-a","routes":[{"harness":"harness-x","modelId":"model-id-a","hosted":false,"rateLimitRpm":1e400}]}}}',
+          schemaValid: false,
+          loaderCode: "registry-invalid",
+          loaderField: '$["models"]["model-a"]["routes"][0]["rateLimitRpm"]',
+        },
+        {
+          name: "numeric overflow in cost",
+          content:
+            '{"format":1,"models":{"model-a":{"family":"family-a","routes":[{"harness":"harness-x","modelId":"model-id-a","hosted":false,"cost":1e400}]}}}',
+          schemaValid: false,
+          loaderCode: "registry-invalid",
+          loaderField: '$["models"]["model-a"]["routes"][0]["cost"]',
+        },
+        {
+          name: "null in a foreign section",
+          content: '{"format":1,"models":{},"router":{"keys":["a",null]}}',
+          schemaValid: false,
+          loaderCode: "registry-invalid",
+          loaderField: '$["router"]["keys"][1]',
+        },
+        {
+          name: "null in a top-level foreign section",
+          content: '{"format":1,"models":{},"extension":null}',
+          schemaValid: false,
+          loaderCode: "registry-invalid",
+          loaderField: '$["extension"]',
+        },
+        {
+          name: "a foreign section with the review's fixture shape",
+          content: '{"format":1,"models":{},"router":{"enabled":true}}',
+          schemaValid: true,
+          section: ["router", { enabled: true }],
+        },
+        {
+          name: "a finite large number in a foreign section",
+          content: '{"format":1,"models":{},"router":{"value":1e308}}',
+          schemaValid: true,
+          section: ["router", { value: 1e308 }],
+        },
+      ];
+      for (const testCase of cases) {
+        const path = join(dir, `${testCase.name.replace(/\W+/g, "-")}.json`);
+        writeFileSync(path, testCase.content);
+        expect(validate(JSON.parse(testCase.content)), testCase.name).toBe(testCase.schemaValid);
+        if (testCase.schemaValid) {
+          const loaded = loadRegistry({ path });
+          const [sectionName, sectionValue] = testCase.section ?? [null, null];
+          if (sectionName !== null) {
+            expect(loaded.sections[sectionName], testCase.name).toEqual(sectionValue);
+          }
+        } else {
+          const error = catchRegistryError(() => loadRegistry({ path }));
+          expect(error.code, testCase.name).toBe(testCase.loaderCode);
+          expect(
+            error.problems.some((problem) => problem.field === testCase.loaderField),
+            `${testCase.name}: ${JSON.stringify(error.problems)}`,
+          ).toBe(true);
+        }
+      }
+    });
   });
 
   test("the example and schema agree on the file location this package exports", () => {

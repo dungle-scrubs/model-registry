@@ -406,6 +406,40 @@ describe("loadRegistry", () => {
     });
   });
 
+  test("keys with quotes, backslashes and control characters produce exact JSONPaths", async () => {
+    await withTempDir(async (dir) => {
+      const cases: Array<{ name: string; key: string; field: string }> = [
+        {
+          name: "quote",
+          key: 'a"b',
+          field: '$["models"]["a\\"b"]["family"]',
+        },
+        {
+          name: "backslash",
+          key: "a\\b",
+          field: '$["models"]["a\\\\b"]["family"]',
+        },
+        {
+          name: "control-character",
+          key: "a\u0001b",
+          field: '$["models"]["a\\u0001b"]["family"]',
+        },
+      ];
+      for (const testCase of cases) {
+        const path = writeJson(dir, `${testCase.name}.json`, {
+          format: 1,
+          models: { [testCase.key]: { family: 0, routes: [] } },
+        });
+        const error = catchRegistryError(() => loadRegistry({ path }));
+        expect(error.code, testCase.name).toBe("registry-invalid");
+        expect(
+          error.problems.map((problem) => problem.field),
+          testCase.name,
+        ).toContain(testCase.field);
+      }
+    });
+  });
+
   test("duplicate detection continues when another route fact is invalid", async () => {
     await withTempDir(async (dir) => {
       const path = writeJson(dir, "invalid-with-duplicate.json", {

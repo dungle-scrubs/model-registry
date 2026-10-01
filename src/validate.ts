@@ -1,3 +1,5 @@
+import { Ajv2020 } from "ajv/dist/2020.js";
+import schema from "../registry.schema.json" with { type: "json" };
 import { buildRouteLabel } from "./label.js";
 import type {
   IndexedRoute,
@@ -20,28 +22,22 @@ export interface ValidationResult {
   index: RegistryIndex;
 }
 
-const DEFERRED_TOP_LEVEL_FIELDS = new Set(["ratings", "capabilities", "meters", "calibration"]);
-
-const DEFERRED_MODEL_FIELDS = new Set(["ratings", "maxEffort", "fixedEffort"]);
-
-const DEFERRED_ROUTE_FIELDS = new Set(["capabilities", "meter"]);
-
-const MODEL_FIELD_NAMES = new Set(["family", "notes", "routes"]);
-
-const ROUTE_FIELD_NAMES = new Set([
-  "harness",
-  "modelId",
-  "provider",
-  "hosted",
-  "privacyEligible",
-  "cost",
-  "rateLimitRpm",
-  "responseSeconds",
-  "notes",
-]);
-
 const LATER_SLICE_FIX =
   "Remove the field; support for it arrives in a later format slice of model-registry.";
+
+// The published schema is the one runtime shape validator. allErrors
+// collects every fault in one pass and strictNumbers rejects non-finite
+// numbers, such as the Infinity JSON.parse builds from 1e400. Coercion,
+// defaults and removal of unknown properties stay disabled.
+const ajv = new Ajv2020({ allErrors: true, strictNumbers: true });
+const validateShape = ajv.compile(schema);
+
+interface ShapeError {
+  instancePath: string;
+  keyword: string;
+  params: Record<string, unknown>;
+  message?: string;
+}
 
 export function isPlainObject(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -60,13 +56,13 @@ export function safeSet<T>(target: Record<string, T>, key: string, value: T): vo
 function jsonPath(...parts: Array<string | number>): string {
   let path = "$";
   for (const part of parts) {
-    path += typeof part === "number" ? `[${part}]` : `["${part}"]`;
+    path += typeof part === "number" ? `[${part}]` : `[${JSON.stringify(part)}]`;
   }
   return path;
 }
 
 function childPath(parent: string, name: string): string {
-  return `${parent}["${name}"]`;
+  return `${parent}[${JSON.stringify(name)}]`;
 }
 
 function invalidProblem(field: string, message: string, fix: string): RegistryProblem {
@@ -82,284 +78,364 @@ export function aggregateCode(problems: RegistryProblem[]): RegistryErrorCode {
   return problems.every((problem) => problem.code === first) ? first : "registry-invalid";
 }
 
-function collectNullProblems(value: unknown, path: string, problems: RegistryProblem[]): void {
-  if (value === null) {
-    problems.push(
-      invalidProblem(
-        path,
-        "null is not a valid value anywhere in a registry file",
-        "Replace the null with the field's value, or remove the field.",
-      ),
-    );
-    return;
-  }
-  if (Array.isArray(value)) {
-    value.forEach((item, index) => {
-      collectNullProblems(item, `${path}[${index}]`, problems);
-    });
-    return;
-  }
-  if (isPlainObject(value)) {
-    for (const [key, child] of Object.entries(value)) {
-      collectNullProblems(child, childPath(path, key), problems);
+/** Decode an Ajv instancePath, a JSON pointer, into its property segments. */
+function pointerSegments(pointer: string): string[] {
+  return pointer
+    .split("/")
+    .slice(1)
+    .map((raw) => raw.replaceAll("~1", "/").replaceAll("~0", "~"));
+}
+
+/** Read the value the decoded segments point at; prototype keys are never read. */
+function valueAt(root: unknown, segments: string[]): unknown {
+  let current: unknown = root;
+  for (const segment of segments) {
+    if (Array.isArray(current)) {
+      current = current[Number(segment)];
+    } else if (isPlainObject(current) && Object.hasOwn(current, segment)) {
+      current = current[segment];
+    } else {
+      return undefined;
     }
   }
+  return current;
 }
 
-function checkRequiredString(
-  container: Record<string, unknown>,
+/**
+ * Build the quoted JSONPath for decoded segments, walking the value so array
+ * positions stay bare numbers and every property name is encoded with
+ * JSON.stringify. Quotes, backslashes and control characters in a key stay
+ * readable in the result.
+ */
+function segmentsToPath(root: unknown, segments: string[]): string {
+  let path = "$";
+  let container: unknown = root;
+  for (const segment of segments) {
+    if (Array.isArray(container)) {
+      path += `[${segment}]`;
+      container = container[Number(segment)];
+    } else {
+      path += `[${JSON.stringify(segment)}]`;
+      container =
+        isPlainObject(container) && Object.hasOwn(container, segment)
+          ? container[segment]
+          : undefined;
+    }
+  }
+  return path;
+}
+
+/** Owned structure lives at the root and under models; every other section is foreign. */
+function pointerIsOwned(pointer: string): boolean {
+  return pointer === "" || pointerSegments(pointer)[0] === "models";
+}
+
+function genericProblem(field: string, message: string | undefined): RegistryProblem {
+  return invalidProblem(
+    field,
+    message ?? "the registry does not match the published schema",
+    "Fix the registry so it matches registry.schema.json, the published format 1 schema.",
+  );
+}
+
+function deferredProblem(path: string, field: string): RegistryProblem {
+  return invalidProblem(
+    path,
+    `the field "${field}" is not supported in this release of model-registry`,
+    LATER_SLICE_FIX,
+  );
+}
+
+function unknownFieldProblem(
+  path: string,
   name: string,
-  parent: string,
-  problems: RegistryProblem[],
-): void {
-  const path = childPath(parent, name);
-  if (!Object.hasOwn(container, name)) {
-    problems.push(
-      invalidProblem(path, `the required field "${name}" is missing`, `Add a "${name}" string.`),
-    );
-  } else if (typeof container[name] !== "string") {
-    problems.push(
-      invalidProblem(path, `the field "${name}" must be a string`, `Set "${name}" to a string.`),
-    );
-  }
+  owner: "model" | "route",
+): RegistryProblem {
+  return invalidProblem(
+    childPath(path, name),
+    `the field "${name}" is not part of a format 1 ${owner}`,
+    "Remove the field, or move free text into notes.",
+  );
 }
 
-function checkRequiredBoolean(
-  container: Record<string, unknown>,
-  name: string,
-  parent: string,
-  problems: RegistryProblem[],
-): void {
-  const path = childPath(parent, name);
-  if (!Object.hasOwn(container, name)) {
-    problems.push(
-      invalidProblem(
-        path,
-        `the required field "${name}" is missing`,
-        `Add a "${name}" boolean; a wrong guess either way is a privacy fault.`,
-      ),
-    );
-  } else if (typeof container[name] !== "boolean") {
-    problems.push(
-      invalidProblem(
-        path,
-        `the field "${name}" must be a boolean`,
-        `Set "${name}" to true or false.`,
-      ),
-    );
-  }
+function requiredStringProblem(parent: string, name: string): RegistryProblem {
+  return invalidProblem(
+    childPath(parent, name),
+    `the required field "${name}" is missing`,
+    `Add a "${name}" string.`,
+  );
 }
 
-function checkOptionalString(
-  container: Record<string, unknown>,
-  name: string,
-  parent: string,
-  problems: RegistryProblem[],
-): void {
-  if (Object.hasOwn(container, name) && typeof container[name] !== "string") {
-    problems.push(
-      invalidProblem(
-        childPath(parent, name),
-        `the field "${name}" must be a string`,
-        `Set "${name}" to a string, or remove it.`,
-      ),
-    );
+/** Curate one schema error at an owned location, by the shape of its pointer. */
+function ownedProblem(root: unknown, error: ShapeError): RegistryProblem {
+  const segments = pointerSegments(error.instancePath);
+  const path = segmentsToPath(root, segments);
+  const keyword = error.keyword;
+
+  if (keyword === "required") {
+    const missing = error.params.missingProperty;
+    if (typeof missing === "string") {
+      if (segments.length === 0 && missing === "models") {
+        return invalidProblem(
+          childPath(path, "models"),
+          'the required field "models" is missing',
+          "Add a models object with one entry per model.",
+        );
+      }
+      if (segments.length === 2 && missing === "family") {
+        return requiredStringProblem(path, "family");
+      }
+      if (segments.length === 2 && missing === "routes") {
+        return invalidProblem(
+          childPath(path, "routes"),
+          `the model "${segments[1] ?? ""}" is missing the required field "routes"`,
+          "Add a routes array to the model; an empty array is valid.",
+        );
+      }
+      if (segments.length === 4 && missing === "harness") {
+        return requiredStringProblem(path, "harness");
+      }
+      if (segments.length === 4 && missing === "modelId") {
+        return requiredStringProblem(path, "modelId");
+      }
+      if (segments.length === 4 && missing === "hosted") {
+        return invalidProblem(
+          childPath(path, "hosted"),
+          'the required field "hosted" is missing',
+          'Add a "hosted" boolean; a wrong guess either way is a privacy fault.',
+        );
+      }
+    }
+    return genericProblem(path, error.message);
   }
+
+  if (keyword === "additionalProperties") {
+    const name = error.params.additionalProperty;
+    if (typeof name === "string" && segments.length === 2) {
+      return unknownFieldProblem(path, name, "model");
+    }
+    if (typeof name === "string" && segments.length === 4) {
+      return unknownFieldProblem(path, name, "route");
+    }
+    return genericProblem(path, error.message);
+  }
+
+  if (keyword === "type" || keyword === "minimum" || keyword === "maximum") {
+    return typeProblem(segments, path) ?? genericProblem(path, error.message);
+  }
+
+  return genericProblem(path, error.message);
 }
 
-function checkOptionalBoolean(
-  container: Record<string, unknown>,
-  name: string,
-  parent: string,
-  problems: RegistryProblem[],
-): void {
-  if (Object.hasOwn(container, name) && typeof container[name] !== "boolean") {
-    problems.push(
-      invalidProblem(
-        childPath(parent, name),
-        `the field "${name}" must be a boolean`,
-        `Set "${name}" to true or false, or remove it.`,
-      ),
+function typeProblem(segments: string[], path: string): RegistryProblem | undefined {
+  const field = segments.at(-1) ?? "";
+  if (segments.length === 1 && field === "models") {
+    return invalidProblem(
+      path,
+      'the field "models" must be a JSON object keyed by model key',
+      "Replace models with a JSON object keyed by model key.",
     );
   }
+  if (segments.length === 2) {
+    return invalidProblem(
+      path,
+      `the model "${segments[1] ?? ""}" must be a JSON object`,
+      "Replace the model with a JSON object.",
+    );
+  }
+  if (segments.length === 3) {
+    switch (field) {
+      case "family":
+        return invalidProblem(
+          path,
+          'the field "family" must be a string',
+          'Set "family" to a string.',
+        );
+      case "notes":
+        return invalidProblem(
+          path,
+          'the field "notes" must be a string',
+          'Set "notes" to a string, or remove it.',
+        );
+      case "routes":
+        return invalidProblem(
+          path,
+          "the routes field must be an array",
+          "Set routes to an array of route objects.",
+        );
+    }
+    return undefined;
+  }
+  if (segments.length === 4) {
+    return invalidProblem(
+      path,
+      "the route must be a JSON object",
+      "Replace the route with a JSON object.",
+    );
+  }
+  if (segments.length === 5) {
+    switch (field) {
+      case "harness":
+      case "modelId":
+        return invalidProblem(
+          path,
+          `the field "${field}" must be a string`,
+          `Set "${field}" to a string.`,
+        );
+      case "provider":
+      case "notes":
+        return invalidProblem(
+          path,
+          `the field "${field}" must be a string`,
+          `Set "${field}" to a string, or remove it.`,
+        );
+      case "hosted":
+        return invalidProblem(
+          path,
+          'the field "hosted" must be a boolean',
+          'Set "hosted" to true or false.',
+        );
+      case "privacyEligible":
+        return invalidProblem(
+          path,
+          'the field "privacyEligible" must be a boolean',
+          'Set "privacyEligible" to true or false, or remove it.',
+        );
+      case "cost":
+        return invalidProblem(
+          path,
+          'the field "cost" must be an integer from 1 to 10',
+          'Set "cost" to an integer from 1 (expensive) to 10 (cheap).',
+        );
+      case "rateLimitRpm":
+      case "responseSeconds":
+        return invalidProblem(
+          path,
+          `the field "${field}" must be a number of 0 or more`,
+          `Set "${field}" to a finite number of 0 or more.`,
+        );
+    }
+  }
+  return undefined;
 }
 
-function checkOptionalCost(
-  container: Record<string, unknown>,
-  parent: string,
-  problems: RegistryProblem[],
-): void {
-  if (!Object.hasOwn(container, "cost")) {
-    return;
-  }
-  const value = container.cost;
-  if (typeof value !== "number" || !Number.isInteger(value) || value < 1 || value > 10) {
-    problems.push(
-      invalidProblem(
-        childPath(parent, "cost"),
-        'the field "cost" must be an integer from 1 to 10',
-        'Set "cost" to an integer from 1 (expensive) to 10 (cheap).',
-      ),
-    );
-  }
-}
+/**
+ * Translate the schema's errors into curated problems. Foreign sections are
+ * validated by the recursive jsonValue definition, and Ajv reports the
+ * failing branch at every ancestor level, so only the deepest anyOf error
+ * of each branch points at the offending value itself.
+ */
+function curateProblems(root: unknown, errors: readonly ShapeError[]): RegistryProblem[] {
+  const problems: RegistryProblem[] = [];
+  const seen = new Set<string>();
+  const push = (problem: RegistryProblem) => {
+    const key = `${problem.code} ${problem.field}`;
+    if (!seen.has(key)) {
+      seen.add(key);
+      problems.push(problem);
+    }
+  };
 
-function checkOptionalMetric(
-  container: Record<string, unknown>,
-  name: string,
-  parent: string,
-  problems: RegistryProblem[],
-): void {
-  if (!Object.hasOwn(container, name)) {
-    return;
-  }
-  const value = container[name];
-  if (typeof value !== "number" || !Number.isFinite(value) || value < 0) {
-    problems.push(
-      invalidProblem(
-        childPath(parent, name),
-        `the field "${name}" must be a number of 0 or more`,
-        `Set "${name}" to a finite number of 0 or more.`,
-      ),
-    );
-  }
-}
-
-function validateRoute(
-  modelKey: string,
-  index: number,
-  routeValue: unknown,
-  problems: RegistryProblem[],
-  labelOwners: Map<RouteLabel, string>,
-): void {
-  const routePath = jsonPath("models", modelKey, "routes", index);
-  if (!isPlainObject(routeValue)) {
-    problems.push(
-      invalidProblem(
-        routePath,
-        "the route must be a JSON object",
-        "Replace the route with a JSON object.",
-      ),
-    );
-    return;
-  }
-
-  checkRequiredString(routeValue, "harness", routePath, problems);
-  checkRequiredString(routeValue, "modelId", routePath, problems);
-  checkRequiredBoolean(routeValue, "hosted", routePath, problems);
-  checkOptionalString(routeValue, "provider", routePath, problems);
-  checkOptionalBoolean(routeValue, "privacyEligible", routePath, problems);
-  checkOptionalCost(routeValue, routePath, problems);
-  checkOptionalMetric(routeValue, "rateLimitRpm", routePath, problems);
-  checkOptionalMetric(routeValue, "responseSeconds", routePath, problems);
-  checkOptionalString(routeValue, "notes", routePath, problems);
-
-  for (const key of Object.keys(routeValue)) {
-    if (ROUTE_FIELD_NAMES.has(key)) {
+  // A boolean false schema marks one deferred owned field. The schema only
+  // declares false properties at owned levels, so the pointer needs no
+  // owned-or-foreign test here; the root's deferred sections sit at a
+  // top-level pointer such as /ratings.
+  for (const error of errors) {
+    if (error.keyword !== "false schema") {
       continue;
     }
-    if (DEFERRED_ROUTE_FIELDS.has(key)) {
-      problems.push(
-        invalidProblem(
-          childPath(routePath, key),
-          `the field "${key}" is not supported in this release of model-registry`,
-          LATER_SLICE_FIX,
-        ),
-      );
-    } else {
-      problems.push(
-        invalidProblem(
-          childPath(routePath, key),
-          `the field "${key}" is not part of a format 1 route`,
-          "Remove the field, or move free text into notes.",
-        ),
-      );
-    }
+    const segments = pointerSegments(error.instancePath);
+    push(deferredProblem(segmentsToPath(root, segments), segments.at(-1) ?? ""));
   }
 
-  // Duplicate detection continues whenever the label components are valid,
-  // even when another fact on the route is invalid.
-  const providerValid =
-    !Object.hasOwn(routeValue, "provider") || typeof routeValue.provider === "string";
-  if (typeof routeValue.harness === "string" && providerValid) {
-    const label = buildRouteLabel(modelKey, routeValue as { harness: string; provider?: string });
-    const owner = labelOwners.get(label);
-    if (owner === undefined) {
-      labelOwners.set(label, routePath);
-    } else {
-      problems.push({
-        code: "label-duplicate",
-        field: routePath,
-        message: `the route label "${label}" is already used by the route at ${owner}`,
-        fix: "Change the harness or provider of one of the two routes so that every label is unique.",
-      });
-    }
-  }
-}
-
-function validateModel(
-  modelKey: string,
-  modelValue: unknown,
-  problems: RegistryProblem[],
-  labelOwners: Map<RouteLabel, string>,
-): void {
-  const modelPath = jsonPath("models", modelKey);
-  if (!isPlainObject(modelValue)) {
-    problems.push(
-      invalidProblem(
-        modelPath,
-        `the model "${modelKey}" must be a JSON object`,
-        "Replace the model with a JSON object.",
-      ),
+  const foreignAnyOf = errors.filter(
+    (error) => error.keyword === "anyOf" && !pointerIsOwned(error.instancePath),
+  );
+  for (const error of foreignAnyOf) {
+    const deeper = foreignAnyOf.some(
+      (other) => other !== error && other.instancePath.startsWith(`${error.instancePath}/`),
     );
-    return;
-  }
-
-  checkRequiredString(modelValue, "family", modelPath, problems);
-  checkOptionalString(modelValue, "notes", modelPath, problems);
-
-  for (const key of Object.keys(modelValue)) {
-    if (MODEL_FIELD_NAMES.has(key)) {
+    if (deeper) {
       continue;
     }
-    if (DEFERRED_MODEL_FIELDS.has(key)) {
-      problems.push(
+    const segments = pointerSegments(error.instancePath);
+    const field = segmentsToPath(root, segments);
+    const value = valueAt(root, segments);
+    if (value === null) {
+      push(
         invalidProblem(
-          childPath(modelPath, key),
-          `the field "${key}" is not supported in this release of model-registry`,
-          LATER_SLICE_FIX,
+          field,
+          "null is not a valid value anywhere in a registry file",
+          "Replace the null with the field's value, or remove the field.",
+        ),
+      );
+    } else if (typeof value === "number") {
+      push(
+        invalidProblem(
+          field,
+          "numbers in a registry file must be finite",
+          "Rewrite the number so it stays within double-precision range, for example 1e308 rather than 1e400.",
         ),
       );
     } else {
-      problems.push(
-        invalidProblem(
-          childPath(modelPath, key),
-          `the field "${key}" is not part of a format 1 model`,
-          "Remove the field, or move free text into notes.",
-        ),
-      );
+      push(genericProblem(field, error.message));
     }
   }
 
-  if (!Object.hasOwn(modelValue, "routes")) {
-    problems.push(
-      invalidProblem(
-        childPath(modelPath, "routes"),
-        `the model "${modelKey}" is missing the required field "routes"`,
-        "Add a routes array to the model; an empty array is valid.",
-      ),
-    );
-  } else if (!Array.isArray(modelValue.routes)) {
-    problems.push(
-      invalidProblem(
-        childPath(modelPath, "routes"),
-        "the routes field must be an array",
-        "Set routes to an array of route objects.",
-      ),
-    );
-  } else {
-    (modelValue.routes as unknown[]).forEach((routeValue, index) => {
-      validateRoute(modelKey, index, routeValue, problems, labelOwners);
+  for (const error of errors) {
+    if (
+      error.keyword === "anyOf" ||
+      error.keyword === "false schema" ||
+      !pointerIsOwned(error.instancePath)
+    ) {
+      continue;
+    }
+    push(ownedProblem(root, error));
+  }
+
+  if (problems.length === 0 && errors.length > 0) {
+    push(genericProblem("$", errors[0]?.message));
+  }
+  return problems;
+}
+
+/**
+ * Report duplicate labels wherever the label components are readable, even
+ * when another fact on the same route is invalid. This is a semantic check;
+ * the schema cannot express it.
+ */
+function collectLabelProblems(root: Record<string, unknown>, problems: RegistryProblem[]): void {
+  const models = root.models;
+  if (!isPlainObject(models)) {
+    return;
+  }
+  const labelOwners = new Map<RouteLabel, string>();
+  for (const [modelKey, modelValue] of Object.entries(models)) {
+    if (!isPlainObject(modelValue) || !Array.isArray(modelValue.routes)) {
+      continue;
+    }
+    modelValue.routes.forEach((routeValue, index) => {
+      if (!isPlainObject(routeValue)) {
+        return;
+      }
+      const providerValid =
+        !Object.hasOwn(routeValue, "provider") || typeof routeValue.provider === "string";
+      if (typeof routeValue.harness !== "string" || !providerValid) {
+        return;
+      }
+      const routePath = jsonPath("models", modelKey, "routes", index);
+      const label = buildRouteLabel(modelKey, routeValue as { harness: string; provider?: string });
+      const owner = labelOwners.get(label);
+      if (owner === undefined) {
+        labelOwners.set(label, routePath);
+      } else {
+        problems.push({
+          code: "label-duplicate",
+          field: routePath,
+          message: `the route label "${label}" is already used by the route at ${owner}`,
+          fix: "Change the harness or provider of one of the two routes so that every label is unique.",
+        });
+      }
     });
   }
 }
@@ -430,56 +506,23 @@ export function validateRegistry(root: unknown): ValidationResult {
     return { problems, index };
   }
 
-  // Top-level scan: format and models are owned here, deferred owned fields
-  // are rejected, and every other section passes through untouched after a
-  // null check.
-  for (const [key, value] of Object.entries(root)) {
-    if (key === "format" || key === "models") {
-      continue;
-    }
-    if (DEFERRED_TOP_LEVEL_FIELDS.has(key)) {
-      problems.push(
-        invalidProblem(
-          jsonPath(key),
-          `the field "${key}" is not supported in this release of model-registry`,
-          LATER_SLICE_FIX,
-        ),
-      );
-      continue;
-    }
-    collectNullProblems(value, jsonPath(key), problems);
-    safeSet(index.sections, key, value as JsonValue);
+  // The published schema decides every shape question after the format
+  // checks; duplicate labels stay a semantic check in this module.
+  if (!validateShape(root)) {
+    problems.push(...curateProblems(root, validateShape.errors ?? []));
   }
+  collectLabelProblems(root, problems);
 
-  if (!Object.hasOwn(root, "models")) {
-    problems.push(
-      invalidProblem(
-        jsonPath("models"),
-        'the required field "models" is missing',
-        "Add a models object with one entry per model.",
-      ),
-    );
-    return { problems, index };
-  }
-  if (!isPlainObject(root.models)) {
-    problems.push(
-      invalidProblem(
-        jsonPath("models"),
-        'the field "models" must be a JSON object keyed by model key',
-        "Replace models with a JSON object keyed by model key.",
-      ),
-    );
-    return { problems, index };
-  }
-
-  const models = root.models;
-  const labelOwners = new Map<RouteLabel, string>();
-  for (const [modelKey, modelValue] of Object.entries(models)) {
-    validateModel(modelKey, modelValue, problems, labelOwners);
-  }
   if (problems.length === 0) {
-    index.registry = { models: models as unknown as Record<string, Model> };
-    buildRoutes(models as unknown as Record<string, Model>, index.routes);
+    for (const [key, value] of Object.entries(root)) {
+      if (key === "format" || key === "models") {
+        continue;
+      }
+      safeSet(index.sections, key, value as JsonValue);
+    }
+    const models = root.models as Record<string, Model>;
+    index.registry = { models };
+    buildRoutes(models, index.routes);
   }
 
   return { problems, index };
