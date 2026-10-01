@@ -64,7 +64,7 @@ export type ForeignSections = {
 };
 
 /** The top-level sections that declare the names models and routes reference. */
-export const DECLARATION_SECTIONS = ["capabilities", "meters", "ratings"] as const;
+export const DECLARATION_SECTIONS = ["ratings", "capabilities", "meters"] as const;
 
 export type DeclarationSection = (typeof DECLARATION_SECTIONS)[number];
 

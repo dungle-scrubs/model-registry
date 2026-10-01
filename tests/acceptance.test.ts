@@ -741,6 +741,12 @@ describe("acceptance", () => {
         }
       >;
     };
+    expect(Object.keys(loadRegistry({ path: examplePath }).registry)).toEqual([
+      "models",
+      "ratings",
+      "capabilities",
+      "meters",
+    ]);
     expect(example.ratings).toBeDefined();
     expect(Object.values(example.ratings ?? {}).every((value) => typeof value === "string")).toBe(
       true,
