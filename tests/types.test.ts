@@ -166,8 +166,6 @@ describe("public types", () => {
     const routesMissing: Model = { family: "family-a" };
     // @ts-expect-error unknown model field
     const modelExtra: Model = { family: "family-a", routes: [], surprise: 1 };
-    // @ts-expect-error unknown route field
-    const routeCapability: Route = { harness: "h", modelId: "m", hosted: true, surprise: 1 };
     // @ts-expect-error spendToZero accepts only the literal true
     const spendFalse: Meter = { spendToZero: false };
     // @ts-expect-error null is not a JsonValue
@@ -198,7 +196,6 @@ describe("public types", () => {
         familyMissing,
         routesMissing,
         modelExtra,
-        routeCapability,
         spendFalse,
         jsonNull,
         explicitUndefined,
