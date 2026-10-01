@@ -7,13 +7,20 @@ import { aggregateCode, validateRegistry } from "./validate.js";
 
 const EXAMPLE_PATH = "examples/registry.json";
 
+export interface ReadRegistryFile {
+  path: string;
+  bytes: Buffer;
+  parsed: unknown;
+}
+
 /**
- * Load a registry file synchronously. The file is read once as bytes, the
- * digest covers those bytes as read, and the registry file is never changed.
- * On failure one RegistryError carries every collected problem.
+ * Resolve the registry path, read the file as bytes, and parse it as JSON.
+ * The failures here use the same codes and messages as `check`: missing,
+ * unreadable, not JSON. Validation is left to the caller so the migrate
+ * command can apply migration steps first.
  */
-export function loadRegistry(options: LoadRegistryOptions = {}): LoadedRegistry {
-  if (options.path === "") {
+export function readRegistryFile(explicit?: string): ReadRegistryFile {
+  if (explicit === "") {
     throw new RegistryError({
       code: "registry-missing",
       fix: `Give a registry path, or check an example by running model-registry check --registry ${EXAMPLE_PATH}.`,
@@ -22,7 +29,7 @@ export function loadRegistry(options: LoadRegistryOptions = {}): LoadedRegistry 
       problems: [],
     });
   }
-  const path = resolveRegistryPath(options.path);
+  const path = resolveRegistryPath(explicit);
 
   let bytes: Buffer;
   try {
@@ -58,6 +65,17 @@ export function loadRegistry(options: LoadRegistryOptions = {}): LoadedRegistry 
       problems: [],
     });
   }
+
+  return { path, bytes, parsed };
+}
+
+/**
+ * Load a registry file synchronously. The file is read once as bytes, the
+ * digest covers those bytes as read, and the registry file is never changed.
+ * On failure one RegistryError carries every collected problem.
+ */
+export function loadRegistry(options: LoadRegistryOptions = {}): LoadedRegistry {
+  const { path, bytes, parsed } = readRegistryFile(options.path);
 
   const result = validateRegistry(parsed);
   if (!result.ok) {
