@@ -543,6 +543,9 @@ describe("acceptance", () => {
         );
         expect(problem, testCase.name).toBeDefined();
         expect(problem?.code, testCase.name).toBe("registry-invalid");
+        expect(problem?.message, testCase.name).toContain("rating");
+        expect(problem?.message, testCase.name).toContain("coding");
+        expect(problem?.message, testCase.name).toContain("1 to 10");
       }
     });
   });
