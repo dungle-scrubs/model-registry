@@ -1,7 +1,5 @@
-import { createHash } from "node:crypto";
 import { existsSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { Command } from "commander";
 import { describe, expect, test } from "vitest";
 import { runCli } from "../src/cli-run.js";
 import { RegistryError } from "../src/error.js";
@@ -240,18 +238,19 @@ describe("DW2 a synthetic step migrates an older format end to end", () => {
     });
   });
 
-  test("the success envelope includes format, digest, path and backup", async () => {
+  test("the applied outcome carries the four fields the success line prints", async () => {
     await withTempDir(async (dir) => {
-      const path = writeJson(dir, "registry.json", {
-        format: 0,
-        models: { "model-a": { family: "family-a", routes: [] } },
-      });
+      const registry = { format: 0, models: { "model-a": { family: "family-a", routes: [] } } };
+      const path = writeJson(dir, "registry.json", registry);
       const outcome = runMigrate({ path, steps: [STEP_ZERO_TO_ONE] });
-      expect(outcome.kind).toBe("applied");
-      if (outcome.kind !== "applied") return;
-      const newBytes = readFileSync(outcome.path);
-      const newDigest = `sha256:${createHash("sha256").update(newBytes).digest("hex")}`;
-      expect(newDigest).toBe(`sha256:${sha256Hex(newBytes)}`);
+      expect(outcome).toEqual({
+        kind: "applied",
+        format: 1,
+        path,
+        bytes: Buffer.from(`${JSON.stringify({ ...registry, format: 1 }, null, 2)}\n`, "utf8"),
+        backupPath: join(dir, "registry.json.format-0.bak"),
+        originalFormat: 0,
+      });
     });
   });
 });
@@ -280,7 +279,7 @@ describe("DW3 an existing backup refuses and writes nothing", () => {
     });
   });
 
-  test("runCli propagates a backup-exists RegistryError as exit 2", async () => {
+  test("runCli on a format-0 file with an existing backup exits 4 while no step ships", async () => {
     await withTempDir(async (dir) => {
       const path = writeJson(dir, "registry.json", {
         format: 0,
@@ -295,9 +294,10 @@ describe("DW3 an existing backup refuses and writes nothing", () => {
         stdout: stdout.stream,
         stderr: stderr.stream,
       });
-      // The CLI uses the empty production step table, so this lands at
-      // format-unsupported exit 4, not the seam-driven exit 2. The
-      // production CLI cannot reach backup-exists until a step ships.
+      // The CLI uses the empty production step table, so a format-0 file
+      // lands at format-unsupported exit 4, not the seam-driven exit 2
+      // (cli-migrate.test.ts proves that wiring). The production CLI
+      // cannot reach backup-exists until a step ships.
       expect(exitCode).toBe(4);
       const envelope = JSON.parse(stderr.text()) as { error: { code: string } };
       expect(envelope.error.code).toBe("format-unsupported");
@@ -422,7 +422,7 @@ describe("CLI surface", () => {
     });
   });
 
-  test("a backup-exists RegistryError maps to CLI exit 2 with the right envelope", async () => {
+  test("runMigrate returns backup-exists through the injected step seam", async () => {
     await withTempDir(async (dir) => {
       const path = writeJson(dir, "registry.json", {
         format: 0,
@@ -432,40 +432,9 @@ describe("CLI surface", () => {
       writeFileSync(backupPath, "stale");
       const fileBefore = readFileSync(path);
       const backupBefore = readFileSync(backupPath);
-      const stdout = captureStream();
-      const stderr = captureStream();
-      const exitCode = runCli(["migrate", "--registry", path], {
-        stdout: stdout.stream,
-        stderr: stderr.stream,
-      });
-      // The CLI's static command does not use a seam, so the production
-      // step table (empty) is what runMigrate receives, and it returns
-      // format-unsupported exit 4 for format 0. Confirm the file and
-      // backup are untouched.
-      expect(exitCode).toBe(4);
-      const envelope = JSON.parse(stderr.text()) as { error: { code: string } };
-      expect(envelope.error.code).toBe("format-unsupported");
-      expect(readFileSync(path)).toEqual(fileBefore);
-      expect(readFileSync(backupPath)).toEqual(backupBefore);
-      void stdout;
-    });
-  });
-
-  test("runCli routes a backup-exists RegistryError to exit 2 through the seam", async () => {
-    await withTempDir(async (dir) => {
-      const path = writeJson(dir, "registry.json", {
-        format: 0,
-        models: { "model-a": { family: "family-a", routes: [] } },
-      });
-      const backupPath = join(dir, "registry.json.format-0.bak");
-      writeFileSync(backupPath, "stale");
-      const fileBefore = readFileSync(path);
-      const backupBefore = readFileSync(backupPath);
-      // Drive the seam through runMigrate directly: this is the path
-      // the CLI's production exit-code wiring (backup-exists -> 2) maps
-      // over. Cover it with a focused assertion: when the seam returns
-      // a backup-exists error, the error fields match the documented
-      // envelope, and the file/backup are untouched.
+      // Drive the seam through runMigrate directly: when a step table
+      // produces an applied result and the backup is already there,
+      // runMigrate refuses before writing anything.
       const outcome = runMigrate({ path, steps: [STEP_ZERO_TO_ONE] });
       expect(outcome.kind).toBe("error");
       if (outcome.kind !== "error") return;
@@ -521,106 +490,5 @@ describe("production step table", () => {
   test("the production table is exported from the source", async () => {
     const mod = (await import("../src/migrate.js")) as { MIGRATE_STEPS: readonly MigrateStep[] };
     expect(mod.MIGRATE_STEPS).toEqual([]);
-  });
-});
-
-describe("CLI exit-code wiring", () => {
-  // The CLI's response to a backup-exists outcome (exit code 2) is the
-  // wiring that runs the production binary: runCli catches the
-  // RegistryError thrown by the migrate command's action and routes
-  // backup-exists to exit 2. We exercise that wiring by hand: build a
-  // minimal program with the same catch chain and throw a known
-  // RegistryError.
-  test("a backup-exists RegistryError through the production catch maps to exit 2", async () => {
-    await withTempDir(async (dir) => {
-      const path = writeJson(dir, "registry.json", {
-        format: 0,
-        models: { "model-a": { family: "family-a", routes: [] } },
-      });
-      const backupPath = join(dir, "registry.json.format-0.bak");
-      writeFileSync(backupPath, "stale");
-      const backupError = new RegistryError({
-        code: "backup-exists",
-        fix: `Move or rename the backup at "${backupPath}" so the next migrate can write its backup, then run model-registry migrate again.`,
-        message: `a backup already exists at "${backupPath}"`,
-        path,
-        problems: [],
-      });
-      // Same catch chain runCli uses, lifted into the test so we can
-      // hand-drive a known instance through it.
-      const classify = (error: unknown): { exitCode: number; envelope: object } => {
-        if (error instanceof RegistryError) {
-          const exitCode = error.code === "backup-exists" ? 2 : 4;
-          return { exitCode, envelope: { error: error.toJSON() } };
-        }
-        return {
-          exitCode: 1,
-          envelope: { error: { code: "internal-error", message: String(error) } },
-        };
-      };
-      const classified = classify(backupError);
-      expect(classified.exitCode).toBe(2);
-      expect((classified.envelope as { error: { code: string } }).error.code).toBe("backup-exists");
-      expect(
-        (classified.envelope as { error: { fix: string; message: string } }).error.fix,
-      ).toContain(backupPath);
-      expect((classified.envelope as { error: { message: string } }).error.message).toContain(
-        backupPath,
-      );
-      // The backup and the registry are untouched throughout.
-      expect(readFileSync(path)).toBeDefined();
-      expect(readFileSync(backupPath).toString("utf8")).toBe("stale");
-    });
-  });
-
-  test("runCli's RegistryError catch routes backup-exists to exit 2 and other codes to exit 4", () => {
-    // Drive the catch chain on real RegistryError instances via the
-    // public runCli by throwing from a synthetic Commander program. The
-    // program mirrors the production shape: exitOverride + an action
-    // that throws the same error class runCli's catch expects.
-    const program = new Command();
-    program.exitOverride();
-    program.command("test").action(() => {
-      throw new RegistryError({
-        code: "backup-exists",
-        fix: "fix",
-        message: "msg",
-        path: "/x",
-        problems: [],
-      });
-    });
-    // The same instanceof chain runCli uses:
-    const classify = (error: unknown): number => {
-      if (error instanceof RegistryError) {
-        return error.code === "backup-exists" ? 2 : 4;
-      }
-      return 1;
-    };
-    let caught: unknown;
-    try {
-      program.parse(["test"], { from: "user" });
-    } catch (error) {
-      caught = error;
-    }
-    expect(classify(caught)).toBe(2);
-  });
-
-  test("runCli writes the {format,digest,path,backup} JSON line on success", async () => {
-    // Verify the JSON shape runCli emits for an applied outcome by
-    // hand-building the bytes the migrate command would build and
-    // asserting against the documented contract.
-    const migratedBytes = Buffer.from(
-      `${JSON.stringify({ format: 1, models: {} }, null, 2)}\n`,
-      "utf8",
-    );
-    const digest = `sha256:${createHash("sha256").update(migratedBytes).digest("hex")}`;
-    const path = "/tmp/registry.json";
-    const backup = "/tmp/registry.json.format-0.bak";
-    expect({ format: 1, digest, path, backup }).toMatchObject({
-      format: 1,
-      digest: expect.stringMatching(/^sha256:[a-f0-9]{64}$/),
-      path: expect.any(String),
-      backup: expect.stringContaining("format-0.bak"),
-    });
   });
 });
