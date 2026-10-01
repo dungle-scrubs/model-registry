@@ -544,6 +544,18 @@ describe("loadRegistry", () => {
     });
   });
 
+  test("a single problem passes its own message and fix through", async () => {
+    await withTempDir(async (dir) => {
+      const path = writeJson(dir, "registry.json", { format: 0, models: {} });
+      const error = catchRegistryError(() => loadRegistry({ path }));
+      expect(error.code).toBe("format-unsupported");
+      expect(error.message).toBe("format 0 is older than format 1");
+      expect(error.fix).toBe(
+        "Recreate the file as a format 1 registry; no migration step from format 0 ships in this release.",
+      );
+    });
+  });
+
   test("several problems roll up into one error naming check", async () => {
     await withTempDir(async (dir) => {
       const path = writeJson(dir, "registry.json", { format: 1, models: { "model-a": {} } });

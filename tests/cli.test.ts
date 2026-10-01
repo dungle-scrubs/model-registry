@@ -327,6 +327,18 @@ describe("runCli in process", () => {
     expect(envelope.error.fix).toBe("Give --registry a non-empty path to a registry file.");
   });
 
+  test("--registry given twice on migrate exits 2 naming migrate in process", () => {
+    const stdout = captureStream();
+    const stderr = captureStream();
+    const exitCode = runCli(["migrate", "--registry", "a.json", "--registry", "b.json"], {
+      stdout: stdout.stream,
+      stderr: stderr.stream,
+    });
+    expect(exitCode).toBe(2);
+    const envelope = JSON.parse(stderr.text()) as { error: { fix: string } };
+    expect(envelope.error.fix).toBe("Give model-registry migrate exactly one --registry path.");
+  });
+
   test("check with excess arguments exits 2 in process", () => {
     const stdout = captureStream();
     const stderr = captureStream();
