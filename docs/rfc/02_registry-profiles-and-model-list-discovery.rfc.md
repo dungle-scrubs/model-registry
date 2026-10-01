@@ -1009,23 +1009,21 @@ Source: The tickets in the table; [The decision map][map].
 ## Implementation Plan
 
 This is the handoff order implied by the package boundary, not a new
-cutover schedule. RFC-01 proceeds to 1.0.0 independently. The map's next
-step is review and acceptance of RFC-02 before implementation tickets
-are cut.
+cutover schedule. RFC-01 proceeds to 1.0.0 independently. RFC-02 was
+accepted on 2026-10-01, and its implementation tickets are sub-issues of
+the tracking issue named in the decision map's Handoff.
 
-1. Review the specification with the 2026-10-01 decisions incorporated,
-   then accept it before cutting implementation tickets.
-2. Implement the additive loader/schema/type changes, implicit default,
+1. Implement the additive loader/schema/type changes, implicit default,
    and placeholder example in `model-registry`. Verify files with no
    profiles remain loadable and declared references are checked.
-3. Implement the selector, membership limits, coded findings and
+2. Implement the selector, membership limits, coded findings and
    all-profile coverage check in `model-router`, using the new loader.
    Verify unknown selectors, outside pins/policies, accepted and
    unrecorded gaps, joint coverage and stale records.
-4. Publish the builder prompt and rating-prompt wording with approved
+3. Publish the builder prompt and rating-prompt wording with approved
    snapshot and band guidance. Verify proposal/approval gates and both
    final checks using placeholder data; do not add discovery code.
-5. Update consumers to supply and record the selector. Verify CLI
+4. Update consumers to supply and record the selector. Verify CLI
    precedence and a graybox router-source decision's profile and digest.
    Keep its display work outside these tickets.
 
