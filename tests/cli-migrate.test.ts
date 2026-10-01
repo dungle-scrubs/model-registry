@@ -64,6 +64,27 @@ describe("the migrate command's exit-code wiring", () => {
       expect(envelope.error.fix).toContain("Upgrade model-registry");
     });
   });
+
+  test("a step whose migrated result is invalid exits 4, replaces nothing, and writes no backup", async () => {
+    await withTempDir(async (dir) => {
+      const path = writeJson(dir, "registry.json", { format: 0, models: {} });
+      const fileBefore = readFileSync(path);
+      const invalidStep: MigrateStepEntry = {
+        from: 0,
+        step: (parsed) => ({ ...parsed, format: 1, models: { "model-a": {} } }),
+      };
+
+      const result = runMigrateCli(["migrate", "--registry", path], [invalidStep]);
+
+      expect(result.exitCode).toBe(4);
+      expect(result.stdout).toBe("");
+      const envelope = JSON.parse(result.stderr) as { error: { code: string; message: string } };
+      expect(envelope.error.code).toBe("registry-invalid");
+      expect(envelope.error.message).toContain("problems");
+      expect(readFileSync(path)).toEqual(fileBefore);
+      expect(existsSync(join(dir, "registry.json.format-0.bak"))).toBe(false);
+    });
+  });
 });
 
 describe("the migrate command's stdout wiring", () => {
