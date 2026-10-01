@@ -1,0 +1,21 @@
+{
+  "format": 1,
+  "models": {
+    "model-a": {
+      "family": "family-a",
+      "routes": [
+        {
+          "harness": "harness-x",
+          "modelId": "model-id-a",
+          "hosted": false
+        },
+        {
+          "harness": "harness-y",
+          "modelId": "model-id-b",
+          "provider": "provider-1",
+          "hosted": true
+        }
+      ]
+    }
+  }
+}

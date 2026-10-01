@@ -1,0 +1,120 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://dungle-scrubs.github.io/model-registry/registry.schema.json",
+  "title": "Model registry, format 1",
+  "description": "The format 1 slice supported by this release of model-registry: format, models and routes. Every other top-level section is foreign and holds any non-null JSON value with finite numbers; the owned sections ratings, capabilities, meters and calibration are not supported yet and are rejected, as are the deferred model and route fields.",
+  "type": "object",
+  "properties": {
+    "format": {
+      "const": 1
+    },
+    "models": {
+      "$ref": "#/$defs/models"
+    },
+    "ratings": false,
+    "capabilities": false,
+    "meters": false,
+    "calibration": false
+  },
+  "required": ["format", "models"],
+  "additionalProperties": {
+    "$ref": "#/$defs/jsonValue"
+  },
+  "$defs": {
+    "jsonValue": {
+      "description": "Any non-null JSON value; null is not valid anywhere in a registry file.",
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "number"
+        },
+        {
+          "type": "boolean"
+        },
+        {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/jsonValue"
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": {
+            "$ref": "#/$defs/jsonValue"
+          }
+        }
+      ]
+    },
+    "models": {
+      "description": "Models and their routes, keyed by model key.",
+      "type": "object",
+      "additionalProperties": {
+        "$ref": "#/$defs/model"
+      }
+    },
+    "model": {
+      "type": "object",
+      "properties": {
+        "family": {
+          "type": "string"
+        },
+        "notes": {
+          "type": "string"
+        },
+        "routes": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/route"
+          }
+        },
+        "ratings": false,
+        "maxEffort": false,
+        "fixedEffort": false
+      },
+      "required": ["family", "routes"],
+      "additionalProperties": false
+    },
+    "route": {
+      "type": "object",
+      "properties": {
+        "harness": {
+          "type": "string"
+        },
+        "modelId": {
+          "type": "string"
+        },
+        "provider": {
+          "type": "string"
+        },
+        "hosted": {
+          "type": "boolean"
+        },
+        "privacyEligible": {
+          "type": "boolean"
+        },
+        "cost": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 10
+        },
+        "rateLimitRpm": {
+          "type": "number",
+          "minimum": 0
+        },
+        "responseSeconds": {
+          "type": "number",
+          "minimum": 0
+        },
+        "notes": {
+          "type": "string"
+        },
+        "capabilities": false,
+        "meter": false
+      },
+      "required": ["harness", "modelId", "hosted"],
+      "additionalProperties": false
+    }
+  }
+}

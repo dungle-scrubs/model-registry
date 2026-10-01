@@ -1,0 +1,59 @@
+{
+  "name": "@dungle-scrubs/model-registry",
+  "version": "0.1.0",
+  "description": "Load and validate a versioned model registry.",
+  "type": "module",
+  "private": true,
+  "packageManager": "pnpm@11.28.2",
+  "engines": {
+    "node": ">=22.14.0"
+  },
+  "bin": {
+    "model-registry": "./dist/cli.js"
+  },
+  "exports": {
+    ".": {
+      "types": "./dist/types/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./registry.schema.json": "./registry.schema.json",
+    "./examples/registry.json": "./examples/registry.json"
+  },
+  "files": [
+    "dist",
+    "registry.schema.json",
+    "examples/registry.json",
+    "README.md"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
+  "scripts": {
+    "build": "node scripts/build.mjs && tsc -p tsconfig.build.json",
+    "typecheck": "tsc --noEmit",
+    "lint": "biome check .",
+    "format": "biome format --write .",
+    "test": "pnpm build && vitest run",
+    "test:watch": "vitest",
+    "test:mutation": "stryker run",
+    "check": "node dist/cli.js check",
+    "verify": "pnpm lint && pnpm typecheck && pnpm test",
+    "hooks:install": "lefthook install",
+    "prepack": "pnpm verify"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "2.5.14",
+    "@stryker-mutator/core": "10.0.0",
+    "@stryker-mutator/typescript-checker": "10.0.0",
+    "@stryker-mutator/vitest-runner": "10.0.0",
+    "@types/node": "22.18.6",
+    "esbuild": "0.28.2",
+    "lefthook": "2.1.15",
+    "typescript": "5.9.3",
+    "vitest": "4.1.0"
+  },
+  "dependencies": {
+    "ajv": "8.20.0",
+    "commander": "15.0.0"
+  }
+}
