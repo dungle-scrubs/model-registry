@@ -1,3 +1,4 @@
+import type { ValidateFunction } from "ajv/dist/2020.js";
 import { Ajv2020 } from "ajv/dist/2020.js";
 import schema from "../registry.schema.json" with { type: "json" };
 import { buildRouteLabel } from "./label.js";
@@ -17,10 +18,9 @@ export interface RegistryIndex {
   sections: Record<string, JsonValue>;
 }
 
-export interface ValidationResult {
-  problems: RegistryProblem[];
-  index: RegistryIndex;
-}
+export type ValidationResult =
+  | { index: RegistryIndex; ok: true }
+  | { ok: false; problems: readonly [RegistryProblem, ...RegistryProblem[]] };
 
 const LATER_SLICE_FIX =
   "Remove the field; support for it arrives in a later format slice of model-registry.";
@@ -29,8 +29,14 @@ export const AJV_OPTIONS = { allErrors: true, strictNumbers: true } as const;
 
 // allErrors collects every fault in one pass; strictNumbers rejects
 // non-finite numbers, such as the Infinity JSON.parse builds from 1e400.
-const ajv = new Ajv2020(AJV_OPTIONS);
-const validateShape = ajv.compile(schema);
+let shapeValidator: ValidateFunction | undefined;
+
+function getShapeValidator(): ValidateFunction {
+  if (shapeValidator === undefined) {
+    shapeValidator = new Ajv2020(AJV_OPTIONS).compile(schema);
+  }
+  return shapeValidator;
+}
 
 interface ShapeError {
   instancePath: string;
@@ -65,7 +71,7 @@ function invalidProblem(field: string, message: string, fix: string): RegistryPr
   return { code: "registry-invalid", field, message, fix };
 }
 
-export function aggregateCode(problems: RegistryProblem[]): RegistryErrorCode {
+export function aggregateCode(problems: readonly RegistryProblem[]): RegistryErrorCode {
   const first = problems[0]?.code;
   if (first === undefined) {
     return "registry-invalid";
@@ -444,77 +450,78 @@ function buildRoutes(
   }
 }
 
-export function validateRegistry(root: unknown): ValidationResult {
-  const problems: RegistryProblem[] = [];
-  const index: RegistryIndex = { registry: { models: {} }, routes: {}, sections: {} };
+function failure(problem: RegistryProblem): ValidationResult {
+  return { ok: false, problems: [problem] };
+}
 
+export function validateRegistry(root: unknown): ValidationResult {
   if (!isPlainObject(root)) {
-    problems.push(
+    return failure(
       invalidProblem(
         "$",
         "the registry root must be a JSON object",
         "Give the file a JSON object with a format field and a models object.",
       ),
     );
-    return { problems, index };
   }
 
   if (!Object.hasOwn(root, "format")) {
-    problems.push({
+    return failure({
       code: "format-missing",
       field: childPath("$", "format"),
       message: "the file has no format field, so it is not a version 1 registry",
       fix: 'Add "format": 1 at the top of the registry file.',
     });
-    return { problems, index };
   }
 
   const format = root.format;
   if (typeof format !== "number" || !Number.isInteger(format)) {
-    problems.push(
+    return failure(
       invalidProblem(
         childPath("$", "format"),
         "the format field must be the integer 1",
         'Set "format": 1 at the top of the registry file.',
       ),
     );
-    return { problems, index };
   }
   if (format > 1) {
-    problems.push({
+    return failure({
       code: "format-unsupported",
       field: childPath("$", "format"),
       message: `format ${format} is newer than the format 1 this model-registry supports`,
       fix: `Upgrade model-registry to a release that supports format ${format}.`,
     });
-    return { problems, index };
   }
   if (format < 1) {
-    problems.push({
+    return failure({
       code: "format-unsupported",
       field: childPath("$", "format"),
       message: `format ${format} is older than format 1`,
       fix: "Recreate the file as a format 1 registry; no migration into format 1 ships.",
     });
-    return { problems, index };
   }
 
+  const validateShape = getShapeValidator();
+  const problems: RegistryProblem[] = [];
   if (!validateShape(root)) {
     problems.push(...curateProblems(root, validateShape.errors ?? []));
   }
   collectLabelProblems(root, problems);
 
-  if (problems.length === 0) {
-    for (const [key, value] of Object.entries(root)) {
-      if (key === "format" || key === "models") {
-        continue;
-      }
-      safeSet(index.sections, key, value as JsonValue);
-    }
-    const models = root.models as Record<string, Model>;
-    index.registry = { models };
-    buildRoutes(models, index.routes);
+  const [firstProblem, ...moreProblems] = problems;
+  if (firstProblem !== undefined) {
+    return { ok: false, problems: [firstProblem, ...moreProblems] };
   }
 
-  return { problems, index };
+  const index: RegistryIndex = { registry: { models: {} }, routes: {}, sections: {} };
+  for (const [key, value] of Object.entries(root)) {
+    if (key === "format" || key === "models") {
+      continue;
+    }
+    safeSet(index.sections, key, value as JsonValue);
+  }
+  const models = root.models as Record<string, Model>;
+  index.registry = { models };
+  buildRoutes(models, index.routes);
+  return { ok: true, index };
 }

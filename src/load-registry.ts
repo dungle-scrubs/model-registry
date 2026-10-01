@@ -68,21 +68,20 @@ export function loadRegistry(options: LoadRegistryOptions = {}): LoadedRegistry 
     });
   }
 
-  const { problems, index } = validateRegistry(parsed);
-  if (problems.length > 0) {
-    const first = problems[0];
+  const result = validateRegistry(parsed);
+  if (!result.ok) {
     throw new RegistryError({
-      code: aggregateCode(problems),
+      code: aggregateCode(result.problems),
       message:
-        first !== undefined && problems.length === 1
-          ? first.message
-          : `the registry file at "${path}" has ${problems.length} problems`,
+        result.problems.length === 1
+          ? result.problems[0].message
+          : `the registry file at "${path}" has ${result.problems.length} problems`,
       fix:
-        first !== undefined && problems.length === 1
-          ? first.fix
+        result.problems.length === 1
+          ? result.problems[0].fix
           : "Fix each problem listed in problems, then run model-registry check again.",
       path,
-      problems,
+      problems: [...result.problems],
     });
   }
 
@@ -91,8 +90,8 @@ export function loadRegistry(options: LoadRegistryOptions = {}): LoadedRegistry 
     format: 1,
     digest,
     path,
-    registry: index.registry,
-    routes: index.routes,
-    sections: index.sections,
+    registry: result.index.registry,
+    routes: result.index.routes,
+    sections: result.index.sections,
   };
 }
