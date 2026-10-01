@@ -54,7 +54,7 @@
       ]
     },
     "ratings": {
-      "description": "Maps each rating name to a one-line description string. Every rating a model uses must be declared here.",
+      "description": "Maps each rating name to a description string; one line is the convention, not a rule. Every rating a model uses must be declared here.",
       "type": "object",
       "additionalProperties": {
         "type": "string"
@@ -87,7 +87,7 @@
       "additionalProperties": false
     },
     "effortLevel": {
-      "description": "An effort ladder level, in order low < medium < high < xhigh < max. The values mirror EFFORT_LADDER in src/ladder.ts; the two stay equal in order.",
+      "description": "An effort ladder level, in order low < medium < high < xhigh < max. The values mirror the exported EFFORT_LADDER; the two stay equal in order.",
       "enum": ["low", "medium", "high", "xhigh", "max"]
     },
     "models": {
@@ -152,9 +152,7 @@
           "type": "boolean"
         },
         "cost": {
-          "type": "integer",
-          "minimum": 1,
-          "maximum": 10
+          "$ref": "#/$defs/ratingValue"
         },
         "rateLimitRpm": {
           "type": "number",
