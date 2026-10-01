@@ -1,4 +1,4 @@
-import type { ValidateFunction } from "ajv/dist/2020.js";
+import type { ErrorObject, ValidateFunction } from "ajv/dist/2020.js";
 import { Ajv2020 } from "ajv/dist/2020.js";
 import schema from "../registry.schema.json" with { type: "json" };
 import { buildRouteLabel } from "./label.js";
@@ -9,6 +9,7 @@ import type {
   RegistryErrorCode,
   RegistryFacts,
   RegistryProblem,
+  Route,
   RouteLabel,
 } from "./types.js";
 
@@ -38,19 +39,12 @@ function getShapeValidator(): ValidateFunction {
   return shapeValidator;
 }
 
-interface ShapeError {
-  instancePath: string;
-  keyword: string;
-  params: Record<string, unknown>;
-  message?: string;
-}
-
 export function isPlainObject(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
 /** Define a property without routing a key such as `__proto__` through the prototype setter. */
-export function safeSet<T>(target: Record<string, T>, key: string, value: T): void {
+export function safeSet<TValue>(target: Record<string, TValue>, key: string, value: TValue): void {
   Object.defineProperty(target, key, {
     value,
     enumerable: true,
@@ -68,7 +62,7 @@ function childPath(parent: string, ...parts: Array<string | number>): string {
 }
 
 function invalidProblem(field: string, message: string, fix: string): RegistryProblem {
-  return { code: "registry-invalid", field, message, fix };
+  return { code: "registry-invalid", field, fix, message };
 }
 
 export function aggregateCode(problems: readonly RegistryProblem[]): RegistryErrorCode {
@@ -151,7 +145,7 @@ const MODEL_FIELD_DEPTH = 3;
 const ROUTE_DEPTH = 4;
 const ROUTE_FIELD_DEPTH = 5;
 
-function ownedProblem(root: unknown, error: ShapeError): RegistryProblem {
+function ownedProblem(root: unknown, error: ErrorObject): RegistryProblem {
   const segments = pointerSegments(error.instancePath);
   const path = walkSegments(root, segments).path;
   const keyword = error.keyword;
@@ -310,7 +304,7 @@ function typeProblem(segments: string[], path: string): RegistryProblem | undefi
  */
 function deferredFieldProblems(
   root: unknown,
-  errors: readonly ShapeError[],
+  errors: readonly ErrorObject[],
   push: (problem: RegistryProblem) => void,
 ): void {
   for (const error of errors) {
@@ -322,7 +316,7 @@ function deferredFieldProblems(
   }
 }
 
-function curateProblems(root: unknown, errors: readonly ShapeError[]): RegistryProblem[] {
+function curateProblems(root: unknown, errors: readonly ErrorObject[]): RegistryProblem[] {
   const problems: RegistryProblem[] = [];
   const seen = new Set<string>();
   const push = (problem: RegistryProblem) => {
@@ -423,7 +417,7 @@ function collectLabelProblems(root: Record<string, unknown>, problems: RegistryP
         return;
       }
       const routePath = childPath("$", "models", modelKey, "routes", index);
-      const label = buildRouteLabel(modelKey, routeValue as { harness: string; provider?: string });
+      const label = buildRouteLabel(modelKey, routeValue as Pick<Route, "harness" | "provider">);
       const owner = labelOwners.get(label);
       if (owner === undefined) {
         labelOwners.set(label, routePath);
@@ -431,8 +425,8 @@ function collectLabelProblems(root: Record<string, unknown>, problems: RegistryP
         problems.push({
           code: "label-duplicate",
           field: routePath,
-          message: `the route label "${label}" is already used by the route at ${owner}`,
           fix: "Change the harness or provider of one of the two routes so that every label is unique.",
+          message: `the route label "${label}" is already used by the route at ${owner}`,
         });
       }
     });
@@ -469,8 +463,8 @@ export function validateRegistry(root: unknown): ValidationResult {
     return failure({
       code: "format-missing",
       field: childPath("$", "format"),
-      message: "the file has no format field, so it is not a version 1 registry",
       fix: 'Add "format": 1 at the top of the registry file.',
+      message: "the file has no format field, so it is not a version 1 registry",
     });
   }
 
@@ -488,16 +482,16 @@ export function validateRegistry(root: unknown): ValidationResult {
     return failure({
       code: "format-unsupported",
       field: childPath("$", "format"),
-      message: `format ${format} is newer than the format 1 this model-registry supports`,
       fix: `Upgrade model-registry to a release that supports format ${format}.`,
+      message: `format ${format} is newer than the format 1 this model-registry supports`,
     });
   }
   if (format < 1) {
     return failure({
       code: "format-unsupported",
       field: childPath("$", "format"),
-      message: `format ${format} is older than format 1`,
       fix: "Recreate the file as a format 1 registry; no migration into format 1 ships.",
+      message: `format ${format} is older than format 1`,
     });
   }
 

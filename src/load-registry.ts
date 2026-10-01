@@ -26,8 +26,8 @@ export function loadRegistry(options: LoadRegistryOptions = {}): LoadedRegistry 
   if (path === "") {
     throw new RegistryError({
       code: "registry-missing",
-      message: "no registry file was given, because the path is empty",
       fix: `Give a registry path, or check an example by running model-registry check --registry ${EXAMPLE_PATH}.`,
+      message: "no registry file was given, because the path is empty",
       path: "",
       problems: [],
     });
@@ -40,16 +40,16 @@ export function loadRegistry(options: LoadRegistryOptions = {}): LoadedRegistry 
     if (isNodeError(error) && error.code === "ENOENT") {
       throw new RegistryError({
         code: "registry-missing",
-        message: `no registry file exists at "${path}"`,
         fix: `Create the file, or check an example by running model-registry check --registry ${EXAMPLE_PATH}.`,
+        message: `no registry file exists at "${path}"`,
         path,
         problems: [],
       });
     }
     throw new RegistryError({
       code: "registry-unreadable",
-      message: `the registry file at "${path}" cannot be read`,
       fix: "Make the file a readable file, then run model-registry check again.",
+      message: `the registry file at "${path}" cannot be read`,
       path,
       problems: [],
     });
@@ -61,8 +61,8 @@ export function loadRegistry(options: LoadRegistryOptions = {}): LoadedRegistry 
   } catch {
     throw new RegistryError({
       code: "registry-unreadable",
-      message: `the registry file at "${path}" is not valid JSON`,
       fix: "Fix the JSON syntax, then run model-registry check again.",
+      message: `the registry file at "${path}" is not valid JSON`,
       path,
       problems: [],
     });
@@ -72,14 +72,14 @@ export function loadRegistry(options: LoadRegistryOptions = {}): LoadedRegistry 
   if (!result.ok) {
     throw new RegistryError({
       code: aggregateCode(result.problems),
-      message:
-        result.problems.length === 1
-          ? result.problems[0].message
-          : `the registry file at "${path}" has ${result.problems.length} problems`,
       fix:
         result.problems.length === 1
           ? result.problems[0].fix
           : "Fix each problem listed in problems, then run model-registry check again.",
+      message:
+        result.problems.length === 1
+          ? result.problems[0].message
+          : `the registry file at "${path}" has ${result.problems.length} problems`,
       path,
       problems: [...result.problems],
     });

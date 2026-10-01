@@ -25,8 +25,8 @@ export class RegistryError extends Error {
   toJSON(): RegistryErrorDetails {
     return {
       code: this.code,
-      message: this.message,
       fix: this.fix,
+      message: this.message,
       path: this.path,
       problems: this.problems,
     };

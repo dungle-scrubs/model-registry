@@ -36,8 +36,10 @@ describe("public types", () => {
     expectTypeOf<LoadedRegistry["digest"]>().toEqualTypeOf<RegistryDigest>();
     expectTypeOf<LoadedRegistry["path"]>().toEqualTypeOf<string>();
     expectTypeOf<LoadedRegistry["registry"]>().toEqualTypeOf<RegistryFacts>();
-    expectTypeOf<LoadedRegistry["routes"]>().toEqualTypeOf<Record<RouteLabel, IndexedRoute>>();
-    expectTypeOf<LoadedRegistry["sections"]>().toEqualTypeOf<Record<string, JsonValue>>();
+    expectTypeOf<LoadedRegistry["routes"]>().toEqualTypeOf<
+      Readonly<Record<RouteLabel, IndexedRoute>>
+    >();
+    expectTypeOf<LoadedRegistry["sections"]>().toEqualTypeOf<Readonly<Record<string, JsonValue>>>();
     expectTypeOf<RegistryFile>().toMatchTypeOf<{ format: 1; models: Record<string, Model> }>();
   });
 
@@ -51,7 +53,7 @@ describe("public types", () => {
     expectTypeOf<Model>().toMatchTypeOf<{
       family: string;
       notes?: string;
-      routes: Route[];
+      routes: readonly Route[];
     }>();
     expectTypeOf<Route>().toMatchTypeOf<{
       harness: string;

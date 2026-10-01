@@ -1,4 +1,9 @@
-export type JsonValue = string | number | boolean | JsonValue[] | { [key: string]: JsonValue };
+export type JsonValue =
+  | string
+  | number
+  | boolean
+  | readonly JsonValue[]
+  | { [key: string]: JsonValue };
 
 export type RegistryDigest = `sha256:${string}`;
 
@@ -15,25 +20,25 @@ export type RegistryErrorCode =
   | "rating-mismatch";
 
 export type Route = {
-  harness: string;
-  modelId: string;
-  provider?: string;
-  hosted: boolean;
-  privacyEligible?: boolean;
-  cost?: 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10;
-  rateLimitRpm?: number;
-  responseSeconds?: number;
-  notes?: string;
+  readonly cost?: 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10;
+  readonly harness: string;
+  readonly hosted: boolean;
+  readonly modelId: string;
+  readonly notes?: string;
+  readonly privacyEligible?: boolean;
+  readonly provider?: string;
+  readonly rateLimitRpm?: number;
+  readonly responseSeconds?: number;
 };
 
 export type Model = {
-  family: string;
-  notes?: string;
-  routes: Route[];
+  readonly family: string;
+  readonly notes?: string;
+  readonly routes: readonly Route[];
 };
 
 export interface RegistryFacts {
-  models: Record<string, Model>;
+  readonly models: Readonly<Record<string, Model>>;
 }
 
 /** Foreign top-level sections hold any non-null JSON value with finite numbers. */
@@ -41,29 +46,26 @@ export type ForeignSections = {
   [section: string]: JsonValue;
 };
 
-/** Deferred owned sections stay rejected until their format slice ships. */
-export type DeferredRegistryFields = {
-  ratings?: never;
-  capabilities?: never;
-  meters?: never;
-  calibration?: never;
-};
-
 export type RegistryFile = {
   format: 1;
   models: Record<string, Model>;
-} & ForeignSections &
-  DeferredRegistryFields;
+} & ForeignSections & {
+    // Deferred owned sections stay rejected until their format slice ships.
+    calibration?: never;
+    capabilities?: never;
+    meters?: never;
+    ratings?: never;
+  };
 
 export type IndexedRoute = Route & { model: string };
 
 export interface LoadedRegistry {
-  format: 1;
-  digest: RegistryDigest;
-  path: string;
-  registry: RegistryFacts;
-  routes: Record<RouteLabel, IndexedRoute>;
-  sections: Record<string, JsonValue>;
+  readonly digest: RegistryDigest;
+  readonly format: 1;
+  readonly path: string;
+  readonly registry: RegistryFacts;
+  readonly routes: Readonly<Record<RouteLabel, IndexedRoute>>;
+  readonly sections: Readonly<Record<string, JsonValue>>;
 }
 
 export interface LoadRegistryOptions {
@@ -73,14 +75,14 @@ export interface LoadRegistryOptions {
 export interface RegistryProblem {
   code: RegistryErrorCode;
   field: string;
-  message: string;
   fix: string;
+  message: string;
 }
 
 export interface RegistryErrorDetails {
   code: RegistryErrorCode;
-  message: string;
   fix: string;
+  message: string;
   path: string;
   problems: RegistryProblem[];
 }
