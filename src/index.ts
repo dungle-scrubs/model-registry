@@ -1,5 +1,7 @@
 export { RegistryError } from "./error.js";
 export { buildRouteLabel } from "./label.js";
+export type { EffortLevel } from "./ladder.js";
+export { EFFORT_LADDER } from "./ladder.js";
 export { loadRegistry } from "./load-registry.js";
 export type {
   ForeignSections,
@@ -7,7 +9,9 @@ export type {
   JsonValue,
   LoadedRegistry,
   LoadRegistryOptions,
+  Meter,
   Model,
+  RatingValue,
   RegistryDigest,
   RegistryErrorCode,
   RegistryErrorDetails,
