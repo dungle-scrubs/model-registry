@@ -2,6 +2,7 @@ import type { ErrorObject, ValidateFunction } from "ajv/dist/2020.js";
 import { Ajv2020 } from "ajv/dist/2020.js";
 import schema from "../registry.schema.json" with { type: "json" };
 import { buildRouteLabel } from "./label.js";
+import { EFFORT_LADDER } from "./ladder.js";
 import type {
   IndexedRoute,
   JsonValue,
@@ -25,6 +26,7 @@ export type ValidationResult =
 
 const LATER_SLICE_FIX =
   "Remove the field; support for it arrives in a later format slice of model-registry.";
+const EFFORT_LADDER_VALUES = EFFORT_LADDER.join(", ");
 
 export const AJV_OPTIONS = { allErrors: true, strictNumbers: true } as const;
 
@@ -65,6 +67,20 @@ function invalidProblem(field: string, message: string, fix: string): RegistryPr
   return { code: "registry-invalid", field, fix, message };
 }
 
+function referenceUnknownProblem(
+  field: string,
+  name: string,
+  kind: string,
+  fix: string,
+): RegistryProblem {
+  return {
+    code: "reference-unknown",
+    field,
+    fix,
+    message: `the ${kind} "${name}" is not declared in the ${kind}s section`,
+  };
+}
+
 export function aggregateCode(problems: readonly RegistryProblem[]): RegistryErrorCode {
   const first = problems[0]?.code;
   if (first === undefined) {
@@ -100,7 +116,13 @@ function walkSegments(
 }
 
 function pointerIsOwned(pointer: string): boolean {
-  return pointer === "" || pointerSegments(pointer)[0] === "models";
+  return (
+    pointer === "" ||
+    pointerSegments(pointer)[0] === "models" ||
+    pointerSegments(pointer)[0] === "ratings" ||
+    pointerSegments(pointer)[0] === "capabilities" ||
+    pointerSegments(pointer)[0] === "meters"
+  );
 }
 
 function genericProblem(field: string, message: string | undefined): RegistryProblem {
@@ -122,7 +144,7 @@ function deferredProblem(path: string, field: string): RegistryProblem {
 function unknownFieldProblem(
   path: string,
   name: string,
-  owner: "model" | "route",
+  owner: "model" | "route" | "meter",
 ): RegistryProblem {
   return invalidProblem(
     childPath(path, name),
@@ -139,11 +161,32 @@ function requiredStringProblem(parent: string, name: string): RegistryProblem {
   );
 }
 
-const ROOT_FIELD_DEPTH = 1;
+// Path depth in segments for each owned level. The values are computed once so
+// the depth checks in the keyword handlers below stay readable.
 const MODEL_DEPTH = 2;
-const MODEL_FIELD_DEPTH = 3;
 const ROUTE_DEPTH = 4;
-const ROUTE_FIELD_DEPTH = 5;
+
+function ratingValueProblem(path: string, segments: readonly string[]): RegistryProblem {
+  const modelKey = segments[1] ?? "";
+  const rating = segments[3] ?? "";
+  return invalidProblem(
+    path,
+    `the rating "${rating}" of model "${modelKey}" must be an integer from 1 to 10`,
+    `Set the rating "${rating}" of model "${modelKey}" to an integer from 1 to 10.`,
+  );
+}
+
+function enumProblem(path: string, segments: readonly string[]): RegistryProblem | undefined {
+  const field = segments.at(-1) ?? "";
+  if (segments.length === 3 && (field === "maxEffort" || field === "fixedEffort")) {
+    return invalidProblem(
+      path,
+      `the field "${field}" must be one of ${EFFORT_LADDER_VALUES}`,
+      `Set "${field}" to one of ${EFFORT_LADDER_VALUES}.`,
+    );
+  }
+  return undefined;
+}
 
 function ownedProblem(root: unknown, error: ErrorObject): RegistryProblem {
   const segments = pointerSegments(error.instancePath);
@@ -189,6 +232,9 @@ function ownedProblem(root: unknown, error: ErrorObject): RegistryProblem {
 
   if (keyword === "additionalProperties") {
     const name = error.params.additionalProperty;
+    if (typeof name === "string" && segments.length === 2 && (segments[0] ?? "") === "meters") {
+      return unknownFieldProblem(path, name, "meter");
+    }
     if (typeof name === "string" && segments.length === MODEL_DEPTH) {
       return unknownFieldProblem(path, name, "model");
     }
@@ -202,26 +248,93 @@ function ownedProblem(root: unknown, error: ErrorObject): RegistryProblem {
     return typeProblem(segments, path) ?? genericProblem(path, error.message);
   }
 
+  if (keyword === "enum") {
+    return enumProblem(path, segments) ?? genericProblem(path, error.message);
+  }
+
+  if (keyword === "const") {
+    if (
+      segments.length === 3 &&
+      (segments[0] ?? "") === "meters" &&
+      (segments.at(-1) ?? "") === "spendToZero"
+    ) {
+      const meterName = segments[1] ?? "";
+      return invalidProblem(
+        path,
+        `the meter "${meterName}" field "spendToZero" accepts only the literal true`,
+        'Set "spendToZero" to true, or remove it.',
+      );
+    }
+    return genericProblem(path, error.message);
+  }
+
   return genericProblem(path, error.message);
 }
 
 function typeProblem(segments: string[], path: string): RegistryProblem | undefined {
   const field = segments.at(-1) ?? "";
-  if (segments.length === ROOT_FIELD_DEPTH && field === "models") {
-    return invalidProblem(
-      path,
-      'the field "models" must be a JSON object keyed by model key',
-      "Replace models with a JSON object keyed by model key.",
-    );
+  const section = segments[0] ?? "";
+
+  if (segments.length === 1) {
+    switch (field) {
+      case "models":
+        return invalidProblem(
+          path,
+          'the field "models" must be a JSON object keyed by model key',
+          "Replace models with a JSON object keyed by model key.",
+        );
+      case "ratings":
+        return invalidProblem(
+          path,
+          'the field "ratings" must be a JSON object keyed by rating name',
+          "Replace ratings with a JSON object keyed by rating name.",
+        );
+      case "capabilities":
+        return invalidProblem(
+          path,
+          'the field "capabilities" must be a JSON object keyed by capability name',
+          "Replace capabilities with a JSON object keyed by capability name.",
+        );
+      case "meters":
+        return invalidProblem(
+          path,
+          'the field "meters" must be a JSON object keyed by meter name',
+          "Replace meters with a JSON object keyed by meter name.",
+        );
+    }
+    return undefined;
   }
-  if (segments.length === MODEL_DEPTH) {
-    return invalidProblem(
-      path,
-      `the model "${segments[1] ?? ""}" must be a JSON object`,
-      "Replace the model with a JSON object.",
-    );
+  if (segments.length === 2) {
+    const name = segments[1] ?? "";
+    if (section === "meters") {
+      return invalidProblem(
+        path,
+        `the meter "${name}" must be a JSON object`,
+        "Replace the meter value with a JSON object.",
+      );
+    }
+    if (section === "models") {
+      return invalidProblem(
+        path,
+        `the model "${name}" must be a JSON object`,
+        "Replace the model with a JSON object.",
+      );
+    }
+    return undefined;
   }
-  if (segments.length === MODEL_FIELD_DEPTH) {
+  if (segments.length === 3 && section === "meters") {
+    switch (field) {
+      case "notes":
+        return invalidProblem(
+          path,
+          `the meter "${segments[1] ?? ""}" field "notes" must be a string`,
+          `Set the meter "${segments[1] ?? ""}" notes to a string, or remove it.`,
+        );
+    }
+    return undefined;
+  }
+  if (segments.length === 3 && section === "models") {
+    const modelKey = segments[1] ?? "";
     switch (field) {
       case "family":
         return invalidProblem(
@@ -241,17 +354,33 @@ function typeProblem(segments: string[], path: string): RegistryProblem | undefi
           "the routes field must be an array",
           "Set routes to an array of route objects.",
         );
+      case "ratings":
+        return invalidProblem(
+          path,
+          `the model "${modelKey}" ratings field must be a JSON object`,
+          `Set the model "${modelKey}" ratings to a JSON object of integer ratings.`,
+        );
+      case "maxEffort":
+      case "fixedEffort":
+        return invalidProblem(
+          path,
+          `the field "${field}" must be one of ${EFFORT_LADDER_VALUES}`,
+          `Set "${field}" to one of ${EFFORT_LADDER_VALUES}.`,
+        );
     }
     return undefined;
   }
-  if (segments.length === ROUTE_DEPTH) {
+  if (segments.length === 4 && section === "models" && (segments[2] ?? "") === "ratings") {
+    return ratingValueProblem(path, segments);
+  }
+  if (segments.length === 4 && section === "models" && (segments[2] ?? "") === "routes") {
     return invalidProblem(
       path,
       "the route must be a JSON object",
       "Replace the route with a JSON object.",
     );
   }
-  if (segments.length === ROUTE_FIELD_DEPTH) {
+  if (segments.length === 5) {
     switch (field) {
       case "harness":
       case "modelId":
@@ -292,7 +421,26 @@ function typeProblem(segments: string[], path: string): RegistryProblem | undefi
           `the field "${field}" must be a number of 0 or more`,
           `Set "${field}" to a finite number of 0 or more.`,
         );
+      case "meter":
+        return invalidProblem(
+          path,
+          'the field "meter" must be a string naming a declared meter',
+          'Set "meter" to a meter name declared in the meters section, or remove it.',
+        );
+      case "capabilities":
+        return invalidProblem(
+          path,
+          'the field "capabilities" must be an array of strings',
+          'Set "capabilities" to an array of capability names declared in the capabilities section, or remove it.',
+        );
     }
+  }
+  if (segments.length === 6) {
+    return invalidProblem(
+      path,
+      "a route capability entry must be a string",
+      "Set the entry to a capability name declared in the capabilities section, or remove the entry.",
+    );
   }
   return undefined;
 }
@@ -433,6 +581,92 @@ function collectLabelProblems(root: Record<string, unknown>, problems: RegistryP
   }
 }
 
+/**
+ * Verify every name the registry mentions against the top-level declarations:
+ * model ratings against the ratings section, route capabilities against the
+ * capabilities section and route meters against the meters section. An absent
+ * section declares nothing, so every reference becomes unknown. The check runs
+ * after shape validation so the values are known to be strings; one problem
+ * fires per bad reference and the field is the JSONPath of the reference.
+ */
+function collectReferenceProblems(
+  root: Record<string, unknown>,
+  problems: RegistryProblem[],
+): void {
+  const declaredRatings = isPlainObject(root.ratings)
+    ? new Set(Object.keys(root.ratings))
+    : new Set<string>();
+  const declaredCapabilities = isPlainObject(root.capabilities)
+    ? new Set(Object.keys(root.capabilities))
+    : new Set<string>();
+  const declaredMeters = isPlainObject(root.meters)
+    ? new Set(Object.keys(root.meters))
+    : new Set<string>();
+
+  const models = root.models;
+  if (!isPlainObject(models)) {
+    return;
+  }
+  for (const [modelKey, modelValue] of Object.entries(models)) {
+    if (!isPlainObject(modelValue)) {
+      continue;
+    }
+    const modelPath = childPath("$", "models", modelKey);
+
+    if (isPlainObject(modelValue.ratings)) {
+      for (const rating of Object.keys(modelValue.ratings)) {
+        if (!declaredRatings.has(rating)) {
+          problems.push(
+            referenceUnknownProblem(
+              childPath(modelPath, "ratings", rating),
+              rating,
+              "rating",
+              `Add "${rating}" to the ratings section, or remove the rating from model "${modelKey}".`,
+            ),
+          );
+        }
+      }
+    }
+
+    if (!Array.isArray(modelValue.routes)) {
+      continue;
+    }
+    modelValue.routes.forEach((routeValue, index) => {
+      if (!isPlainObject(routeValue)) {
+        return;
+      }
+      const routePath = childPath(modelPath, "routes", index);
+
+      if (Array.isArray(routeValue.capabilities)) {
+        routeValue.capabilities.forEach((capability, capabilityIndex) => {
+          if (typeof capability !== "string" || declaredCapabilities.has(capability)) {
+            return;
+          }
+          problems.push(
+            referenceUnknownProblem(
+              childPath(routePath, "capabilities", capabilityIndex),
+              capability,
+              "capability",
+              `Add "${capability}" to the capabilities section, or remove it from this route.`,
+            ),
+          );
+        });
+      }
+
+      if (typeof routeValue.meter === "string" && !declaredMeters.has(routeValue.meter)) {
+        problems.push(
+          referenceUnknownProblem(
+            childPath(routePath, "meter"),
+            routeValue.meter,
+            "meter",
+            `Add "${routeValue.meter}" to the meters section, or remove it from this route.`,
+          ),
+        );
+      }
+    });
+  }
+}
+
 function buildRoutes(
   models: Record<string, Model>,
   routes: Record<RouteLabel, IndexedRoute>,
@@ -501,6 +735,7 @@ export function validateRegistry(root: unknown): ValidationResult {
     problems.push(...curateProblems(root, validateShape.errors ?? []));
   }
   collectLabelProblems(root, problems);
+  collectReferenceProblems(root, problems);
 
   const [firstProblem, ...moreProblems] = problems;
   if (firstProblem !== undefined) {
