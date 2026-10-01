@@ -110,7 +110,7 @@ describe("curated problems", () => {
             code: "format-unsupported",
             field: '$["format"]',
             message: "format 0 is older than format 1",
-            fix: "Recreate the file as a format 1 registry; no migration into format 1 ships.",
+            fix: "Run model-registry migrate to upgrade the file; no migration into format 1 ships in this release.",
           },
         },
         {

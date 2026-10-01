@@ -490,7 +490,7 @@ export function validateRegistry(root: unknown): ValidationResult {
     return failure({
       code: "format-unsupported",
       field: childPath("$", "format"),
-      fix: "Recreate the file as a format 1 registry; no migration into format 1 ships.",
+      fix: "Run model-registry migrate to upgrade the file; no migration into format 1 ships in this release.",
       message: `format ${format} is older than format 1`,
     });
   }
