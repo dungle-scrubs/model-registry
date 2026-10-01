@@ -7,23 +7,13 @@ import { aggregateCode, validateRegistry } from "./validate.js";
 
 const EXAMPLE_PATH = "examples/registry.json";
 
-interface NodeError extends Error {
-  code?: string;
-}
-
-function isNodeError(error: unknown): error is NodeError {
-  return error instanceof Error;
-}
-
 /**
  * Load a registry file synchronously. The file is read once as bytes, the
  * digest covers those bytes as read, and the registry file is never changed.
  * On failure one RegistryError carries every collected problem.
  */
 export function loadRegistry(options: LoadRegistryOptions = {}): LoadedRegistry {
-  const path = resolveRegistryPath(options.path);
-
-  if (path === "") {
+  if (options.path === "") {
     throw new RegistryError({
       code: "registry-missing",
       fix: `Give a registry path, or check an example by running model-registry check --registry ${EXAMPLE_PATH}.`,
@@ -32,12 +22,13 @@ export function loadRegistry(options: LoadRegistryOptions = {}): LoadedRegistry 
       problems: [],
     });
   }
+  const path = resolveRegistryPath(options.path);
 
   let bytes: Buffer;
   try {
     bytes = readFileSync(path);
   } catch (error) {
-    if (isNodeError(error) && error.code === "ENOENT") {
+    if (error instanceof Error && "code" in error && error.code === "ENOENT") {
       throw new RegistryError({
         code: "registry-missing",
         fix: `Create the file, or check an example by running model-registry check --registry ${EXAMPLE_PATH}.`,
