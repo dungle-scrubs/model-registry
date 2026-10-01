@@ -140,7 +140,7 @@ export function runMigrate(options: MigrateOptions = {}): MigrateOutcome {
   const mode = statSync(targetPath).mode & 0o777;
   const backupPath = backupNameFor(targetPath, declared);
   try {
-    writeFileSync(backupPath, bytes, { flag: "wx" });
+    writeFileSync(backupPath, bytes, { flag: "wx", mode });
   } catch (error) {
     if (error instanceof Error && (error as NodeJS.ErrnoException).code === "EEXIST") {
       return {

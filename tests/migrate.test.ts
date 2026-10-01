@@ -550,6 +550,18 @@ describe("atomic replace", () => {
     });
   });
 
+  test("the backup keeps the original file mode, not the default creation mode (mode assertion skipped when running as root)", async () => {
+    await withTempDir(async (dir) => {
+      const path = writeJson(dir, "registry.json", { format: 0, models: {} });
+      chmodSync(path, 0o600);
+      runMigrate({ path, steps: [FROM_ZERO] });
+      const backupPath = join(dir, "registry.json.format-0.bak");
+      if ((process.geteuid?.() ?? -1) !== 0) {
+        expect(statSync(backupPath).mode & 0o777).toBe(0o600);
+      }
+    });
+  });
+
   test("a symlinked registry migrates its target and keeps the link", async () => {
     await withTempDir(async (dir) => {
       const targetDir = join(dir, "target");
