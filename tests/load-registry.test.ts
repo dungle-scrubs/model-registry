@@ -204,16 +204,6 @@ describe("curated problems", () => {
           },
         },
         {
-          name: "deferred model field",
-          value: registry(modelEntry(model({ maxEffort: "high" }))),
-          problem: {
-            code: "registry-invalid",
-            field: '$["models"]["model-a"]["maxEffort"]',
-            message: 'the field "maxEffort" is not supported in this release of model-registry',
-            fix: "Remove the field; support for it arrives in a later format slice of model-registry.",
-          },
-        },
-        {
           name: "route not an object",
           value: registry(modelEntry({ family: "family-a", routes: ["x"] })),
           problem: {
@@ -381,26 +371,6 @@ describe("curated problems", () => {
             field: '$["models"]["model-a"]["routes"][0]["surprise"]',
             message: 'the field "surprise" is not part of a format 1 route',
             fix: "Remove the field, or move free text into notes.",
-          },
-        },
-        {
-          name: "deferred route field",
-          value: registry(modelEntry(model({}, [route({ meter: "plan-a" })]))),
-          problem: {
-            code: "registry-invalid",
-            field: '$["models"]["model-a"]["routes"][0]["meter"]',
-            message: 'the field "meter" is not supported in this release of model-registry',
-            fix: "Remove the field; support for it arrives in a later format slice of model-registry.",
-          },
-        },
-        {
-          name: "deferred top-level field",
-          value: registry({}, { ratings: { coding: "x" } }),
-          problem: {
-            code: "registry-invalid",
-            field: '$["ratings"]',
-            message: 'the field "ratings" is not supported in this release of model-registry',
-            fix: "Remove the field; support for it arrives in a later format slice of model-registry.",
           },
         },
         {
@@ -667,72 +637,261 @@ describe("loadRegistry", () => {
     });
   });
 
-  test("deferred owned fields are rejected with a later-slice fix", async () => {
+  test("the deferred calibration section is rejected with a later-slice fix", async () => {
     await withTempDir(async (dir) => {
-      const cases: Array<{ name: string; data: unknown; field: string }> = [
+      const path = writeJson(dir, "calibration.json", {
+        format: 1,
+        models: {},
+        calibration: { handSet: ["taste"] },
+      });
+      const error = catchRegistryError(() => loadRegistry({ path }));
+      expect(error.code).toBe("registry-invalid");
+      const problem = error.problems.find((candidate) => candidate.field === '$["calibration"]');
+      expect(problem).toBeDefined();
+      expect(problem?.fix).toContain("later format slice");
+    });
+  });
+
+  test("undeclared model rating, route capability and route meter fail with reference-unknown", async () => {
+    await withTempDir(async (dir) => {
+      const cases: Array<{
+        name: string;
+        data: unknown;
+        field: string;
+        name_: string;
+        kind: string;
+      }> = [
         {
-          name: "top-level ratings",
-          data: { format: 1, models: {}, ratings: { coding: "Writes code." } },
-          field: '$["ratings"]',
-        },
-        {
-          name: "top-level calibration",
-          data: { format: 1, models: {}, calibration: {} },
-          field: '$["calibration"]',
-        },
-        {
-          name: "model ratings",
-          data: {
-            format: 1,
-            models: { "model-a": { family: "family-a", ratings: {}, routes: [] } },
-          },
-          field: '$["models"]["model-a"]["ratings"]',
-        },
-        {
-          name: "model maxEffort",
-          data: {
-            format: 1,
-            models: { "model-a": { family: "family-a", maxEffort: "high", routes: [] } },
-          },
-          field: '$["models"]["model-a"]["maxEffort"]',
-        },
-        {
-          name: "route capabilities",
+          name: "model rating without a ratings section",
           data: {
             format: 1,
             models: {
-              "model-a": modelWithRoutes([
-                {
-                  harness: "harness-x",
-                  modelId: "model-id-a",
-                  hosted: false,
-                  capabilities: ["browser"],
-                },
-              ]),
+              "model-a": {
+                family: "family-a",
+                ratings: { coding: 7 },
+                routes: [],
+              },
             },
           },
-          field: '$["models"]["model-a"]["routes"][0]["capabilities"]',
+          field: '$["models"]["model-a"]["ratings"]["coding"]',
+          name_: "coding",
+          kind: "rating",
         },
         {
-          name: "route meter",
+          name: "model rating not in the declared ratings",
+          data: {
+            format: 1,
+            ratings: { taste: "Subjective." },
+            models: {
+              "model-a": {
+                family: "family-a",
+                ratings: { coding: 7 },
+                routes: [],
+              },
+            },
+          },
+          field: '$["models"]["model-a"]["ratings"]["coding"]',
+          name_: "coding",
+          kind: "rating",
+        },
+        {
+          name: "route capability without a capabilities section",
           data: {
             format: 1,
             models: {
-              "model-a": modelWithRoutes([
-                { harness: "harness-x", modelId: "model-id-a", hosted: false, meter: "plan-a" },
-              ]),
+              "model-a": {
+                family: "family-a",
+                routes: [
+                  {
+                    harness: "harness-x",
+                    modelId: "model-id-a",
+                    hosted: false,
+                    capabilities: ["browser"],
+                  },
+                ],
+              },
+            },
+          },
+          field: '$["models"]["model-a"]["routes"][0]["capabilities"][0]',
+          name_: "browser",
+          kind: "capability",
+        },
+        {
+          name: "route capability not in the declared capabilities",
+          data: {
+            format: 1,
+            capabilities: { image: "Sees images." },
+            models: {
+              "model-a": {
+                family: "family-a",
+                routes: [
+                  {
+                    harness: "harness-x",
+                    modelId: "model-id-a",
+                    hosted: false,
+                    capabilities: ["browser"],
+                  },
+                ],
+              },
+            },
+          },
+          field: '$["models"]["model-a"]["routes"][0]["capabilities"][0]',
+          name_: "browser",
+          kind: "capability",
+        },
+        {
+          name: "route meter without a meters section",
+          data: {
+            format: 1,
+            models: {
+              "model-a": {
+                family: "family-a",
+                routes: [
+                  {
+                    harness: "harness-x",
+                    modelId: "model-id-a",
+                    hosted: false,
+                    meter: "plan-a",
+                  },
+                ],
+              },
             },
           },
           field: '$["models"]["model-a"]["routes"][0]["meter"]',
+          name_: "plan-a",
+          kind: "meter",
+        },
+        {
+          name: "route meter not in the declared meters",
+          data: {
+            format: 1,
+            meters: { "plan-b": { spendToZero: true } },
+            models: {
+              "model-a": {
+                family: "family-a",
+                routes: [
+                  {
+                    harness: "harness-x",
+                    modelId: "model-id-a",
+                    hosted: false,
+                    meter: "plan-a",
+                  },
+                ],
+              },
+            },
+          },
+          field: '$["models"]["model-a"]["routes"][0]["meter"]',
+          name_: "plan-a",
+          kind: "meter",
         },
       ];
       for (const testCase of cases) {
         const path = writeJson(dir, `${testCase.name.replace(/\W+/g, "-")}.json`, testCase.data);
         const error = catchRegistryError(() => loadRegistry({ path }));
+        expect(error.code, testCase.name).toBe("reference-unknown");
+        const problem = error.problems.find((candidate) => candidate.field === testCase.field);
+        expect(problem, testCase.name).toBeDefined();
+        expect(problem?.message, testCase.name).toContain(`"${testCase.name_}"`);
+        expect(problem?.message, testCase.name).toContain(`${testCase.kind}s section`);
+      }
+    });
+  });
+
+  test("every declared reference passes", async () => {
+    await withTempDir(async (dir) => {
+      const path = writeJson(dir, "declared.json", {
+        format: 1,
+        ratings: { coding: "Writes and changes code." },
+        capabilities: { browser: "Can drive a browser." },
+        meters: { "plan-a": { spendToZero: true } },
+        models: {
+          "model-a": {
+            family: "family-a",
+            ratings: { coding: 7 },
+            maxEffort: "high",
+            routes: [
+              {
+                harness: "harness-x",
+                modelId: "model-id-a",
+                hosted: false,
+                capabilities: ["browser"],
+                meter: "plan-a",
+              },
+            ],
+          },
+        },
+      });
+      const loaded = loadRegistry({ path });
+      expect(loaded.registry.models["model-a"]?.ratings).toEqual({ coding: 7 });
+      expect(loaded.registry.models["model-a"]?.maxEffort).toBe("high");
+      const route = loaded.routes["model-a@harness-x"];
+      expect(route?.capabilities).toEqual(["browser"]);
+      expect(route?.meter).toBe("plan-a");
+    });
+  });
+
+  test("model ratings outside 1 to 10 and non-integers fail with registry-invalid", async () => {
+    await withTempDir(async (dir) => {
+      const cases: Array<{ name: string; rating: unknown }> = [
+        { name: "below range", rating: 0 },
+        { name: "above range", rating: 11 },
+        { name: "fractional", rating: 5.5 },
+        { name: "string", rating: "5" },
+        { name: "boolean", rating: true },
+      ];
+      for (const testCase of cases) {
+        const path = writeJson(dir, `${testCase.name}.json`, {
+          format: 1,
+          ratings: { coding: "Writes and changes code." },
+          models: {
+            "model-a": {
+              family: "family-a",
+              ratings: { coding: testCase.rating },
+              routes: [],
+            },
+          },
+        });
+        const error = catchRegistryError(() => loadRegistry({ path }));
+        expect(error.code, testCase.name).toBe("registry-invalid");
+        const problem = error.problems.find(
+          (candidate) => candidate.field === '$["models"]["model-a"]["ratings"]["coding"]',
+        );
+        expect(problem, testCase.name).toBeDefined();
+      }
+    });
+  });
+
+  test("maxEffort and fixedEffort off the ladder fail with registry-invalid", async () => {
+    await withTempDir(async (dir) => {
+      const cases: Array<{ name: string; field: string; effortKey: string }> = [
+        {
+          name: "maxEffort off ladder",
+          field: '$["models"]["model-a"]["maxEffort"]',
+          effortKey: "maxEffort",
+        },
+        {
+          name: "fixedEffort off ladder",
+          field: '$["models"]["model-a"]["fixedEffort"]',
+          effortKey: "fixedEffort",
+        },
+      ];
+      for (const testCase of cases) {
+        const path = writeJson(dir, `${testCase.name.replace(/\W+/g, "-")}.json`, {
+          format: 1,
+          models: {
+            "model-a": {
+              family: "family-a",
+              routes: [],
+              [testCase.effortKey]: "off-the-ladder",
+            },
+          },
+        });
+        const error = catchRegistryError(() => loadRegistry({ path }));
         expect(error.code, testCase.name).toBe("registry-invalid");
         const problem = error.problems.find((candidate) => candidate.field === testCase.field);
         expect(problem, testCase.name).toBeDefined();
-        expect(problem?.fix, testCase.name).toContain("later format slice");
+        expect(problem?.message, testCase.name).toContain("low, medium, high, xhigh, max");
+        expect(problem?.fix, testCase.name).toContain("low, medium, high, xhigh, max");
       }
     });
   });
@@ -878,8 +1037,9 @@ describe("loadRegistry", () => {
     );
     expect(result.stderr).toBe("");
     expect(result.status).toBe(0);
-    expect(result.stdout).toBe("RegistryError,buildRouteLabel,loadRegistry");
+    expect(result.stdout).toBe("EFFORT_LADDER,RegistryError,buildRouteLabel,loadRegistry");
     expect(Object.keys(publicApi).sort()).toEqual([
+      "EFFORT_LADDER",
       "RegistryError",
       "buildRouteLabel",
       "loadRegistry",
