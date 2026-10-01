@@ -144,6 +144,66 @@ describe("curated problems", () => {
           },
         },
         {
+          name: "top-level ratings wrong type",
+          value: registry(modelEntry(model()), { ratings: "x" }),
+          problem: {
+            code: "registry-invalid",
+            field: '$["ratings"]',
+            message: 'the field "ratings" must be a JSON object keyed by rating name',
+            fix: "Replace ratings with a JSON object keyed by rating name.",
+          },
+        },
+        {
+          name: "top-level capabilities wrong type",
+          value: registry(modelEntry(model()), { capabilities: ["browser"] }),
+          problem: {
+            code: "registry-invalid",
+            field: '$["capabilities"]',
+            message: 'the field "capabilities" must be a JSON object keyed by capability name',
+            fix: "Replace capabilities with a JSON object keyed by capability name.",
+          },
+        },
+        {
+          name: "top-level meters wrong type",
+          value: registry(modelEntry(model()), { meters: "x" }),
+          problem: {
+            code: "registry-invalid",
+            field: '$["meters"]',
+            message: 'the field "meters" must be a JSON object keyed by meter name',
+            fix: "Replace meters with a JSON object keyed by meter name.",
+          },
+        },
+        {
+          name: "unknown field inside a meter",
+          value: registry(modelEntry(model()), { meters: { "plan-a": { surprise: 1 } } }),
+          problem: {
+            code: "registry-invalid",
+            field: '$["meters"]["plan-a"]["surprise"]',
+            message: 'the field "surprise" is not part of a format 1 meter',
+            fix: "Remove the field, or move free text into notes.",
+          },
+        },
+        {
+          name: "spendToZero not true",
+          value: registry(modelEntry(model()), { meters: { "plan-a": { spendToZero: false } } }),
+          problem: {
+            code: "registry-invalid",
+            field: '$["meters"]["plan-a"]["spendToZero"]',
+            message: 'the meter "plan-a" field "spendToZero" accepts only the literal true',
+            fix: 'Set "spendToZero" to true, or remove it.',
+          },
+        },
+        {
+          name: "meter notes wrong type",
+          value: registry(modelEntry(model()), { meters: { "plan-a": { notes: 5 } } }),
+          problem: {
+            code: "registry-invalid",
+            field: '$["meters"]["plan-a"]["notes"]',
+            message: 'the meter "plan-a" field "notes" must be a string',
+            fix: 'Set the meter "plan-a" notes to a string, or remove it.',
+          },
+        },
+        {
           name: "family missing",
           value: registry(modelEntry({ routes: [] })),
           problem: {
@@ -201,6 +261,16 @@ describe("curated problems", () => {
             field: '$["models"]["model-a"]["surprise"]',
             message: 'the field "surprise" is not part of a format 1 model',
             fix: "Remove the field, or move free text into notes.",
+          },
+        },
+        {
+          name: "model ratings wrong type",
+          value: registry(modelEntry(model({ ratings: [7] }))),
+          problem: {
+            code: "registry-invalid",
+            field: '$["models"]["model-a"]["ratings"]',
+            message: 'the model "model-a" ratings field must be a JSON object',
+            fix: 'Set the model "model-a" ratings to a JSON object of integer ratings.',
           },
         },
         {
@@ -371,6 +441,36 @@ describe("curated problems", () => {
             field: '$["models"]["model-a"]["routes"][0]["surprise"]',
             message: 'the field "surprise" is not part of a format 1 route',
             fix: "Remove the field, or move free text into notes.",
+          },
+        },
+        {
+          name: "route meter wrong type",
+          value: registry(modelEntry(model({}, [route({ meter: 5 })]))),
+          problem: {
+            code: "registry-invalid",
+            field: '$["models"]["model-a"]["routes"][0]["meter"]',
+            message: 'the field "meter" must be a string naming a declared meter',
+            fix: 'Set "meter" to a meter name declared in the meters section, or remove it.',
+          },
+        },
+        {
+          name: "route capabilities wrong type",
+          value: registry(modelEntry(model({}, [route({ capabilities: "browser" })]))),
+          problem: {
+            code: "registry-invalid",
+            field: '$["models"]["model-a"]["routes"][0]["capabilities"]',
+            message: 'the field "capabilities" must be an array of strings',
+            fix: 'Set "capabilities" to an array of capability names declared in the capabilities section, or remove it.',
+          },
+        },
+        {
+          name: "route capability entry not a string",
+          value: registry(modelEntry(model({}, [route({ capabilities: [5] })]))),
+          problem: {
+            code: "registry-invalid",
+            field: '$["models"]["model-a"]["routes"][0]["capabilities"][0]',
+            message: "a route capability entry must be a string",
+            fix: "Set the entry to a capability name declared in the capabilities section, or remove the entry.",
           },
         },
         {
