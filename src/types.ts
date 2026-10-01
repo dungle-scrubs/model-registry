@@ -14,7 +14,7 @@ export type RegistryErrorCode =
   | "reference-unknown"
   | "rating-mismatch";
 
-export interface Route {
+export type Route = {
   harness: string;
   modelId: string;
   provider?: string;
@@ -24,22 +24,36 @@ export interface Route {
   rateLimitRpm?: number;
   responseSeconds?: number;
   notes?: string;
-}
+};
 
-export interface Model {
+export type Model = {
   family: string;
   notes?: string;
   routes: Route[];
-}
+};
 
 export interface RegistryFacts {
   models: Record<string, Model>;
 }
 
-export interface RegistryFile {
+/** Foreign top-level sections hold any non-null JSON value with finite numbers. */
+export type ForeignSections = {
+  [section: string]: JsonValue;
+};
+
+/** Deferred owned sections stay rejected until their format slice ships. */
+export type DeferredRegistryFields = {
+  ratings?: never;
+  capabilities?: never;
+  meters?: never;
+  calibration?: never;
+};
+
+export type RegistryFile = {
   format: 1;
   models: Record<string, Model>;
-}
+} & ForeignSections &
+  DeferredRegistryFields;
 
 export type IndexedRoute = Route & { model: string };
 

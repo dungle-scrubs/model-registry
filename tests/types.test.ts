@@ -103,6 +103,10 @@ describe("public types", () => {
       models: { "model-a": model, "model-b": { family: "family-a", routes: [minimalRoute] } },
     };
     expectTypeOf(file).toMatchTypeOf<RegistryFile>();
+    // Foreign top-level sections are part of the public file type.
+    const withForeignSection: RegistryFile = { format: 1, models: {}, router: { enabled: true } };
+    expectTypeOf(withForeignSection.router).toEqualTypeOf<JsonValue | undefined>();
+    expectTypeOf(withForeignSection.models).toEqualTypeOf<Record<string, Model>>();
   });
 
   test("negative assignments stay type errors", () => {
@@ -145,6 +149,14 @@ describe("public types", () => {
     };
     // @ts-expect-error format 1 only
     const formatTwo: RegistryFile = { format: 2, models: {} };
+    // @ts-expect-error deferred top-level section ratings
+    const topLevelRatings: RegistryFile = { format: 1, models: {}, ratings: { coding: "x" } };
+    // @ts-expect-error deferred top-level section capabilities
+    const topLevelCapabilities: RegistryFile = { format: 1, models: {}, capabilities: 1 };
+    // @ts-expect-error deferred top-level section meters
+    const topLevelMeters: RegistryFile = { format: 1, models: {}, meters: 1 };
+    // @ts-expect-error deferred top-level section calibration
+    const topLevelCalibration: RegistryFile = { format: 1, models: {}, calibration: {} };
     expectTypeOf(
       Object.keys({
         hostedString,
@@ -164,6 +176,10 @@ describe("public types", () => {
         jsonNull,
         explicitUndefined,
         formatTwo,
+        topLevelRatings,
+        topLevelCapabilities,
+        topLevelMeters,
+        topLevelCalibration,
       }).length,
     ).toBeNumber();
   });
