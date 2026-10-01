@@ -1,6 +1,5 @@
 import type { JsonValue } from "./types.js";
 
-/** The current registry format major. Format 1 is the first major this package ships. */
 export const CURRENT_FORMAT = 1 as const;
 
 /** A parsed registry object with every property readonly, so a step cannot mutate its input. */
@@ -11,7 +10,6 @@ export type JsonObject = { [key: string]: JsonValue };
 /** A migration step maps a parsed registry from format N to format N + 1 and returns a new object. */
 export type MigrateStep = (parsed: ReadonlyJsonObject) => JsonObject;
 
-/** One table entry: the step that migrates a registry from format `from` to `from + 1`. */
 export interface MigrateStepEntry {
   readonly from: number;
   readonly step: MigrateStep;
