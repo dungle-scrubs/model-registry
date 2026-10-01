@@ -7,7 +7,6 @@ import * as publicApi from "../src/index.js";
 import { loadRegistry } from "../src/load-registry.js";
 import { resolveRegistryPath } from "../src/path.js";
 import type { RegistryProblem } from "../src/types.js";
-import { validateRegistry } from "../src/validate.js";
 import {
   builtIndexPath,
   catchRegistryError,
@@ -34,405 +33,415 @@ function modelWithRoutes(routes: unknown[]): unknown {
 }
 
 describe("curated problems", () => {
-  test("every fault maps to its exact curated problem", () => {
-    const route = (patch: Record<string, unknown> = {}): Record<string, unknown> => ({
-      harness: "harness-x",
-      modelId: "model-id-a",
-      hosted: false,
-      ...patch,
-    });
-    const model = (
-      patch: Record<string, unknown> = {},
-      routes: unknown[] = [route()],
-    ): Record<string, unknown> => ({
-      family: "family-a",
-      routes,
-      ...patch,
-    });
-    const registry = (models: unknown, extra: Record<string, unknown> = {}): unknown => ({
-      format: 1,
-      models,
-      ...extra,
-    });
-    const modelEntry = (modelValue: unknown): unknown => ({ "model-a": modelValue });
+  test("every fault maps to its exact curated problem", async () => {
+    await withTempDir(async (dir) => {
+      const route = (patch: Record<string, unknown> = {}): Record<string, unknown> => ({
+        harness: "harness-x",
+        modelId: "model-id-a",
+        hosted: false,
+        ...patch,
+      });
+      const model = (
+        patch: Record<string, unknown> = {},
+        routes: unknown[] = [route()],
+      ): Record<string, unknown> => ({
+        family: "family-a",
+        routes,
+        ...patch,
+      });
+      const registry = (models: unknown, extra: Record<string, unknown> = {}): unknown => ({
+        format: 1,
+        models,
+        ...extra,
+      });
+      const modelEntry = (modelValue: unknown): unknown => ({ "model-a": modelValue });
 
-    const cases: Array<{ name: string; value: unknown; problem: RegistryProblem }> = [
-      {
-        name: "root not an object",
-        value: [],
-        problem: {
-          code: "registry-invalid",
-          field: "$",
-          message: "the registry root must be a JSON object",
-          fix: "Give the file a JSON object with a format field and a models object.",
+      const cases: Array<{
+        name: string;
+        problem: RegistryProblem;
+        value?: unknown;
+        // Raw JSON text: JSON.stringify would rewrite Infinity as null.
+        content?: string;
+      }> = [
+        {
+          name: "root not an object",
+          value: [],
+          problem: {
+            code: "registry-invalid",
+            field: "$",
+            message: "the registry root must be a JSON object",
+            fix: "Give the file a JSON object with a format field and a models object.",
+          },
         },
-      },
-      {
-        name: "format missing",
-        value: { models: {} },
-        problem: {
-          code: "format-missing",
-          field: '$["format"]',
-          message: "the file has no format field, so it is not a version 1 registry",
-          fix: 'Add "format": 1 at the top of the registry file.',
+        {
+          name: "format missing",
+          value: { models: {} },
+          problem: {
+            code: "format-missing",
+            field: '$["format"]',
+            message: "the file has no format field, so it is not a version 1 registry",
+            fix: 'Add "format": 1 at the top of the registry file.',
+          },
         },
-      },
-      {
-        name: "format not an integer",
-        value: { format: 1.5, models: {} },
-        problem: {
-          code: "registry-invalid",
-          field: '$["format"]',
-          message: "the format field must be the integer 1",
-          fix: 'Set "format": 1 at the top of the registry file.',
+        {
+          name: "format not an integer",
+          value: { format: 1.5, models: {} },
+          problem: {
+            code: "registry-invalid",
+            field: '$["format"]',
+            message: "the format field must be the integer 1",
+            fix: 'Set "format": 1 at the top of the registry file.',
+          },
         },
-      },
-      {
-        name: "format newer",
-        value: { format: 2, models: {} },
-        problem: {
-          code: "format-unsupported",
-          field: '$["format"]',
-          message: "format 2 is newer than the format 1 this model-registry supports",
-          fix: "Upgrade model-registry to a release that supports format 2.",
+        {
+          name: "format newer",
+          value: { format: 2, models: {} },
+          problem: {
+            code: "format-unsupported",
+            field: '$["format"]',
+            message: "format 2 is newer than the format 1 this model-registry supports",
+            fix: "Upgrade model-registry to a release that supports format 2.",
+          },
         },
-      },
-      {
-        name: "format older",
-        value: { format: 0, models: {} },
-        problem: {
-          code: "format-unsupported",
-          field: '$["format"]',
-          message: "format 0 is older than format 1",
-          fix: "Recreate the file as a format 1 registry; no migration into format 1 ships.",
+        {
+          name: "format older",
+          value: { format: 0, models: {} },
+          problem: {
+            code: "format-unsupported",
+            field: '$["format"]',
+            message: "format 0 is older than format 1",
+            fix: "Recreate the file as a format 1 registry; no migration into format 1 ships.",
+          },
         },
-      },
-      {
-        name: "models missing",
-        value: { format: 1 },
-        problem: {
-          code: "registry-invalid",
-          field: '$["models"]',
-          message: 'the required field "models" is missing',
-          fix: "Add a models object with one entry per model.",
+        {
+          name: "models missing",
+          value: { format: 1 },
+          problem: {
+            code: "registry-invalid",
+            field: '$["models"]',
+            message: 'the required field "models" is missing',
+            fix: "Add a models object with one entry per model.",
+          },
         },
-      },
-      {
-        name: "models wrong type",
-        value: registry([]),
-        problem: {
-          code: "registry-invalid",
-          field: '$["models"]',
-          message: 'the field "models" must be a JSON object keyed by model key',
-          fix: "Replace models with a JSON object keyed by model key.",
+        {
+          name: "models wrong type",
+          value: registry([]),
+          problem: {
+            code: "registry-invalid",
+            field: '$["models"]',
+            message: 'the field "models" must be a JSON object keyed by model key',
+            fix: "Replace models with a JSON object keyed by model key.",
+          },
         },
-      },
-      {
-        name: "model not an object",
-        value: registry(modelEntry("x")),
-        problem: {
-          code: "registry-invalid",
-          field: '$["models"]["model-a"]',
-          message: 'the model "model-a" must be a JSON object',
-          fix: "Replace the model with a JSON object.",
+        {
+          name: "model not an object",
+          value: registry(modelEntry("x")),
+          problem: {
+            code: "registry-invalid",
+            field: '$["models"]["model-a"]',
+            message: 'the model "model-a" must be a JSON object',
+            fix: "Replace the model with a JSON object.",
+          },
         },
-      },
-      {
-        name: "family missing",
-        value: registry(modelEntry({ routes: [] })),
-        problem: {
-          code: "registry-invalid",
-          field: '$["models"]["model-a"]["family"]',
-          message: 'the required field "family" is missing',
-          fix: 'Add a "family" string.',
+        {
+          name: "family missing",
+          value: registry(modelEntry({ routes: [] })),
+          problem: {
+            code: "registry-invalid",
+            field: '$["models"]["model-a"]["family"]',
+            message: 'the required field "family" is missing',
+            fix: 'Add a "family" string.',
+          },
         },
-      },
-      {
-        name: "family wrong type",
-        value: registry(modelEntry(model({ family: 5 }))),
-        problem: {
-          code: "registry-invalid",
-          field: '$["models"]["model-a"]["family"]',
-          message: 'the field "family" must be a string',
-          fix: 'Set "family" to a string.',
+        {
+          name: "family wrong type",
+          value: registry(modelEntry(model({ family: 5 }))),
+          problem: {
+            code: "registry-invalid",
+            field: '$["models"]["model-a"]["family"]',
+            message: 'the field "family" must be a string',
+            fix: 'Set "family" to a string.',
+          },
         },
-      },
-      {
-        name: "model notes wrong type",
-        value: registry(modelEntry(model({ notes: 5 }))),
-        problem: {
-          code: "registry-invalid",
-          field: '$["models"]["model-a"]["notes"]',
-          message: 'the field "notes" must be a string',
-          fix: 'Set "notes" to a string, or remove it.',
+        {
+          name: "model notes wrong type",
+          value: registry(modelEntry(model({ notes: 5 }))),
+          problem: {
+            code: "registry-invalid",
+            field: '$["models"]["model-a"]["notes"]',
+            message: 'the field "notes" must be a string',
+            fix: 'Set "notes" to a string, or remove it.',
+          },
         },
-      },
-      {
-        name: "routes missing",
-        value: registry(modelEntry({ family: "family-a" })),
-        problem: {
-          code: "registry-invalid",
-          field: '$["models"]["model-a"]["routes"]',
-          message: 'the model "model-a" is missing the required field "routes"',
-          fix: "Add a routes array to the model; an empty array is valid.",
+        {
+          name: "routes missing",
+          value: registry(modelEntry({ family: "family-a" })),
+          problem: {
+            code: "registry-invalid",
+            field: '$["models"]["model-a"]["routes"]',
+            message: 'the model "model-a" is missing the required field "routes"',
+            fix: "Add a routes array to the model; an empty array is valid.",
+          },
         },
-      },
-      {
-        name: "routes wrong type",
-        value: registry(modelEntry({ family: "family-a", routes: {} })),
-        problem: {
-          code: "registry-invalid",
-          field: '$["models"]["model-a"]["routes"]',
-          message: "the routes field must be an array",
-          fix: "Set routes to an array of route objects.",
+        {
+          name: "routes wrong type",
+          value: registry(modelEntry({ family: "family-a", routes: {} })),
+          problem: {
+            code: "registry-invalid",
+            field: '$["models"]["model-a"]["routes"]',
+            message: "the routes field must be an array",
+            fix: "Set routes to an array of route objects.",
+          },
         },
-      },
-      {
-        name: "unknown model field",
-        value: registry(modelEntry(model({ surprise: 1 }))),
-        problem: {
-          code: "registry-invalid",
-          field: '$["models"]["model-a"]["surprise"]',
-          message: 'the field "surprise" is not part of a format 1 model',
-          fix: "Remove the field, or move free text into notes.",
+        {
+          name: "unknown model field",
+          value: registry(modelEntry(model({ surprise: 1 }))),
+          problem: {
+            code: "registry-invalid",
+            field: '$["models"]["model-a"]["surprise"]',
+            message: 'the field "surprise" is not part of a format 1 model',
+            fix: "Remove the field, or move free text into notes.",
+          },
         },
-      },
-      {
-        name: "deferred model field",
-        value: registry(modelEntry(model({ maxEffort: "high" }))),
-        problem: {
-          code: "registry-invalid",
-          field: '$["models"]["model-a"]["maxEffort"]',
-          message: 'the field "maxEffort" is not supported in this release of model-registry',
-          fix: "Remove the field; support for it arrives in a later format slice of model-registry.",
+        {
+          name: "deferred model field",
+          value: registry(modelEntry(model({ maxEffort: "high" }))),
+          problem: {
+            code: "registry-invalid",
+            field: '$["models"]["model-a"]["maxEffort"]',
+            message: 'the field "maxEffort" is not supported in this release of model-registry',
+            fix: "Remove the field; support for it arrives in a later format slice of model-registry.",
+          },
         },
-      },
-      {
-        name: "route not an object",
-        value: registry(modelEntry({ family: "family-a", routes: ["x"] })),
-        problem: {
-          code: "registry-invalid",
-          field: '$["models"]["model-a"]["routes"][0]',
-          message: "the route must be a JSON object",
-          fix: "Replace the route with a JSON object.",
+        {
+          name: "route not an object",
+          value: registry(modelEntry({ family: "family-a", routes: ["x"] })),
+          problem: {
+            code: "registry-invalid",
+            field: '$["models"]["model-a"]["routes"][0]',
+            message: "the route must be a JSON object",
+            fix: "Replace the route with a JSON object.",
+          },
         },
-      },
-      {
-        name: "harness missing",
-        value: registry(modelEntry(model({}, [{ modelId: "model-id-a", hosted: false }]))),
-        problem: {
-          code: "registry-invalid",
-          field: '$["models"]["model-a"]["routes"][0]["harness"]',
-          message: 'the required field "harness" is missing',
-          fix: 'Add a "harness" string.',
+        {
+          name: "harness missing",
+          value: registry(modelEntry(model({}, [{ modelId: "model-id-a", hosted: false }]))),
+          problem: {
+            code: "registry-invalid",
+            field: '$["models"]["model-a"]["routes"][0]["harness"]',
+            message: 'the required field "harness" is missing',
+            fix: 'Add a "harness" string.',
+          },
         },
-      },
-      {
-        name: "harness wrong type",
-        value: registry(modelEntry(model({}, [route({ harness: 5 })]))),
-        problem: {
-          code: "registry-invalid",
-          field: '$["models"]["model-a"]["routes"][0]["harness"]',
-          message: 'the field "harness" must be a string',
-          fix: 'Set "harness" to a string.',
+        {
+          name: "harness wrong type",
+          value: registry(modelEntry(model({}, [route({ harness: 5 })]))),
+          problem: {
+            code: "registry-invalid",
+            field: '$["models"]["model-a"]["routes"][0]["harness"]',
+            message: 'the field "harness" must be a string',
+            fix: 'Set "harness" to a string.',
+          },
         },
-      },
-      {
-        name: "modelId missing",
-        value: registry(modelEntry(model({}, [{ harness: "harness-x", hosted: false }]))),
-        problem: {
-          code: "registry-invalid",
-          field: '$["models"]["model-a"]["routes"][0]["modelId"]',
-          message: 'the required field "modelId" is missing',
-          fix: 'Add a "modelId" string.',
+        {
+          name: "modelId missing",
+          value: registry(modelEntry(model({}, [{ harness: "harness-x", hosted: false }]))),
+          problem: {
+            code: "registry-invalid",
+            field: '$["models"]["model-a"]["routes"][0]["modelId"]',
+            message: 'the required field "modelId" is missing',
+            fix: 'Add a "modelId" string.',
+          },
         },
-      },
-      {
-        name: "modelId wrong type",
-        value: registry(modelEntry(model({}, [route({ modelId: 5 })]))),
-        problem: {
-          code: "registry-invalid",
-          field: '$["models"]["model-a"]["routes"][0]["modelId"]',
-          message: 'the field "modelId" must be a string',
-          fix: 'Set "modelId" to a string.',
+        {
+          name: "modelId wrong type",
+          value: registry(modelEntry(model({}, [route({ modelId: 5 })]))),
+          problem: {
+            code: "registry-invalid",
+            field: '$["models"]["model-a"]["routes"][0]["modelId"]',
+            message: 'the field "modelId" must be a string',
+            fix: 'Set "modelId" to a string.',
+          },
         },
-      },
-      {
-        name: "hosted missing",
-        value: registry(modelEntry(model({}, [{ harness: "harness-x", modelId: "model-id-a" }]))),
-        problem: {
-          code: "registry-invalid",
-          field: '$["models"]["model-a"]["routes"][0]["hosted"]',
-          message: 'the required field "hosted" is missing',
-          fix: 'Add a "hosted" boolean; a wrong guess either way is a privacy fault.',
+        {
+          name: "hosted missing",
+          value: registry(modelEntry(model({}, [{ harness: "harness-x", modelId: "model-id-a" }]))),
+          problem: {
+            code: "registry-invalid",
+            field: '$["models"]["model-a"]["routes"][0]["hosted"]',
+            message: 'the required field "hosted" is missing',
+            fix: 'Add a "hosted" boolean; a wrong guess either way is a privacy fault.',
+          },
         },
-      },
-      {
-        name: "hosted wrong type",
-        value: registry(modelEntry(model({}, [route({ hosted: "yes" })]))),
-        problem: {
-          code: "registry-invalid",
-          field: '$["models"]["model-a"]["routes"][0]["hosted"]',
-          message: 'the field "hosted" must be a boolean',
-          fix: 'Set "hosted" to true or false.',
+        {
+          name: "hosted wrong type",
+          value: registry(modelEntry(model({}, [route({ hosted: "yes" })]))),
+          problem: {
+            code: "registry-invalid",
+            field: '$["models"]["model-a"]["routes"][0]["hosted"]',
+            message: 'the field "hosted" must be a boolean',
+            fix: 'Set "hosted" to true or false.',
+          },
         },
-      },
-      {
-        name: "provider wrong type",
-        value: registry(modelEntry(model({}, [route({ provider: 5 })]))),
-        problem: {
-          code: "registry-invalid",
-          field: '$["models"]["model-a"]["routes"][0]["provider"]',
-          message: 'the field "provider" must be a string',
-          fix: 'Set "provider" to a string, or remove it.',
+        {
+          name: "provider wrong type",
+          value: registry(modelEntry(model({}, [route({ provider: 5 })]))),
+          problem: {
+            code: "registry-invalid",
+            field: '$["models"]["model-a"]["routes"][0]["provider"]',
+            message: 'the field "provider" must be a string',
+            fix: 'Set "provider" to a string, or remove it.',
+          },
         },
-      },
-      {
-        name: "privacyEligible wrong type",
-        value: registry(modelEntry(model({}, [route({ privacyEligible: 1 })]))),
-        problem: {
-          code: "registry-invalid",
-          field: '$["models"]["model-a"]["routes"][0]["privacyEligible"]',
-          message: 'the field "privacyEligible" must be a boolean',
-          fix: 'Set "privacyEligible" to true or false, or remove it.',
+        {
+          name: "privacyEligible wrong type",
+          value: registry(modelEntry(model({}, [route({ privacyEligible: 1 })]))),
+          problem: {
+            code: "registry-invalid",
+            field: '$["models"]["model-a"]["routes"][0]["privacyEligible"]',
+            message: 'the field "privacyEligible" must be a boolean',
+            fix: 'Set "privacyEligible" to true or false, or remove it.',
+          },
         },
-      },
-      {
-        name: "cost fractional",
-        value: registry(modelEntry(model({}, [route({ cost: 5.5 })]))),
-        problem: {
-          code: "registry-invalid",
-          field: '$["models"]["model-a"]["routes"][0]["cost"]',
-          message: 'the field "cost" must be an integer from 1 to 10',
-          fix: 'Set "cost" to an integer from 1 (expensive) to 10 (cheap).',
+        {
+          name: "cost fractional",
+          value: registry(modelEntry(model({}, [route({ cost: 5.5 })]))),
+          problem: {
+            code: "registry-invalid",
+            field: '$["models"]["model-a"]["routes"][0]["cost"]',
+            message: 'the field "cost" must be an integer from 1 to 10',
+            fix: 'Set "cost" to an integer from 1 (expensive) to 10 (cheap).',
+          },
         },
-      },
-      {
-        name: "cost below the range",
-        value: registry(modelEntry(model({}, [route({ cost: 0 })]))),
-        problem: {
-          code: "registry-invalid",
-          field: '$["models"]["model-a"]["routes"][0]["cost"]',
-          message: 'the field "cost" must be an integer from 1 to 10',
-          fix: 'Set "cost" to an integer from 1 (expensive) to 10 (cheap).',
+        {
+          name: "cost below the range",
+          value: registry(modelEntry(model({}, [route({ cost: 0 })]))),
+          problem: {
+            code: "registry-invalid",
+            field: '$["models"]["model-a"]["routes"][0]["cost"]',
+            message: 'the field "cost" must be an integer from 1 to 10',
+            fix: 'Set "cost" to an integer from 1 (expensive) to 10 (cheap).',
+          },
         },
-      },
-      {
-        name: "cost above the range",
-        value: registry(modelEntry(model({}, [route({ cost: 11 })]))),
-        problem: {
-          code: "registry-invalid",
-          field: '$["models"]["model-a"]["routes"][0]["cost"]',
-          message: 'the field "cost" must be an integer from 1 to 10',
-          fix: 'Set "cost" to an integer from 1 (expensive) to 10 (cheap).',
+        {
+          name: "cost above the range",
+          value: registry(modelEntry(model({}, [route({ cost: 11 })]))),
+          problem: {
+            code: "registry-invalid",
+            field: '$["models"]["model-a"]["routes"][0]["cost"]',
+            message: 'the field "cost" must be an integer from 1 to 10',
+            fix: 'Set "cost" to an integer from 1 (expensive) to 10 (cheap).',
+          },
         },
-      },
-      {
-        name: "rateLimitRpm wrong type",
-        value: registry(modelEntry(model({}, [route({ rateLimitRpm: "5" })]))),
-        problem: {
-          code: "registry-invalid",
-          field: '$["models"]["model-a"]["routes"][0]["rateLimitRpm"]',
-          message: 'the field "rateLimitRpm" must be a number of 0 or more',
-          fix: 'Set "rateLimitRpm" to a finite number of 0 or more.',
+        {
+          name: "rateLimitRpm wrong type",
+          value: registry(modelEntry(model({}, [route({ rateLimitRpm: "5" })]))),
+          problem: {
+            code: "registry-invalid",
+            field: '$["models"]["model-a"]["routes"][0]["rateLimitRpm"]',
+            message: 'the field "rateLimitRpm" must be a number of 0 or more',
+            fix: 'Set "rateLimitRpm" to a finite number of 0 or more.',
+          },
         },
-      },
-      {
-        name: "rateLimitRpm negative",
-        value: registry(modelEntry(model({}, [route({ rateLimitRpm: -1 })]))),
-        problem: {
-          code: "registry-invalid",
-          field: '$["models"]["model-a"]["routes"][0]["rateLimitRpm"]',
-          message: 'the field "rateLimitRpm" must be a number of 0 or more',
-          fix: 'Set "rateLimitRpm" to a finite number of 0 or more.',
+        {
+          name: "rateLimitRpm negative",
+          value: registry(modelEntry(model({}, [route({ rateLimitRpm: -1 })]))),
+          problem: {
+            code: "registry-invalid",
+            field: '$["models"]["model-a"]["routes"][0]["rateLimitRpm"]',
+            message: 'the field "rateLimitRpm" must be a number of 0 or more',
+            fix: 'Set "rateLimitRpm" to a finite number of 0 or more.',
+          },
         },
-      },
-      {
-        name: "responseSeconds negative",
-        value: registry(modelEntry(model({}, [route({ responseSeconds: -0.5 })]))),
-        problem: {
-          code: "registry-invalid",
-          field: '$["models"]["model-a"]["routes"][0]["responseSeconds"]',
-          message: 'the field "responseSeconds" must be a number of 0 or more',
-          fix: 'Set "responseSeconds" to a finite number of 0 or more.',
+        {
+          name: "responseSeconds negative",
+          value: registry(modelEntry(model({}, [route({ responseSeconds: -0.5 })]))),
+          problem: {
+            code: "registry-invalid",
+            field: '$["models"]["model-a"]["routes"][0]["responseSeconds"]',
+            message: 'the field "responseSeconds" must be a number of 0 or more',
+            fix: 'Set "responseSeconds" to a finite number of 0 or more.',
+          },
         },
-      },
-      {
-        name: "route notes wrong type",
-        value: registry(modelEntry(model({}, [route({ notes: 5 })]))),
-        problem: {
-          code: "registry-invalid",
-          field: '$["models"]["model-a"]["routes"][0]["notes"]',
-          message: 'the field "notes" must be a string',
-          fix: 'Set "notes" to a string, or remove it.',
+        {
+          name: "route notes wrong type",
+          value: registry(modelEntry(model({}, [route({ notes: 5 })]))),
+          problem: {
+            code: "registry-invalid",
+            field: '$["models"]["model-a"]["routes"][0]["notes"]',
+            message: 'the field "notes" must be a string',
+            fix: 'Set "notes" to a string, or remove it.',
+          },
         },
-      },
-      {
-        name: "unknown route field",
-        value: registry(modelEntry(model({}, [route({ surprise: 1 })]))),
-        problem: {
-          code: "registry-invalid",
-          field: '$["models"]["model-a"]["routes"][0]["surprise"]',
-          message: 'the field "surprise" is not part of a format 1 route',
-          fix: "Remove the field, or move free text into notes.",
+        {
+          name: "unknown route field",
+          value: registry(modelEntry(model({}, [route({ surprise: 1 })]))),
+          problem: {
+            code: "registry-invalid",
+            field: '$["models"]["model-a"]["routes"][0]["surprise"]',
+            message: 'the field "surprise" is not part of a format 1 route',
+            fix: "Remove the field, or move free text into notes.",
+          },
         },
-      },
-      {
-        name: "deferred route field",
-        value: registry(modelEntry(model({}, [route({ meter: "plan-a" })]))),
-        problem: {
-          code: "registry-invalid",
-          field: '$["models"]["model-a"]["routes"][0]["meter"]',
-          message: 'the field "meter" is not supported in this release of model-registry',
-          fix: "Remove the field; support for it arrives in a later format slice of model-registry.",
+        {
+          name: "deferred route field",
+          value: registry(modelEntry(model({}, [route({ meter: "plan-a" })]))),
+          problem: {
+            code: "registry-invalid",
+            field: '$["models"]["model-a"]["routes"][0]["meter"]',
+            message: 'the field "meter" is not supported in this release of model-registry',
+            fix: "Remove the field; support for it arrives in a later format slice of model-registry.",
+          },
         },
-      },
-      {
-        name: "deferred top-level field",
-        value: registry({}, { ratings: { coding: "x" } }),
-        problem: {
-          code: "registry-invalid",
-          field: '$["ratings"]',
-          message: 'the field "ratings" is not supported in this release of model-registry',
-          fix: "Remove the field; support for it arrives in a later format slice of model-registry.",
+        {
+          name: "deferred top-level field",
+          value: registry({}, { ratings: { coding: "x" } }),
+          problem: {
+            code: "registry-invalid",
+            field: '$["ratings"]',
+            message: 'the field "ratings" is not supported in this release of model-registry',
+            fix: "Remove the field; support for it arrives in a later format slice of model-registry.",
+          },
         },
-      },
-      {
-        name: "null nested in a foreign section",
-        value: registry({}, { router: { keys: ["a", null] } }),
-        problem: {
-          code: "registry-invalid",
-          field: '$["router"]["keys"][1]',
-          message: "null is not a valid value anywhere in a registry file",
-          fix: "Replace the null with the field's value, or remove the field.",
+        {
+          name: "null nested in a foreign section",
+          value: registry({}, { router: { keys: ["a", null] } }),
+          problem: {
+            code: "registry-invalid",
+            field: '$["router"]["keys"][1]',
+            message: "null is not a valid value anywhere in a registry file",
+            fix: "Replace the null with the field's value, or remove the field.",
+          },
         },
-      },
-      {
-        name: "non-finite number in a foreign section",
-        value: JSON.parse('{"format":1,"models":{},"router":{"value":1e400}}'),
-        problem: {
-          code: "registry-invalid",
-          field: '$["router"]["value"]',
-          message: "numbers in a registry file must be finite",
-          fix: "Rewrite the number so it stays within double-precision range, for example 1e308 rather than 1e400.",
+        {
+          name: "non-finite number in a foreign section",
+          content: '{"format":1,"models":{},"router":{"value":1e400}}',
+          problem: {
+            code: "registry-invalid",
+            field: '$["router"]["value"]',
+            message: "numbers in a registry file must be finite",
+            fix: "Rewrite the number so it stays within double-precision range, for example 1e308 rather than 1e400.",
+          },
         },
-      },
-      {
-        name: "duplicate route label",
-        value: registry(modelEntry(model({}, [route(), route({ modelId: "model-id-b" })]))),
-        problem: {
-          code: "label-duplicate",
-          field: '$["models"]["model-a"]["routes"][1]',
-          message:
-            'the route label "model-a@harness-x" is already used by the route at $["models"]["model-a"]["routes"][0]',
-          fix: "Change the harness or provider of one of the two routes so that every label is unique.",
+        {
+          name: "duplicate route label",
+          value: registry(modelEntry(model({}, [route(), route({ modelId: "model-id-b" })]))),
+          problem: {
+            code: "label-duplicate",
+            field: '$["models"]["model-a"]["routes"][1]',
+            message:
+              'the route label "model-a@harness-x" is already used by the route at $["models"]["model-a"]["routes"][0]',
+            fix: "Change the harness or provider of one of the two routes so that every label is unique.",
+          },
         },
-      },
-    ];
-    for (const testCase of cases) {
-      const result = validateRegistry(testCase.value);
-      expect(result.problems, testCase.name).toEqual([testCase.problem]);
-    }
+      ];
+      for (const testCase of cases) {
+        const path = join(dir, `${testCase.name.replace(/\W+/g, "-")}.json`);
+        writeFileSync(path, testCase.content ?? JSON.stringify(testCase.value));
+        const error = catchRegistryError(() => loadRegistry({ path }));
+        expect(error.problems, testCase.name).toEqual([testCase.problem]);
+      }
+    });
   });
 });
 
@@ -787,12 +796,16 @@ describe("loadRegistry", () => {
           ]),
         },
         constructor: { note: "placeholder" },
+        ["__proto__"]: { note: "top-level" },
       });
       const loaded = loadRegistry({ path });
       expect(Object.hasOwn(loaded.registry.models, "__proto__")).toBe(true);
       expect(Object.getPrototypeOf(loaded.registry.models)).toBe(Object.prototype);
       expect(Object.hasOwn(loaded.sections, "constructor")).toBe(true);
+      expect(Object.hasOwn(loaded.sections, "__proto__")).toBe(true);
+      expect(Reflect.get(loaded.sections, "__proto__")).toEqual({ note: "top-level" });
       expect(Object.getPrototypeOf(loaded.sections)).toBe(Object.prototype);
+      expect(({} as Record<string, unknown>).note).toBeUndefined();
       expect(Object.hasOwn(loaded.routes, "__proto__@harness-x")).toBe(true);
       expect(loaded.routes["__proto__@harness-x"]).toMatchObject({ model: "__proto__" });
       expect(Object.getPrototypeOf(loaded.routes)).toBe(Object.prototype);
