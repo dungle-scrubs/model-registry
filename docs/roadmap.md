@@ -71,5 +71,54 @@ anything is written, and it ends with `model-registry check`.
 8. In a combined profile, when two platforms offer the same model,
    which route goes first: the cheaper one, the one with more quota
    left, or the order the user listed the platforms in?
-9. Where does the platform's model list come from (the provider's API,
-   the harness, or the user), and how is a stale list detected?
+9. How is a stale model list detected? See "Model list discovery".
+
+## Model list discovery
+
+**Want.** The profile builder finds each platform's model list by a
+deterministic method wherever one exists: the same request on the same
+day gives the same list. This covers platforms the operator already
+knows, platforms the operator has not heard of that sell a subscription,
+and aggregators such as OpenRouter.
+
+**Candidate sources, most deterministic first.** Each needs checking
+against the source's current documentation before use.
+
+1. **The platform's own model list endpoint.** Many providers answer an
+   OpenAI-compatible `GET /v1/models`. OpenRouter publishes a model list
+   with prices and context length. A local runtime such as Ollama lists
+   the models it has installed.
+2. **The harness.** A harness that already reaches the platform can list
+   the model ids it accepts. That list is the one that matters for a
+   route, because a route is a model reached through one harness.
+3. **A public catalog of providers and models.** A catalog maintained
+   across many providers can name subscription platforms the operator
+   does not know about, and the models each one offers.
+4. **Research, as a last resort.** For a platform with none of the
+   above, an agent reads the platform's pricing and model pages. This is
+   not deterministic. The result says so, cites its pages with the date
+   read, and the user approves the list before it is used.
+
+**Rules.**
+
+- Every list records its source, the date read and the method (endpoint,
+  harness, catalog, or research), so a profile shows how far to trust it.
+- A list from the endpoint or the harness wins over a catalog. A catalog
+  wins over research.
+- A model on the list that a harness cannot reach does not become a
+  route.
+- Reading a list never needs a credential to appear in a hosted model's
+  context. Reading a list that needs an authenticated endpoint runs as
+  a local command.
+
+**Questions to settle.**
+
+1. Which public catalog, if any, is trustworthy enough to be the default
+   for platforms the operator does not know?
+2. Is discovery part of `model-registry`, a separate tool, or only the
+   skill's instructions?
+3. How is a stale list detected and refreshed: by date, or by comparing
+   it with a fresh read before each profile build?
+4. For an aggregator such as OpenRouter, which offers hundreds of
+   models, does the skill pick from the whole list, or does the user
+   name a price ceiling or a provider subset first?
