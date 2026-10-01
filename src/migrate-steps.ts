@@ -1,11 +1,17 @@
-import type { JsonValue } from "./types.js";
+/** A JSON value with every level readonly, so a step cannot mutate its input. */
+export type ReadonlyJsonValue =
+  | string
+  | number
+  | boolean
+  | readonly ReadonlyJsonValue[]
+  | { readonly [key: string]: ReadonlyJsonValue };
+
+export type JsonObject = { [key: string]: ReadonlyJsonValue };
+
+/** A parsed registry object with every level readonly, so a step cannot mutate its input. */
+export type ReadonlyJsonObject = { readonly [key: string]: ReadonlyJsonValue };
 
 export const CURRENT_FORMAT = 1 as const;
-
-/** A parsed registry object with every property readonly, so a step cannot mutate its input. */
-export type ReadonlyJsonObject = { readonly [key: string]: JsonValue };
-
-export type JsonObject = { [key: string]: JsonValue };
 
 /** A migration step maps a parsed registry from format N to format N + 1 and returns a new object. */
 export type MigrateStep = (parsed: ReadonlyJsonObject) => JsonObject;

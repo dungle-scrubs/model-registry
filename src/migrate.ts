@@ -39,7 +39,7 @@ export function applyMigrateSteps(
   steps: readonly MigrateStepEntry[],
   currentFormat: number = CURRENT_FORMAT,
 ): JsonObject {
-  let value: JsonObject = parsed;
+  let value: JsonObject | ReadonlyJsonObject = parsed;
   const startFormat = declaredFormat(value);
   if (startFormat === undefined) {
     throw new Error("the parsed registry declares no usable format");
@@ -48,7 +48,7 @@ export function applyMigrateSteps(
   while (format < currentFormat) {
     const entry = steps.find((candidate) => candidate.from === format);
     if (entry === undefined) {
-      return value;
+      break;
     }
     const next = entry.step(value);
     const nextFormat = declaredFormat(next);
