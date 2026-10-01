@@ -2,7 +2,7 @@ import { createHash } from "node:crypto";
 import { existsSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { Command } from "commander";
-import { describe, expect, test, vi } from "vitest";
+import { describe, expect, test } from "vitest";
 import { runCli } from "../src/cli-run.js";
 import { RegistryError } from "../src/error.js";
 import { loadRegistry } from "../src/load-registry.js";
@@ -15,14 +15,7 @@ import {
   runMigrate,
   serializeMigrated,
 } from "../src/migrate.js";
-import {
-  captureStream,
-  repoRoot,
-  runBuiltCli,
-  sha256Hex,
-  withTempDir,
-  writeJson,
-} from "./helpers.js";
+import { captureStream, runBuiltCli, sha256Hex, withTempDir, writeJson } from "./helpers.js";
 
 const VALID_REGISTRY = {
   format: 1,
@@ -492,8 +485,6 @@ describe("production step table", () => {
   test("the production table is exported from the source", async () => {
     const mod = (await import("../src/migrate.js")) as { MIGRATE_STEPS: readonly MigrateStep[] };
     expect(mod.MIGRATE_STEPS).toEqual([]);
-    void repoRoot;
-    void vi;
   });
 });
 
