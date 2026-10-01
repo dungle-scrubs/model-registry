@@ -70,14 +70,15 @@ function invalidProblem(field: string, message: string, fix: string): RegistryPr
 function referenceUnknownProblem(
   field: string,
   name: string,
-  kind: string,
+  kind: "rating" | "capability" | "meter",
+  section: "ratings" | "capabilities" | "meters",
   fix: string,
 ): RegistryProblem {
   return {
     code: "reference-unknown",
     field,
     fix,
-    message: `the ${kind} "${name}" is not declared in the ${kind}s section`,
+    message: `the ${kind} "${name}" is not declared in the ${section} section`,
   };
 }
 
@@ -621,6 +622,7 @@ function collectReferenceProblems(
               childPath(modelPath, "ratings", rating),
               rating,
               "rating",
+              "ratings",
               `Add "${rating}" to the ratings section, or remove the rating from model "${modelKey}".`,
             ),
           );
@@ -647,6 +649,7 @@ function collectReferenceProblems(
               childPath(routePath, "capabilities", capabilityIndex),
               capability,
               "capability",
+              "capabilities",
               `Add "${capability}" to the capabilities section, or remove it from this route.`,
             ),
           );
@@ -659,6 +662,7 @@ function collectReferenceProblems(
             childPath(routePath, "meter"),
             routeValue.meter,
             "meter",
+            "meters",
             `Add "${routeValue.meter}" to the meters section, or remove it from this route.`,
           ),
         );

@@ -660,6 +660,7 @@ describe("loadRegistry", () => {
         field: string;
         name_: string;
         kind: string;
+        section: string;
       }> = [
         {
           name: "model rating without a ratings section",
@@ -676,6 +677,7 @@ describe("loadRegistry", () => {
           field: '$["models"]["model-a"]["ratings"]["coding"]',
           name_: "coding",
           kind: "rating",
+          section: "ratings",
         },
         {
           name: "model rating not in the declared ratings",
@@ -693,6 +695,7 @@ describe("loadRegistry", () => {
           field: '$["models"]["model-a"]["ratings"]["coding"]',
           name_: "coding",
           kind: "rating",
+          section: "ratings",
         },
         {
           name: "route capability without a capabilities section",
@@ -715,6 +718,7 @@ describe("loadRegistry", () => {
           field: '$["models"]["model-a"]["routes"][0]["capabilities"][0]',
           name_: "browser",
           kind: "capability",
+          section: "capabilities",
         },
         {
           name: "route capability not in the declared capabilities",
@@ -738,6 +742,7 @@ describe("loadRegistry", () => {
           field: '$["models"]["model-a"]["routes"][0]["capabilities"][0]',
           name_: "browser",
           kind: "capability",
+          section: "capabilities",
         },
         {
           name: "route meter without a meters section",
@@ -760,6 +765,7 @@ describe("loadRegistry", () => {
           field: '$["models"]["model-a"]["routes"][0]["meter"]',
           name_: "plan-a",
           kind: "meter",
+          section: "meters",
         },
         {
           name: "route meter not in the declared meters",
@@ -783,6 +789,7 @@ describe("loadRegistry", () => {
           field: '$["models"]["model-a"]["routes"][0]["meter"]',
           name_: "plan-a",
           kind: "meter",
+          section: "meters",
         },
       ];
       for (const testCase of cases) {
@@ -792,7 +799,7 @@ describe("loadRegistry", () => {
         const problem = error.problems.find((candidate) => candidate.field === testCase.field);
         expect(problem, testCase.name).toBeDefined();
         expect(problem?.message, testCase.name).toContain(`"${testCase.name_}"`);
-        expect(problem?.message, testCase.name).toContain(`${testCase.kind}s section`);
+        expect(problem?.message, testCase.name).toContain(`${testCase.section} section`);
       }
     });
   });
