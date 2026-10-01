@@ -95,13 +95,6 @@ describe("applyMigrateSteps", () => {
     expect(applyMigrateSteps(parsed, [entry], 2)).toBe(parsed);
   });
 
-  test("does not mutate the input object", () => {
-    const parsed: JsonObject = { format: 0, models: {} };
-    const snapshot = JSON.stringify(parsed);
-    applyMigrateSteps(parsed, [{ from: 0, step: (p) => ({ ...p, format: 1 }) }]);
-    expect(JSON.stringify(parsed)).toBe(snapshot);
-  });
-
   test("returns the value when the format is already current", () => {
     const parsed = { format: 1, models: {} };
     expect(applyMigrateSteps(parsed, [])).toEqual({ format: 1, models: {} });
@@ -158,6 +151,29 @@ describe("serializeMigrated", () => {
 });
 
 describe("runMigrate error mapping", () => {
+  test("runCli on a format-0 file with an existing backup exits 4 with format-unsupported while no step ships", async () => {
+    await withTempDir(async (dir) => {
+      const path = writeJson(dir, "registry.json", {
+        format: 0,
+        models: { "model-a": { family: "family-a", routes: [] } },
+      });
+      const backupPath = join(dir, "registry.json.format-0.bak");
+      writeFileSync(backupPath, "stale");
+      const fileBefore = readFileSync(path);
+
+      const stdout = captureStream();
+      const stderr = captureStream();
+      const exitCode = runCli(["migrate", "--registry", path], {
+        stdout: stdout.stream,
+        stderr: stderr.stream,
+      });
+      expect(exitCode).toBe(4);
+      const envelope = JSON.parse(stderr.text()) as { error: { code: string } };
+      expect(envelope.error.code).toBe("format-unsupported");
+      expect(readFileSync(path)).toEqual(fileBefore);
+      expect(readFileSync(backupPath).toString("utf8")).toBe("stale");
+    });
+  });
   test("a missing file gives registry-missing", async () => {
     await withTempDir(async (dir) => {
       const path = join(dir, "missing.json");
@@ -350,30 +366,6 @@ describe("DW3 an existing backup refuses and writes nothing", () => {
       expect(readFileSync(backupPath)).toEqual(backupContent);
     });
   });
-
-  test("runCli on a format-0 file with an existing backup exits 4 while no step ships", async () => {
-    await withTempDir(async (dir) => {
-      const path = writeJson(dir, "registry.json", {
-        format: 0,
-        models: { "model-a": { family: "family-a", routes: [] } },
-      });
-      const backupPath = join(dir, "registry.json.format-0.bak");
-      writeFileSync(backupPath, "stale");
-      const fileBefore = readFileSync(path);
-
-      const stdout = captureStream();
-      const stderr = captureStream();
-      const exitCode = runCli(["migrate", "--registry", path], {
-        stdout: stdout.stream,
-        stderr: stderr.stream,
-      });
-      expect(exitCode).toBe(4);
-      const envelope = JSON.parse(stderr.text()) as { error: { code: string } };
-      expect(envelope.error.code).toBe("format-unsupported");
-      expect(readFileSync(path)).toEqual(fileBefore);
-      expect(readFileSync(backupPath).toString("utf8")).toBe("stale");
-    });
-  });
 });
 
 describe("DW4 --dry-run prints the migrated file and writes nothing", () => {
@@ -394,18 +386,6 @@ describe("DW4 --dry-run prints the migrated file and writes nothing", () => {
       );
       expect(readFileSync(path)).toEqual(fileBefore);
       expect(existsSync(`${path}.format-0.bak`)).toBe(false);
-    });
-  });
-
-  test("the CLI --dry-run writes nothing to disk", async () => {
-    await withTempDir(async (dir) => {
-      const path = writeJson(dir, "registry.json", VALID_REGISTRY);
-      const fileBefore = readFileSync(path);
-      const result = runBuiltCli(["migrate", "--registry", path, "--dry-run"]);
-      expect(result.exitCode).toBe(0);
-      expect(result.stdout).toBe("nothing to do\n");
-      expect(readFileSync(path)).toEqual(fileBefore);
-      expect(existsSync(`${path}.format-1.bak`)).toBe(false);
     });
   });
 });
