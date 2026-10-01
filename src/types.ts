@@ -25,7 +25,6 @@ export type RatingValue = 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10;
 
 export type Meter = {
   readonly notes?: string;
-  /** The RFC writes spendToZero: true; only that exact value is accepted. */
   readonly spendToZero?: true;
 };
 
@@ -64,14 +63,25 @@ export type ForeignSections = {
   [section: string]: JsonValue;
 };
 
+/** The top-level sections that declare the names models and routes reference. */
+export const DECLARATION_SECTIONS = ["capabilities", "meters", "ratings"] as const;
+
+export type DeclarationSection = (typeof DECLARATION_SECTIONS)[number];
+
+/** Each declaration section's shape in a registry file. */
+type DeclarationMembers = {
+  capabilities: Record<string, string>;
+  meters: Record<string, Meter>;
+  ratings: Record<string, string>;
+};
+
 export type RegistryFile = {
   format: 1;
-  ratings?: Record<string, string>;
-  capabilities?: Record<string, string>;
-  meters?: Record<string, Meter>;
   models: Record<string, Model>;
+} & {
+  [Section in DeclarationSection]?: DeclarationMembers[Section];
 } & ForeignSections & {
-    /** calibration stays rejected until issue #24 enables it. */
+    /** Calibration stays rejected until issue #24 enables it. */
     calibration?: never;
   };
 
