@@ -2,34 +2,21 @@ import { existsSync, renameSync, rmSync, writeFileSync } from "node:fs";
 import { basename, dirname, join } from "node:path";
 import { RegistryError } from "./error.js";
 import { readRegistryFile, registryErrorForProblems } from "./load-registry.js";
-import type { JsonValue } from "./types.js";
+import {
+  CURRENT_FORMAT,
+  type JsonObject,
+  MIGRATE_STEPS,
+  type MigrateStepEntry,
+} from "./migrate-steps.js";
 import { validateRegistry } from "./validate.js";
 
-/** The current registry format major. Format 1 is the first major this package ships. */
-export const CURRENT_FORMAT = 1 as const;
-
-/**
- * A migration step maps a parsed registry from format N to format N+1.
- * Steps are pure: the input must not be mutated, the output must declare
- * `format: N + 1`, and the output must validate against the destination
- * format's slice of this loader.
- */
-export type MigrateStep = (parsed: JsonObject) => JsonObject;
-
-export type JsonObject = { [key: string]: JsonValue };
-
-/** One table entry: the step that migrates a registry from format `from` to `from + 1`. */
-export interface MigrateStepEntry {
-  readonly from: number;
-  readonly step: MigrateStep;
-}
-
-/**
- * The production migration table, keyed by the format each step migrates
- * from. Format 1 is the first major, so no entry here ships yet; the
- * release that introduces format N+1 appends its `{ from: N, step }` entry.
- */
-export const MIGRATE_STEPS: readonly MigrateStepEntry[] = [];
+export type {
+  JsonObject,
+  MigrateStep,
+  MigrateStepEntry,
+  ReadonlyJsonObject,
+} from "./migrate-steps.js";
+export { CURRENT_FORMAT, MIGRATE_STEPS } from "./migrate-steps.js";
 
 function isPlainRecord(value: unknown): value is JsonObject {
   return typeof value === "object" && value !== null && !Array.isArray(value);
