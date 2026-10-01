@@ -15,13 +15,22 @@ $ model-registry check --registry examples/registry.json
 
 `check` loads a registry file, validates it, and prints `format`, `digest` and `path` as one JSON line. The digest is the SHA-256 of the file bytes exactly as read, reproducible with any standard checksum tool.
 
+```console
+$ model-registry migrate --registry examples/registry.json
+nothing to do
+$ model-registry migrate --registry examples/registry.json --dry-run
+<the migrated registry as 2-space indented JSON followed by a newline>
+```
+
+`migrate` brings a registry file forward to the current format. On a file that is already current it prints `nothing to do` and exits 0. To upgrade, it reads the file, applies each migration step in turn, validates the result with the same checks as `check`, then writes the backup `<registry>.format-<original-format>.bak` beside the file and replaces the file. `--dry-run` prints the migrated file on stdout and writes nothing. Each migration step is added in the release that introduces the format it leads to; format 1 is the first major, so no step ships yet.
+
 Exit codes:
 
 | Exit | Meaning |
 |---|---|
-| 0 | the check succeeded |
-| 2 | invalid usage (`usage-invalid` on stderr) |
-| 4 | the loader failed; one `{"error": ...}` envelope on stderr lists every problem |
+| 0 | the command succeeded; for `migrate`, `nothing to do` or a one-line `{"format","digest","path","backup"}` JSON record on success |
+| 2 | invalid usage (`usage-invalid` on stderr), or a `migrate` refusal because the backup already exists (`backup-exists` on stderr) |
+| 4 | the loader or the migrated result failed; one `{"error": ...}` envelope on stderr lists every problem |
 | 1 | an internal fault (`internal-error` on stderr) |
 
 Errors print as one JSON line on stderr: `{"error":{"code":"...","message":"...","fix":"...","path":"...","problems":[]}}`.
@@ -70,9 +79,10 @@ The runtime shape is published as `registry.schema.json` (JSON Schema 2020-12), 
 | `registry-missing` | no file at the resolved path |
 | `registry-unreadable` | the file cannot be read or parsed |
 | `format-missing` | no `format` field: not a version 1 registry |
-| `format-unsupported` | a newer or older format major |
+| `format-unsupported` | a newer or older format major; for older formats the fix names `model-registry migrate`, for newer formats it names upgrading model-registry |
 | `registry-invalid` | a shape error, an unknown field, or `null` |
 | `label-duplicate` | two routes with the same label |
+| `backup-exists` | `migrate` refused because a backup already sits beside the registry |
 
 `reference-unknown` and `rating-mismatch` belong to later tickets and are not emitted yet.
 
