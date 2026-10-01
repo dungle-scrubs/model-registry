@@ -10,6 +10,7 @@ import {
   type JsonObject,
   MIGRATE_STEPS,
   type MigrateStep,
+  type MigrateStepEntry,
   runMigrate,
   serializeMigrated,
 } from "../src/migrate.js";
@@ -37,6 +38,9 @@ const STEP_ZERO_TO_ONE: MigrateStep = (parsed) => {
   return { ...parsed, format: CURRENT_FORMAT };
 };
 
+/** The same step as a table entry: the only entry a format-0 file needs. */
+const FROM_ZERO: MigrateStepEntry = { from: 0, step: STEP_ZERO_TO_ONE };
+
 function recordingStep(): { fn: MigrateStep; calls: JsonObject[] } {
   const calls: JsonObject[] = [];
   return {
@@ -50,40 +54,52 @@ function recordingStep(): { fn: MigrateStep; calls: JsonObject[] } {
 }
 
 describe("applyMigrateSteps", () => {
-  test("runs each step once and stops at the target format", () => {
+  test("a table holding only a step from format 0 migrates a format 0 file", () => {
     const step = recordingStep();
-    const parsed = { format: 0, models: {} } as unknown;
-    const migrated = applyMigrateSteps(parsed, [step.fn]);
+    const parsed = { format: 0, models: {} };
+    const migrated = applyMigrateSteps(parsed, [{ from: 0, step: step.fn }]);
     expect(migrated.format).toBe(1);
     expect(step.calls).toHaveLength(1);
     expect(step.calls[0]).toEqual({ format: 0, models: {} });
     expect(migrated).not.toBe(parsed);
   });
 
-  test("chains steps and feeds each output to the next", () => {
-    const parsed = { format: 0, models: {} } as unknown;
+  test("chains the entries a file passes through, in format order", () => {
+    const parsed = { format: 0, models: {} };
     const migrated = applyMigrateSteps(
       parsed,
-      [(p) => ({ ...p, format: 1 }), (p) => ({ ...p, format: 2 })],
+      [
+        { from: 0, step: (p) => ({ ...p, format: 1 }) },
+        { from: 1, step: (p) => ({ ...p, format: 2 }) },
+      ],
       2,
     );
     expect(migrated.format).toBe(2);
   });
 
+  test("skips an entry whose format the file never passes through", () => {
+    const parsed = { format: 1, models: {} };
+    const entry: MigrateStepEntry = {
+      from: 0,
+      step: (p) => ({ ...p, format: 1 }),
+    };
+    expect(applyMigrateSteps(parsed, [entry], 2)).toBe(parsed);
+  });
+
   test("does not mutate the input object", () => {
     const parsed: JsonObject = { format: 0, models: {} };
     const snapshot = JSON.stringify(parsed);
-    applyMigrateSteps(parsed, [(p) => ({ ...p, format: 1 })]);
+    applyMigrateSteps(parsed, [{ from: 0, step: (p) => ({ ...p, format: 1 }) }]);
     expect(JSON.stringify(parsed)).toBe(snapshot);
   });
 
   test("returns the value when the format is already current", () => {
-    const parsed = { format: 1, models: {} } as unknown;
+    const parsed = { format: 1, models: {} };
     expect(applyMigrateSteps(parsed, [])).toEqual({ format: 1, models: {} });
   });
 
-  test("returns the value unchanged when no step covers the format", () => {
-    const parsed = { format: 0, models: {} } as unknown;
+  test("returns the value unchanged when no entry covers the format", () => {
+    const parsed = { format: 0, models: {} };
     const migrated = applyMigrateSteps(parsed, []);
     expect(migrated.format).toBe(0);
   });
@@ -217,7 +233,7 @@ describe("DW2 a synthetic step migrates an older format end to end", () => {
       );
       const path = join(dir, "registry.json");
       writeFileSync(path, originalBytes);
-      const outcome = runMigrate({ path, steps: [STEP_ZERO_TO_ONE] });
+      const outcome = runMigrate({ path, steps: [FROM_ZERO] });
       expect(outcome.kind).toBe("applied");
       if (outcome.kind !== "applied") return;
       expect(outcome.path).toBe(path);
@@ -242,7 +258,7 @@ describe("DW2 a synthetic step migrates an older format end to end", () => {
     await withTempDir(async (dir) => {
       const registry = { format: 0, models: { "model-a": { family: "family-a", routes: [] } } };
       const path = writeJson(dir, "registry.json", registry);
-      const outcome = runMigrate({ path, steps: [STEP_ZERO_TO_ONE] });
+      const outcome = runMigrate({ path, steps: [FROM_ZERO] });
       expect(outcome).toEqual({
         kind: "applied",
         format: 1,
@@ -266,7 +282,7 @@ describe("DW3 an existing backup refuses and writes nothing", () => {
       const backupContent = Buffer.from("stale backup contents");
       writeFileSync(backupPath, backupContent);
       const fileBefore = readFileSync(path);
-      const outcome = runMigrate({ path, steps: [STEP_ZERO_TO_ONE] });
+      const outcome = runMigrate({ path, steps: [FROM_ZERO] });
       expect(outcome.kind).toBe("error");
       if (outcome.kind !== "error") return;
       expect(outcome.error.code).toBe("backup-exists");
@@ -314,7 +330,7 @@ describe("DW3 an existing backup refuses and writes nothing", () => {
       });
       const backupPath = join(dir, "registry.json.format-0.bak");
       writeFileSync(backupPath, "stale");
-      const outcome = runMigrate({ path, steps: [STEP_ZERO_TO_ONE] });
+      const outcome = runMigrate({ path, steps: [FROM_ZERO] });
       expect(outcome.kind).toBe("error");
       if (outcome.kind !== "error") return;
       const details = outcome.error.toJSON();
@@ -335,7 +351,7 @@ describe("DW4 --dry-run prints the migrated file and writes nothing", () => {
         models: { "model-a": { family: "family-a", routes: [] } },
       });
       const fileBefore = readFileSync(path);
-      const outcome = runMigrate({ path, steps: [STEP_ZERO_TO_ONE], dryRun: true });
+      const outcome = runMigrate({ path, steps: [FROM_ZERO], dryRun: true });
       expect(outcome.kind).toBe("dry-run");
       if (outcome.kind !== "dry-run") return;
       expect(outcome.path).toBe(path);
@@ -368,7 +384,7 @@ describe("DW5 an invalid migrated result exits 4 and replaces nothing", () => {
       const fileBefore = readFileSync(path);
       const outcome = runMigrate({
         path,
-        steps: [(parsed) => ({ ...parsed, format: 1 })],
+        steps: [{ from: 0, step: (parsed) => ({ ...parsed, format: 1 }) }],
       });
       expect(outcome.kind).toBe("error");
       if (outcome.kind !== "error") return;
@@ -435,7 +451,7 @@ describe("CLI surface", () => {
       // Drive the seam through runMigrate directly: when a step table
       // produces an applied result and the backup is already there,
       // runMigrate refuses before writing anything.
-      const outcome = runMigrate({ path, steps: [STEP_ZERO_TO_ONE] });
+      const outcome = runMigrate({ path, steps: [FROM_ZERO] });
       expect(outcome.kind).toBe("error");
       if (outcome.kind !== "error") return;
       expect(outcome.error.code).toBe("backup-exists");
@@ -460,7 +476,7 @@ describe("atomic replace", () => {
       const path = join(dir, "registry.json");
       writeFileSync(path, original);
       const originalBytes = readFileSync(path);
-      runMigrate({ path, steps: [(p) => ({ ...p, format: 1 })] });
+      runMigrate({ path, steps: [{ from: 0, step: (p) => ({ ...p, format: 1 }) }] });
       const backupPath = join(dir, "registry.json.format-0.bak");
       expect(readFileSync(backupPath)).toEqual(originalBytes);
       const newBytes = readFileSync(path);
@@ -475,7 +491,7 @@ describe("atomic replace", () => {
         format: 0,
         models: { "model-a": { family: "family-a", routes: [] } },
       });
-      runMigrate({ path, steps: [(p) => ({ ...p, format: 1 })] });
+      runMigrate({ path, steps: [{ from: 0, step: (p) => ({ ...p, format: 1 }) }] });
       const entries = readdirSync(dir);
       expect(entries.some((name) => name.endsWith(".tmp"))).toBe(false);
     });
@@ -487,7 +503,7 @@ describe("atomic replace", () => {
       // backup must be named from the whole file name.
       const path = join(dir, "weird\\name.json");
       writeFileSync(path, JSON.stringify({ format: 0, models: {} }));
-      const outcome = runMigrate({ path, steps: [STEP_ZERO_TO_ONE] });
+      const outcome = runMigrate({ path, steps: [FROM_ZERO] });
       expect(outcome).toMatchObject({
         kind: "applied",
         backupPath: join(dir, "weird\\name.json.format-0.bak"),
@@ -504,7 +520,9 @@ describe("production step table", () => {
   });
 
   test("the production table is exported from the source", async () => {
-    const mod = (await import("../src/migrate.js")) as { MIGRATE_STEPS: readonly MigrateStep[] };
+    const mod = (await import("../src/migrate.js")) as {
+      MIGRATE_STEPS: readonly MigrateStepEntry[];
+    };
     expect(mod.MIGRATE_STEPS).toEqual([]);
   });
 });

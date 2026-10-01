@@ -18,15 +18,30 @@ export type MigrateStep = (parsed: JsonObject) => JsonObject;
 
 export type JsonObject = { [key: string]: JsonValue };
 
+/** One table entry: the step that migrates a registry from format `from` to `from + 1`. */
+export interface MigrateStepEntry {
+  readonly from: number;
+  readonly step: MigrateStep;
+}
+
 /**
- * The production migration table. Each entry moves one format major to the
- * next. Format 1 is the first major, so no entry here ships yet; a step
- * arrives alongside the format that needs it.
+ * The production migration table, keyed by the format each step migrates
+ * from. Format 1 is the first major, so no entry here ships yet; the
+ * release that introduces format N+1 appends its `{ from: N, step }` entry.
  */
-export const MIGRATE_STEPS: readonly MigrateStep[] = [];
+export const MIGRATE_STEPS: readonly MigrateStepEntry[] = [];
 
 function isPlainRecord(value: unknown): value is JsonObject {
   return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+/** True when the value is a record whose format field is an integer. */
+function hasIntegerFormat(value: unknown): value is JsonObject & { format: number } {
+  if (!isPlainRecord(value)) {
+    return false;
+  }
+  const format: unknown = value.format;
+  return typeof format === "number" && Number.isInteger(format);
 }
 
 /** The integer format a parsed registry declares, or NaN when it declares no usable one. */
@@ -39,31 +54,32 @@ function declaredFormat(parsed: unknown): number {
 }
 
 /**
- * Apply each step in order until the format field reads `currentFormat`.
- * Each step declares the format of its output, and the next step is fed
- * that output. Stops when the parsed object reaches the target format or
- * when the table runs out.
+ * Apply the steps whose formats the parsed registry passes through, until
+ * the format field reads `currentFormat`. Each entry hands its output to
+ * the entry for the next format. Stops when the parsed object reaches the
+ * target format or when the table has no entry for the current one.
  */
 export function applyMigrateSteps(
-  parsed: unknown,
-  steps: readonly MigrateStep[],
+  parsed: JsonObject,
+  steps: readonly MigrateStepEntry[],
   currentFormat: number = CURRENT_FORMAT,
 ): JsonObject {
-  let value: unknown = parsed;
-  while (declaredFormat(value) < currentFormat) {
-    const step = steps[declaredFormat(value)];
-    if (step === undefined) {
-      return value as JsonObject;
+  let value: JsonObject = parsed;
+  let format = declaredFormat(value);
+  while (format < currentFormat) {
+    const entry = steps.find((candidate) => candidate.from === format);
+    if (entry === undefined) {
+      return value;
     }
-    const next = step(value as JsonObject);
-    value = next;
+    value = entry.step(value);
+    format = declaredFormat(value);
   }
-  return value as JsonObject;
+  return value;
 }
 
 export interface MigrateOptions {
   path?: string;
-  steps?: readonly MigrateStep[];
+  steps?: readonly MigrateStepEntry[];
   dryRun?: boolean;
 }
 
@@ -117,8 +133,7 @@ export function runMigrate(options: MigrateOptions = {}): MigrateOutcome {
   }
   const { path, bytes } = read;
   const value: unknown = read.parsed;
-  const startFormat = declaredFormat(value);
-  if (Number.isNaN(startFormat)) {
+  if (!hasIntegerFormat(value)) {
     // No usable format: report the same problem check reports for the
     // same file, built by the same shared mapping.
     const validation = validateRegistry(value);
@@ -130,6 +145,7 @@ export function runMigrate(options: MigrateOptions = {}): MigrateOutcome {
     }
     throw new Error(`validateRegistry accepted a registry with no usable format at "${path}"`);
   }
+  const startFormat = value.format;
   if (startFormat > CURRENT_FORMAT) {
     return {
       kind: "error",
