@@ -4,10 +4,6 @@ import { afterEach, describe, expect, test, vi } from "vitest";
 import { CURRENT_FORMAT, type MigrateStep, runMigrate } from "../src/migrate.js";
 import { withTempDir, writeJson } from "./helpers.js";
 
-// The backup-write-then-replace flow cannot be driven to a mid-write
-// failure with real files, so renameSync and writeFileSync are wrapped:
-// both pass through to the real implementation unless a test overrides
-// one call to fail.
 vi.mock("node:fs", async (importOriginal) => {
   const actual = await importOriginal<typeof import("node:fs")>();
   return {
@@ -57,7 +53,6 @@ describe("a failed replacement", () => {
       const original = readFileSync(path);
       mockedWrite.mockImplementation((file, data, options) => {
         if (typeof file === "string" && file.endsWith(".tmp")) {
-          // A partial temp file exists, as a mid-write disk-full failure leaves.
           actualFs.writeFileSync(file, "{ partial", options);
           throw new Error("disk full");
         }

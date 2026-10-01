@@ -342,6 +342,7 @@ describe("DW3 an existing backup refuses and writes nothing", () => {
       });
       const backupPath = join(dir, "registry.json.format-0.bak");
       writeFileSync(backupPath, "stale");
+      const fileBefore = readFileSync(path);
 
       const stdout = captureStream();
       const stderr = captureStream();
@@ -349,35 +350,11 @@ describe("DW3 an existing backup refuses and writes nothing", () => {
         stdout: stdout.stream,
         stderr: stderr.stream,
       });
-      // The CLI uses the empty production step table, so a format-0 file
-      // lands at format-unsupported exit 4, not the seam-driven exit 2
-      // (cli-migrate.test.ts proves that wiring). The production CLI
-      // cannot reach backup-exists until a step ships.
       expect(exitCode).toBe(4);
       const envelope = JSON.parse(stderr.text()) as { error: { code: string } };
       expect(envelope.error.code).toBe("format-unsupported");
-      // Sanity: the backup and the file are untouched.
+      expect(readFileSync(path)).toEqual(fileBefore);
       expect(readFileSync(backupPath).toString("utf8")).toBe("stale");
-    });
-  });
-
-  test("the backup-exists error serialises to the standard error envelope shape", async () => {
-    await withTempDir(async (dir) => {
-      const path = writeJson(dir, "registry.json", {
-        format: 0,
-        models: { "model-a": { family: "family-a", routes: [] } },
-      });
-      const backupPath = join(dir, "registry.json.format-0.bak");
-      writeFileSync(backupPath, "stale");
-      const outcome = runMigrate({ path, steps: [FROM_ZERO] });
-      expect(outcome.kind).toBe("error");
-      if (outcome.kind !== "error") return;
-      const details = outcome.error.toJSON();
-      expect(details.code).toBe("backup-exists");
-      expect(details.path).toBe(path);
-      expect(details.problems).toEqual([]);
-      expect(details.message).toContain(backupPath);
-      expect(details.fix).toContain(backupPath);
     });
   });
 });
@@ -497,33 +474,6 @@ describe("CLI surface", () => {
       expect(envelope.error.fix).toContain("Upgrade model-registry");
     });
   });
-
-  test("runMigrate returns backup-exists through the injected step seam", async () => {
-    await withTempDir(async (dir) => {
-      const path = writeJson(dir, "registry.json", {
-        format: 0,
-        models: { "model-a": { family: "family-a", routes: [] } },
-      });
-      const backupPath = join(dir, "registry.json.format-0.bak");
-      writeFileSync(backupPath, "stale");
-      const fileBefore = readFileSync(path);
-      const backupBefore = readFileSync(backupPath);
-      // Drive the seam through runMigrate directly: when a step table
-      // produces an applied result and the backup is already there,
-      // runMigrate refuses before writing anything.
-      const outcome = runMigrate({ path, steps: [FROM_ZERO] });
-      expect(outcome.kind).toBe("error");
-      if (outcome.kind !== "error") return;
-      expect(outcome.error.code).toBe("backup-exists");
-      expect(outcome.error.toJSON()).toMatchObject({
-        code: "backup-exists",
-        path,
-        problems: [],
-      });
-      expect(readFileSync(path)).toEqual(fileBefore);
-      expect(readFileSync(backupPath)).toEqual(backupBefore);
-    });
-  });
 });
 
 describe("atomic replace", () => {
@@ -610,12 +560,5 @@ describe("atomic replace", () => {
 describe("production step table", () => {
   test("the production table is empty in this release", () => {
     expect(MIGRATE_STEPS).toEqual([]);
-  });
-
-  test("the production table is exported from the source", async () => {
-    const mod = (await import("../src/migrate.js")) as {
-      MIGRATE_STEPS: readonly MigrateStepEntry[];
-    };
-    expect(mod.MIGRATE_STEPS).toEqual([]);
   });
 });

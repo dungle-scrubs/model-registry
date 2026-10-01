@@ -18,11 +18,9 @@ $ model-registry check --registry examples/registry.json
 ```console
 $ model-registry migrate --registry examples/registry.json
 nothing to do
-$ model-registry migrate --registry examples/registry.json --dry-run
-<the migrated registry as 2-space indented JSON followed by a newline>
 ```
 
-`migrate` brings a registry file forward to the current format. On a file that is already current it prints `nothing to do` and exits 0. To upgrade, it reads the file, applies each migration step in turn, validates the result with the same checks as `check`, then writes the backup `<registry>.format-<original-format>.bak` beside the file and replaces the file. `--dry-run` prints the migrated file on stdout and writes nothing. If the replacement itself fails, the temporary file is removed and the backup stays in place, so the original file is never lost; the command then fails with `internal-error`. Each migration step is added in the release that introduces the format it leads to; format 1 is the first major, so no step ships yet.
+`migrate` brings a registry file forward to the current format. On a file that is already current it prints `nothing to do` and exits 0, with or without `--dry-run`. To upgrade, it reads the file, applies each migration step in turn, validates the result with the same checks as `check`, then writes the backup `<registry>.format-<original-format>.bak` beside the file and replaces the file. `--dry-run` prints the migrated file on stdout (2-space indented JSON followed by a newline) and writes nothing. The replacement keeps the file's mode; a symlinked registry is migrated through the link, which stays in place, and the backup is written beside its target. If the replacement itself fails, the temporary file is removed and the backup stays in place, so the original file is never lost; the command then fails with `internal-error`, and the next run refuses with `backup-exists` until the backup is moved aside. Each migration step is added in the release that introduces the format it leads to; format 1 is the first major, so no step ships yet.
 
 Exit codes:
 
@@ -79,7 +77,7 @@ The runtime shape is published as `registry.schema.json` (JSON Schema 2020-12), 
 | `registry-missing` | no file at the resolved path |
 | `registry-unreadable` | the file cannot be read or parsed |
 | `format-missing` | no `format` field: not a version 1 registry |
-| `format-unsupported` | a newer or older format major; for older formats the fix names `model-registry migrate`, for newer formats it names upgrading model-registry |
+| `format-unsupported` | a newer or older format major; the fix names upgrading model-registry for a newer format, and names `migrate` for an older format only when this release ships a step from it, otherwise it says to recreate the file as format 1 |
 | `registry-invalid` | a shape error, an unknown field, or `null` |
 | `label-duplicate` | two routes with the same label |
 | `backup-exists` | `migrate` refused because a backup already sits beside the registry |
