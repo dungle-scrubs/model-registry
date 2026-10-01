@@ -25,23 +25,33 @@ profile.
   `capabilities`, `meters`, `calibration`) and the `router` section, and
   they drift apart.
 
-**The profile builder skill.** Profiles come with a skill that builds
-one from a plain request, such as "I subscribe to platform X" or "a
-monthly plan on platform Y", or a combination such as "I have
-platforms X and Y":
+**The profile builder skill.** Profiles come with a skill that
+interviews the user about what the profile should be made of, then
+builds it. The user can open with a plain request, such as "I subscribe
+to platform X", "a monthly plan on platform Y", or "I have platforms X
+and Y".
 
-1. The skill reads which models each named platform offers. With
-   several platforms, the profile draws from all of them as one pool,
-   and a model offered on two platforms becomes two routes.
-2. By default it picks models that cover the full range of scores across
-   every rating and capability. The request can ask for fewer models (a
-   narrow, cheap set) or more (depth at the top).
-3. It rates the models against a default set of public benchmarks, with
-   Artificial Analysis as the default source. The user can name the
-   benchmarks or ratings they care about instead.
-4. It reports what the platform cannot cover: a capability no model on
-   it has, or a floor no model on it reaches.
-5. The output is a profile the user saves, then switches to when needed.
+1. **Interview.** The skill asks one question at a time, and skips what
+   the opening request already answered: which platforms and plans, what
+   the profile is for, the budget, which ratings and benchmarks matter
+   (Artificial Analysis by default), and whether the user wants a narrow
+   cheap set, the full range, or depth at the top.
+2. **Read the models.** It reads which models each named platform offers
+   (see "Model list discovery"). With several platforms, the profile
+   draws from all of them as one pool, and a model offered on two
+   platforms becomes two routes.
+3. **Rate and pick.** It rates the models against the chosen benchmarks
+   and picks the set that covers the range of scores the user asked for,
+   across every rating and capability.
+4. **Resolve gaps with the user.** When a capability or a score band has
+   no model, the skill does not stop and does not fill the gap silently.
+   It names the gap, says which work it affects, and helps the user pick
+   the answer that fits this profile, with a recommendation. Examples:
+   add a model or platform that fills it; accept a lower floor for that
+   rating in this profile; or mark the work that needs it as out of
+   scope for this profile.
+5. **Save.** The output is a profile the user saves, then switches to
+   when needed. The profile records each gap decision and its reason.
 
 The skill extends the rating method prompt (RFC-01, "The rating
 method"). Like that prompt, it proposes and the user approves before
@@ -64,10 +74,12 @@ anything is written, and it ends with `model-registry check`.
    bands, and its rating prompt asks the user which benchmarks feed
    each rating. Does the skill ship a default set of benchmarks, a
    default set with bands, or only a suggestion that the user confirms?
-7. A profile that cannot be complete on its platform: does the skill
-   refuse it, save it with the gaps listed, or fill the gaps from
-   another profile with the user's approval? The completeness rule
-   above forbids silent borrowing.
+7. Which gap answers does the skill offer? Accepting a lower floor
+   makes "complete" relative to the floors the user agreed for that
+   profile. Does the format store a per-profile floor, and does the
+   router report when a query falls below the global floor because of
+   it? Filling a gap from another profile breaks the completeness rule
+   above, so is that an answer at all?
 8. In a combined profile, when two platforms offer the same model,
    which route goes first: the cheaper one, the one with more quota
    left, or the order the user listed the platforms in?
