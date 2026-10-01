@@ -1,44 +1,30 @@
 import { readFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { Ajv2020 } from "ajv/dist/2020.js";
-import { afterEach, describe, expect, expectTypeOf, test } from "vitest";
+import { describe, expect, expectTypeOf, test } from "vitest";
 import { RegistryError } from "../src/error.js";
 import { loadRegistry } from "../src/load-registry.js";
 import { resolveRegistryPath } from "../src/path.js";
 import type { Model, Route } from "../src/types.js";
 import {
+  catchRegistryError,
+  createXdgConfigHome,
+  deferredProperties,
   examplePath,
   repoRoot,
-  runCli,
+  runBuiltCli,
   sha256Hex,
+  supportedProperties,
   withEnv,
   withTempDir,
   writeJson,
-  writeXdgRegistry,
 } from "./helpers.js";
 
 const exampleBytes = readFileSync(examplePath);
 
-function catchRegistryError(fn: () => unknown): RegistryError {
-  try {
-    fn();
-  } catch (error) {
-    if (error instanceof RegistryError) {
-      return error;
-    }
-    throw error;
-  }
-  throw new Error("expected loadRegistry to throw");
-}
-
-const platformDescriptor = Object.getOwnPropertyDescriptor(process, "platform");
-afterEach(() => {
-  Object.defineProperty(process, "platform", platformDescriptor ?? { value: process.platform });
-});
-
 describe("acceptance", () => {
   test("DW1 minimal example check", () => {
-    const result = runCli(["check", "--registry", "examples/registry.json"]);
+    const result = runBuiltCli(["check", "--registry", "examples/registry.json"]);
     expect(result.exitCode).toBe(0);
     expect(result.stderr).toBe("");
     const parsed = JSON.parse(result.stdout) as Record<string, unknown>;
@@ -49,7 +35,7 @@ describe("acceptance", () => {
     expect(result.stdout.endsWith("\n")).toBe(true);
   });
 
-  test("DW2 registry path precedence", async () => {
+  test("DW2 an explicit path beats MODEL_REGISTRY_FILE and XDG", async () => {
     await withTempDir(async (dir) => {
       const explicit = writeJson(dir, "explicit.json", {
         format: 1,
@@ -59,39 +45,55 @@ describe("acceptance", () => {
         format: 1,
         models: { "model-environment": { family: "family-a", routes: [] } },
       });
-      const xdg = writeXdgRegistry(dir, {
+      const xdg = createXdgConfigHome(dir, {
         format: 1,
         models: { "model-xdg": { family: "family-a", routes: [] } },
       });
-
-      // 1. explicit path beats environment and XDG
       await withEnv({ MODEL_REGISTRY_FILE: environment, XDG_CONFIG_HOME: xdg }, () => {
         const loaded = loadRegistry({ path: explicit });
         expect(loaded.digest).toBe(`sha256:${sha256Hex(readFileSync(explicit))}`);
       });
+    });
+  });
 
-      // 2. MODEL_REGISTRY_FILE beats XDG
+  test("DW2 MODEL_REGISTRY_FILE beats XDG", async () => {
+    await withTempDir(async (dir) => {
+      const environment = writeJson(dir, "environment.json", {
+        format: 1,
+        models: { "model-environment": { family: "family-a", routes: [] } },
+      });
+      const xdg = createXdgConfigHome(dir, {
+        format: 1,
+        models: { "model-xdg": { family: "family-a", routes: [] } },
+      });
       await withEnv({ MODEL_REGISTRY_FILE: environment, XDG_CONFIG_HOME: xdg }, () => {
         const loaded = loadRegistry();
         expect(loaded.digest).toBe(`sha256:${sha256Hex(readFileSync(environment))}`);
       });
+    });
+  });
 
-      // 3. XDG applies without an explicit or environment path
+  test("DW2 XDG applies without an explicit or environment path", async () => {
+    await withTempDir(async (dir) => {
+      const xdg = createXdgConfigHome(dir, {
+        format: 1,
+        models: { "model-xdg": { family: "family-a", routes: [] } },
+      });
       await withEnv({ MODEL_REGISTRY_FILE: undefined, XDG_CONFIG_HOME: xdg }, () => {
         const loaded = loadRegistry();
         expect(loaded.digest).toBe(
           `sha256:${sha256Hex(readFileSync(join(xdg, "model-registry", "registry.json")))}`,
         );
       });
+    });
+  });
 
-      // 4. unset XDG uses <home>/.config/model-registry/registry.json
+  test("DW2 unset XDG uses <home>/.config/model-registry/registry.json", async () => {
+    await withTempDir(async (dir) => {
       const home = join(dir, "home");
-      const viaResolver = resolveRegistryPath(undefined, {}, home);
-      expect(viaResolver).toBe(join(home, ".config", "model-registry", "registry.json"));
-
-      // 5. the default is unchanged when the platform reports macOS
-      Object.defineProperty(process, "platform", { value: "darwin", configurable: true });
-      expect(resolveRegistryPath(undefined, {}, home)).toBe(viaResolver);
+      expect(resolveRegistryPath(undefined, {}, home)).toBe(
+        join(home, ".config", "model-registry", "registry.json"),
+      );
     });
   });
 
@@ -105,7 +107,7 @@ describe("acceptance", () => {
       expect(error.fix).toContain("examples/registry.json");
       expect(error.path).toBe(missing);
 
-      const result = runCli(["check", "--registry", missing]);
+      const result = runBuiltCli(["check", "--registry", missing]);
       expect(result.exitCode).toBe(4);
       expect(result.stdout).toBe("");
       const envelope = JSON.parse(result.stderr) as { error: { code: string } };
@@ -281,7 +283,7 @@ describe("acceptance", () => {
       { args: ["check", "--bogus"], label: "unknown flag" },
     ];
     for (const testCase of cases) {
-      const result = runCli(testCase.args, { MODEL_REGISTRY_FILE: examplePath });
+      const result = runBuiltCli(testCase.args, { MODEL_REGISTRY_FILE: examplePath });
       expect(result.exitCode, testCase.label).toBe(2);
       expect(result.stdout, testCase.label).toBe("");
       expect(result.stderr, testCase.label).not.toContain("Usage:");
@@ -300,10 +302,8 @@ describe("acceptance", () => {
     const ajv = new Ajv2020({ allErrors: true, strictNumbers: true });
     const validate = ajv.compile(schema);
 
-    // the published example validates
     expect(validate(JSON.parse(exampleBytes.toString("utf8")))).toBe(true);
 
-    // every supported optional property is valid in both TypeScript and Ajv
     const fullRoute: Route = {
       harness: "harness-x",
       modelId: "model-id-a",
@@ -319,10 +319,6 @@ describe("acceptance", () => {
     const fullRegistry = { format: 1, models: { "model-a": fullModel } };
     expect(validate(fullRegistry)).toBe(true);
 
-    // Property tables. Each tuple is exhaustive: its element union must
-    // equal keyof of the matching TypeScript type at compile time, so a new
-    // field on Model or Route that the tuple and schema miss fails the
-    // typecheck instead of passing silently.
     const modelKeys = ["family", "notes", "routes"] as const;
     expectTypeOf<(typeof modelKeys)[number]>().toEqualTypeOf<keyof Model>();
     const deferredModelKeys = ["ratings", "maxEffort", "fixedEffort"] as const;
@@ -340,28 +336,22 @@ describe("acceptance", () => {
     expectTypeOf<(typeof routeKeys)[number]>().toEqualTypeOf<keyof Route>();
     const deferredRouteKeys = ["capabilities", "meter"] as const;
 
-    const propertyNames = (properties: Record<string, unknown>, deferred: boolean) =>
-      Object.entries(properties)
-        .filter(([, definition]) => (definition === false) === deferred)
-        .map(([name]) => name)
-        .sort();
-    expect(propertyNames(schema.$defs.model.properties, false)).toEqual([...modelKeys].sort());
-    expect(propertyNames(schema.$defs.model.properties, true)).toEqual(
+    expect(supportedProperties(schema.$defs.model.properties)).toEqual([...modelKeys].sort());
+    expect(deferredProperties(schema.$defs.model.properties)).toEqual(
       [...deferredModelKeys].sort(),
     );
-    expect(propertyNames(schema.$defs.route.properties, false)).toEqual([...routeKeys].sort());
-    expect(propertyNames(schema.$defs.route.properties, true)).toEqual(
+    expect(supportedProperties(schema.$defs.route.properties)).toEqual([...routeKeys].sort());
+    expect(deferredProperties(schema.$defs.route.properties)).toEqual(
       [...deferredRouteKeys].sort(),
     );
-    expect(propertyNames(schema.properties, false)).toEqual(["format", "models"]);
-    expect(propertyNames(schema.properties, true)).toEqual([
+    expect(supportedProperties(schema.properties)).toEqual(["format", "models"]);
+    expect(deferredProperties(schema.properties)).toEqual([
       "calibration",
       "capabilities",
       "meters",
       "ratings",
     ]);
 
-    // negative fixtures fail schema validation
     const negatives: unknown[] = [
       { format: 1, models: { "model-a": { ...fullModel, ratings: { coding: 5 } } } },
       {

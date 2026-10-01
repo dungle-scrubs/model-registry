@@ -2,10 +2,17 @@ import { readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { Ajv2020 } from "ajv/dist/2020.js";
 import { describe, expect, test } from "vitest";
-import { RegistryError } from "../src/error.js";
 import { loadRegistry } from "../src/load-registry.js";
 import type { Model, RegistryFile, Route } from "../src/types.js";
-import { examplePath, repoRoot, schemaPath, withTempDir } from "./helpers.js";
+import {
+  catchRegistryError,
+  deferredProperties,
+  examplePath,
+  repoRoot,
+  schemaPath,
+  supportedProperties,
+  withTempDir,
+} from "./helpers.js";
 
 const schema = JSON.parse(readFileSync(schemaPath, "utf8")) as {
   $schema?: string;
@@ -21,32 +28,6 @@ const schema = JSON.parse(readFileSync(schemaPath, "utf8")) as {
 // the fixtures below assert that both sides reject the same files.
 const ajv = new Ajv2020({ allErrors: true, strictNumbers: true });
 const validate = ajv.compile(schema);
-
-function catchRegistryError(fn: () => unknown): RegistryError {
-  try {
-    fn();
-  } catch (error) {
-    if (error instanceof RegistryError) {
-      return error;
-    }
-    throw error;
-  }
-  throw new Error("expected loadRegistry to throw");
-}
-
-function supportedProperties(properties: Record<string, unknown>): string[] {
-  return Object.entries(properties)
-    .filter(([, definition]) => definition !== false)
-    .map(([name]) => name)
-    .sort();
-}
-
-function deferredProperties(properties: Record<string, unknown>): string[] {
-  return Object.entries(properties)
-    .filter(([, definition]) => definition === false)
-    .map(([name]) => name)
-    .sort();
-}
 
 const fullRoute: Route = {
   harness: "harness-x",
@@ -78,8 +59,6 @@ describe("registry.schema.json", () => {
   });
 
   test("property tables match the TypeScript types", () => {
-    // Supported fields carry real schemas; deferred fields are declared as
-    // false so the loader can name them without a second source of truth.
     expect(supportedProperties(schema.properties)).toEqual(["format", "models"]);
     expect(deferredProperties(schema.properties)).toEqual([
       "calibration",

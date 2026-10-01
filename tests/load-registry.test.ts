@@ -3,7 +3,6 @@ import { readFileSync, symlinkSync, writeFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import { describe, expect, test } from "vitest";
-import { RegistryError } from "../src/error.js";
 import * as publicApi from "../src/index.js";
 import { loadRegistry } from "../src/load-registry.js";
 import { resolveRegistryPath } from "../src/path.js";
@@ -11,25 +10,14 @@ import type { RegistryProblem } from "../src/types.js";
 import { validateRegistry } from "../src/validate.js";
 import {
   builtIndexPath,
+  catchRegistryError,
+  createXdgConfigHome,
   repoRoot,
   sha256Hex,
   withEnv,
   withTempDir,
   writeJson,
-  writeXdgRegistry,
 } from "./helpers.js";
-
-function catchRegistryError(fn: () => unknown): RegistryError {
-  try {
-    fn();
-  } catch (error) {
-    if (error instanceof RegistryError) {
-      return error;
-    }
-    throw error;
-  }
-  throw new Error("expected loadRegistry to throw");
-}
 
 const validRegistry = {
   format: 1,
@@ -605,7 +593,7 @@ describe("loadRegistry", () => {
 
   test("empty environment values count as unset", async () => {
     await withTempDir(async (dir) => {
-      const xdg = writeXdgRegistry(dir, validRegistry);
+      const xdg = createXdgConfigHome(dir, validRegistry);
       await withEnv({ MODEL_REGISTRY_FILE: "", XDG_CONFIG_HOME: xdg }, () => {
         expect(loadRegistry().path).toBe(join(xdg, "model-registry", "registry.json"));
       });

@@ -6,14 +6,14 @@ import { runCli } from "../src/cli-run.js";
 import { loadRegistry } from "../src/load-registry.js";
 import {
   captureStream,
+  createXdgConfigHome,
   examplePath,
   repoRoot,
-  runCli as runCliBinary,
+  runBuiltCli,
   sha256Hex,
   withEnv,
   withTempDir,
   writeJson,
-  writeXdgRegistry,
 } from "./helpers.js";
 
 vi.mock("../src/load-registry.js", async (importOriginal) => {
@@ -33,7 +33,7 @@ const validRegistry = {
 
 describe("the built CLI", () => {
   test("check on the example exits 0 with one JSON line", () => {
-    const result = runCliBinary(["check", "--registry", "examples/registry.json"]);
+    const result = runBuiltCli(["check", "--registry", "examples/registry.json"]);
     expect(result.exitCode).toBe(0);
     expect(result.stderr).toBe("");
     const lines = result.stdout.split("\n");
@@ -44,7 +44,7 @@ describe("the built CLI", () => {
   });
 
   test("--help exits 0 without reading a registry", () => {
-    const result = runCliBinary(["--help"], { MODEL_REGISTRY_FILE: "/nonexistent/registry.json" });
+    const result = runBuiltCli(["--help"], { MODEL_REGISTRY_FILE: "/nonexistent/registry.json" });
     expect(result.exitCode).toBe(0);
     expect(result.stderr).toBe("");
     expect(result.stdout).toContain("Usage: model-registry");
@@ -52,21 +52,21 @@ describe("the built CLI", () => {
   });
 
   test("check --help exits 0", () => {
-    const result = runCliBinary(["check", "--help"]);
+    const result = runBuiltCli(["check", "--help"]);
     expect(result.exitCode).toBe(0);
     expect(result.stderr).toBe("");
     expect(result.stdout).toContain("registry");
   });
 
   test("--version prints the package version", () => {
-    const result = runCliBinary(["--version"]);
+    const result = runBuiltCli(["--version"]);
     expect(result.exitCode).toBe(0);
     expect(result.stderr).toBe("");
     expect(result.stdout).toBe(`${packageJson.version}\n`);
   });
 
   test("no command exits 2 with usage-invalid", () => {
-    const result = runCliBinary([]);
+    const result = runBuiltCli([]);
     expect(result.exitCode).toBe(2);
     expect(result.stdout).toBe("");
     const envelope = JSON.parse(result.stderr) as { error: { code: string; message: string } };
@@ -75,21 +75,21 @@ describe("the built CLI", () => {
   });
 
   test("--registry given twice exits 2", () => {
-    const result = runCliBinary(["check", "--registry", "a.json", "--registry", "b.json"]);
+    const result = runBuiltCli(["check", "--registry", "a.json", "--registry", "b.json"]);
     expect(result.exitCode).toBe(2);
     const envelope = JSON.parse(result.stderr) as { error: { code: string } };
     expect(envelope.error.code).toBe("usage-invalid");
   });
 
   test("an empty --registry value exits 2", () => {
-    const result = runCliBinary(["check", "--registry", ""]);
+    const result = runBuiltCli(["check", "--registry", ""]);
     expect(result.exitCode).toBe(2);
     const envelope = JSON.parse(result.stderr) as { error: { code: string } };
     expect(envelope.error.code).toBe("usage-invalid");
   });
 
   test("migrate is not registered in this slice", () => {
-    const result = runCliBinary(["migrate"]);
+    const result = runBuiltCli(["migrate"]);
     expect(result.exitCode).toBe(2);
     const envelope = JSON.parse(result.stderr) as { error: { code: string; message: string } };
     expect(envelope.error.code).toBe("usage-invalid");
@@ -98,7 +98,7 @@ describe("the built CLI", () => {
 
   test("a missing file exits 4 with the loader envelope", () => {
     const missing = "/nonexistent/registry.json";
-    const result = runCliBinary(["check", "--registry", missing]);
+    const result = runBuiltCli(["check", "--registry", missing]);
     expect(result.exitCode).toBe(4);
     expect(result.stdout).toBe("");
     expect(result.stderr.endsWith("\n")).toBe(true);
@@ -124,7 +124,7 @@ describe("the built CLI", () => {
           },
         },
       });
-      const result = runCliBinary(["check", "--registry", path]);
+      const result = runBuiltCli(["check", "--registry", path]);
       expect(result.exitCode).toBe(4);
       const envelope = JSON.parse(result.stderr) as {
         error: { code: string; problems: { field: string }[] };
@@ -137,7 +137,7 @@ describe("the built CLI", () => {
   test("check honors MODEL_REGISTRY_FILE without --registry", async () => {
     await withTempDir(async (dir) => {
       const path = writeJson(dir, "env-registry.json", validRegistry);
-      const result = runCliBinary(["check"], { MODEL_REGISTRY_FILE: path });
+      const result = runBuiltCli(["check"], { MODEL_REGISTRY_FILE: path });
       expect(result.exitCode).toBe(0);
       const parsed = JSON.parse(result.stdout) as { path: string };
       expect(parsed.path).toBe(path);
@@ -146,8 +146,8 @@ describe("the built CLI", () => {
 
   test("check with no path anywhere resolves the XDG default", async () => {
     await withTempDir(async (dir) => {
-      const configHome = writeXdgRegistry(dir, validRegistry);
-      const result = runCliBinary(["check"], {
+      const configHome = createXdgConfigHome(dir, validRegistry);
+      const result = runBuiltCli(["check"], {
         MODEL_REGISTRY_FILE: undefined,
         XDG_CONFIG_HOME: configHome,
       });

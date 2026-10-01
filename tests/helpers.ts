@@ -4,12 +4,25 @@ import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { RegistryError } from "../src/error.js";
 
 export const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 export const cliPath = join(repoRoot, "dist", "cli.js");
 export const builtIndexPath = join(repoRoot, "dist", "index.js");
 export const examplePath = join(repoRoot, "examples", "registry.json");
 export const schemaPath = join(repoRoot, "registry.schema.json");
+
+export function catchRegistryError(fn: () => unknown): RegistryError {
+  try {
+    fn();
+  } catch (error) {
+    if (error instanceof RegistryError) {
+      return error;
+    }
+    throw error;
+  }
+  throw new Error("expected loadRegistry to throw");
+}
 
 export interface CliResult {
   stdout: string;
@@ -23,8 +36,10 @@ export function requireBuild(): void {
   }
 }
 
-/** Execute the built CLI through the current Node binary. */
-export function runCli(args: string[], env: Record<string, string | undefined> = {}): CliResult {
+export function runBuiltCli(
+  args: string[],
+  env: Record<string, string | undefined> = {},
+): CliResult {
   requireBuild();
   const merged: NodeJS.ProcessEnv = { ...process.env };
   for (const [key, value] of Object.entries(env)) {
@@ -55,14 +70,12 @@ export async function withTempDir(fn: (dir: string) => Promise<void> | void): Pr
   }
 }
 
-/** Write JSON data into a directory and return the file path. */
 export function writeJson(dir: string, name: string, data: unknown): string {
   const path = join(dir, name);
   writeFileSync(path, `${JSON.stringify(data, null, 2)}\n`);
   return path;
 }
 
-/** Patch process.env for the duration of fn, then restore every changed key. */
 export async function withEnv(
   patch: Record<string, string | undefined>,
   fn: () => Promise<void> | void,
@@ -91,8 +104,7 @@ export async function withEnv(
   }
 }
 
-/** Create an XDG config home holding one registry file, and return the config home. */
-export function writeXdgRegistry(dir: string, data: unknown): string {
+export function createXdgConfigHome(dir: string, data: unknown): string {
   const configHome = join(dir, "xdg-config");
   mkdirSync(join(configHome, "model-registry"), { recursive: true });
   writeFileSync(join(configHome, "model-registry", "registry.json"), JSON.stringify(data));
@@ -103,7 +115,20 @@ export function sha256Hex(bytes: Buffer): string {
   return createHash("sha256").update(bytes).digest("hex");
 }
 
-/** A minimal writable sink that records everything written to it. */
+export function supportedProperties(properties: Record<string, unknown>): string[] {
+  return Object.entries(properties)
+    .filter(([, definition]) => definition !== false)
+    .map(([name]) => name)
+    .sort();
+}
+
+export function deferredProperties(properties: Record<string, unknown>): string[] {
+  return Object.entries(properties)
+    .filter(([, definition]) => definition === false)
+    .map(([name]) => name)
+    .sort();
+}
+
 export function captureStream(): {
   stream: { write(chunk: string | Uint8Array): boolean };
   text: () => string;

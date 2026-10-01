@@ -103,7 +103,6 @@ describe("public types", () => {
       models: { "model-a": model, "model-b": { family: "family-a", routes: [minimalRoute] } },
     };
     expectTypeOf(file).toMatchTypeOf<RegistryFile>();
-    // Foreign top-level sections are part of the public file type.
     const withForeignSection: RegistryFile = { format: 1, models: {}, router: { enabled: true } };
     expectTypeOf(withForeignSection.router).toEqualTypeOf<JsonValue | undefined>();
     expectTypeOf(withForeignSection.models).toEqualTypeOf<Record<string, Model>>();
