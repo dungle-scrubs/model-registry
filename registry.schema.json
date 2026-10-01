@@ -87,7 +87,7 @@
       "additionalProperties": false
     },
     "effortLevel": {
-      "description": "An effort ladder level, in order low < medium < high < xhigh < max. The values mirror EFFORT_LADDER in src/ladder.ts; the ladder.test.ts enforces the two stay equal in order.",
+      "description": "An effort ladder level, in order low < medium < high < xhigh < max. The values mirror EFFORT_LADDER in src/ladder.ts; the two stay equal in order.",
       "enum": ["low", "medium", "high", "xhigh", "max"]
     },
     "models": {
