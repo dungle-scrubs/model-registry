@@ -1,4 +1,4 @@
-import { existsSync, renameSync, writeFileSync } from "node:fs";
+import { existsSync, renameSync, rmSync, writeFileSync } from "node:fs";
 import { basename, dirname, join } from "node:path";
 import { RegistryError } from "./error.js";
 import { readRegistryFile, registryErrorForProblems } from "./load-registry.js";
@@ -205,8 +205,20 @@ export function runMigrate(options: MigrateOptions = {}): MigrateOutcome {
 
   writeFileSync(backupPath, bytes);
   const tempPath = `${path}.migrate-${process.pid}-${Date.now()}.tmp`;
-  writeFileSync(tempPath, serialized);
-  renameSync(tempPath, path);
+  try {
+    writeFileSync(tempPath, serialized);
+    renameSync(tempPath, path);
+  } catch (error) {
+    // The replacement failed: drop the half-written temp file, best
+    // effort. The backup stays beside the file, so the original bytes
+    // are never lost; the error itself propagates.
+    try {
+      rmSync(tempPath, { force: true });
+    } catch {
+      // Nothing more can be done here; the original error matters more.
+    }
+    throw error;
+  }
 
   return {
     kind: "applied",

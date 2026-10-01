@@ -22,7 +22,7 @@ $ model-registry migrate --registry examples/registry.json --dry-run
 <the migrated registry as 2-space indented JSON followed by a newline>
 ```
 
-`migrate` brings a registry file forward to the current format. On a file that is already current it prints `nothing to do` and exits 0. To upgrade, it reads the file, applies each migration step in turn, validates the result with the same checks as `check`, then writes the backup `<registry>.format-<original-format>.bak` beside the file and replaces the file. `--dry-run` prints the migrated file on stdout and writes nothing. Each migration step is added in the release that introduces the format it leads to; format 1 is the first major, so no step ships yet.
+`migrate` brings a registry file forward to the current format. On a file that is already current it prints `nothing to do` and exits 0. To upgrade, it reads the file, applies each migration step in turn, validates the result with the same checks as `check`, then writes the backup `<registry>.format-<original-format>.bak` beside the file and replaces the file. `--dry-run` prints the migrated file on stdout and writes nothing. If the replacement itself fails, the temporary file is removed and the backup stays in place, so the original file is never lost; the command then fails with `internal-error`. Each migration step is added in the release that introduces the format it leads to; format 1 is the first major, so no step ships yet.
 
 Exit codes:
 
