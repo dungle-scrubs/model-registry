@@ -7,8 +7,9 @@ import {
   type JsonObject,
   MIGRATE_STEPS,
   type MigrateStepEntry,
+  type ReadonlyJsonObject,
 } from "./migrate-steps.js";
-import { validateRegistry } from "./validate.js";
+import { isPlainObject, validateRegistry } from "./validate.js";
 
 export type {
   JsonObject,
@@ -18,26 +19,13 @@ export type {
 } from "./migrate-steps.js";
 export { CURRENT_FORMAT, MIGRATE_STEPS } from "./migrate-steps.js";
 
-function isPlainRecord(value: unknown): value is JsonObject {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
-}
-
-/** True when the value is a record whose format field is an integer. */
-function hasIntegerFormat(value: unknown): value is JsonObject & { format: number } {
-  if (!isPlainRecord(value)) {
-    return false;
-  }
-  const format: unknown = value.format;
-  return typeof format === "number" && Number.isInteger(format);
-}
-
-/** The integer format a parsed registry declares, or NaN when it declares no usable one. */
-function declaredFormat(parsed: unknown): number {
-  if (!isPlainRecord(parsed)) {
-    return Number.NaN;
+/** The integer format a parsed registry declares, or undefined when it declares no usable one. */
+function declaredFormat(parsed: unknown): number | undefined {
+  if (!isPlainObject(parsed)) {
+    return undefined;
   }
   const format = parsed.format;
-  return typeof format === "number" && Number.isInteger(format) ? format : Number.NaN;
+  return typeof format === "number" && Number.isInteger(format) ? format : undefined;
 }
 
 /**
@@ -47,82 +35,82 @@ function declaredFormat(parsed: unknown): number {
  * target format or when the table has no entry for the current one.
  */
 export function applyMigrateSteps(
-  parsed: JsonObject,
+  parsed: ReadonlyJsonObject,
   steps: readonly MigrateStepEntry[],
   currentFormat: number = CURRENT_FORMAT,
 ): JsonObject {
   let value: JsonObject = parsed;
-  let format = declaredFormat(value);
+  const startFormat = declaredFormat(value);
+  if (startFormat === undefined) {
+    throw new Error("the parsed registry declares no usable format");
+  }
+  let format = startFormat;
   while (format < currentFormat) {
     const entry = steps.find((candidate) => candidate.from === format);
     if (entry === undefined) {
       return value;
     }
-    value = entry.step(value);
-    format = declaredFormat(value);
+    const next = entry.step(value);
+    const nextFormat = declaredFormat(next);
+    if (nextFormat !== format + 1) {
+      const declared = nextFormat === undefined ? "no usable format" : `format ${nextFormat}`;
+      throw new Error(
+        `the migration step from format ${format} declared ${declared}, not format ${format + 1}`,
+      );
+    }
+    value = next;
+    format = nextFormat;
   }
   return value;
 }
 
 export interface MigrateOptions {
-  path?: string;
-  steps?: readonly MigrateStepEntry[];
-  dryRun?: boolean;
+  readonly path?: string;
+  readonly steps?: readonly MigrateStepEntry[];
+  readonly dryRun?: boolean;
 }
 
-export interface MigrateNothingToDone {
-  kind: "nothing-to-do";
-  format: typeof CURRENT_FORMAT;
-  path: string;
+export interface MigrateNothingToDo {
+  readonly kind: "nothing-to-do";
+  readonly format: typeof CURRENT_FORMAT;
+  readonly path: string;
 }
 
 export interface MigrateDryRunResult {
-  kind: "dry-run";
-  format: typeof CURRENT_FORMAT;
-  path: string;
-  bytes: Buffer;
+  readonly kind: "dry-run";
+  readonly format: typeof CURRENT_FORMAT;
+  readonly path: string;
+  readonly bytes: Buffer;
 }
 
 export interface MigrateAppliedResult {
-  kind: "applied";
-  format: typeof CURRENT_FORMAT;
-  path: string;
-  bytes: Buffer;
-  backupPath: string;
-  originalFormat: number;
+  readonly kind: "applied";
+  readonly format: typeof CURRENT_FORMAT;
+  readonly path: string;
+  readonly bytes: Buffer;
+  readonly backupPath: string;
+  readonly originalFormat: number;
 }
 
-export type MigrateResult = MigrateNothingToDone | MigrateDryRunResult | MigrateAppliedResult;
+export type MigrateResult = MigrateNothingToDo | MigrateDryRunResult | MigrateAppliedResult;
 
 export type MigrateOutcome = MigrateResult | { kind: "error"; error: RegistryError };
 
-function registryError(error: unknown): RegistryError | undefined {
-  return error instanceof RegistryError ? error : undefined;
-}
-
-/**
- * The full migration flow shared by the CLI's `migrate` command and tests.
- * Reads the file with the same loader errors as `check`, applies the
- * step table, validates the migrated result, then either prints (dry
- * run) or writes a backup and replaces the file.
- */
 export function runMigrate(options: MigrateOptions = {}): MigrateOutcome {
   const steps = options.steps ?? MIGRATE_STEPS;
   let read: ReturnType<typeof readRegistryFile>;
   try {
     read = readRegistryFile(options.path);
   } catch (error) {
-    const registryErrorInstance = registryError(error);
-    if (registryErrorInstance) {
-      return { kind: "error", error: registryErrorInstance };
+    if (error instanceof RegistryError) {
+      return { kind: "error", error };
     }
     throw error;
   }
   const { path, bytes } = read;
   const value: unknown = read.parsed;
-  if (!hasIntegerFormat(value)) {
-    // No usable format: report the same problem check reports for the
-    // same file, built by the same shared mapping.
+  const declared = declaredFormat(value);
+  if (declared === undefined) {
     const validation = validateRegistry(value);
     if (!validation.ok) {
       return {
@@ -132,7 +120,7 @@ export function runMigrate(options: MigrateOptions = {}): MigrateOutcome {
     }
     throw new Error(`validateRegistry accepted a registry with no usable format at "${path}"`);
   }
-  const startFormat = value.format;
+  const startFormat = declared;
   if (startFormat > CURRENT_FORMAT) {
     return {
       kind: "error",
@@ -149,7 +137,8 @@ export function runMigrate(options: MigrateOptions = {}): MigrateOutcome {
     return { kind: "nothing-to-do", format: CURRENT_FORMAT, path };
   }
 
-  const migrated = applyMigrateSteps(value, steps, CURRENT_FORMAT);
+  // declaredFormat returned an integer, so the parsed value is a JSON object.
+  const migrated = applyMigrateSteps(value as ReadonlyJsonObject, steps, CURRENT_FORMAT);
 
   const migratedFormat = declaredFormat(migrated);
   if (migratedFormat !== CURRENT_FORMAT) {

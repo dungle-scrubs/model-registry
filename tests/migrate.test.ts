@@ -33,12 +33,10 @@ const VALID_REGISTRY = {
   },
 };
 
-/** A synthetic step that lifts a format-0 registry to format 1. */
 const STEP_ZERO_TO_ONE: MigrateStep = (parsed) => {
   return { ...parsed, format: CURRENT_FORMAT };
 };
 
-/** The same step as a table entry: the only entry a format-0 file needs. */
 const FROM_ZERO: MigrateStepEntry = { from: 0, step: STEP_ZERO_TO_ONE };
 
 function recordingStep(): { fn: MigrateStep; calls: JsonObject[] } {
@@ -102,6 +100,42 @@ describe("applyMigrateSteps", () => {
     const parsed = { format: 0, models: {} };
     const migrated = applyMigrateSteps(parsed, []);
     expect(migrated.format).toBe(0);
+  });
+
+  test("an entry at the current format is never applied", () => {
+    const parsed = { format: 1, models: {} };
+    const step = recordingStep();
+    expect(applyMigrateSteps(parsed, [{ from: 1, step: step.fn }])).toBe(parsed);
+    expect(step.calls).toHaveLength(0);
+  });
+
+  test("an entry above the current format is never applied", () => {
+    const parsed = { format: 2, models: {} };
+    const step = recordingStep();
+    expect(applyMigrateSteps(parsed, [{ from: 2, step: step.fn }], 1)).toBe(parsed);
+    expect(step.calls).toHaveLength(0);
+  });
+
+  test("a step that re-declares its input format throws instead of looping", () => {
+    expect(() =>
+      applyMigrateSteps({ format: 0, models: {} }, [
+        { from: 0, step: (p) => ({ ...p, format: 0 }) },
+      ]),
+    ).toThrow("the migration step from format 0 declared format 0, not format 1");
+  });
+
+  test("a step that drops the format field throws", () => {
+    expect(() =>
+      applyMigrateSteps({ format: 0, models: {} }, [{ from: 0, step: () => ({ models: {} }) }]),
+    ).toThrow("the migration step from format 0 declared no usable format, not format 1");
+  });
+
+  test("a step that skips a format throws", () => {
+    expect(() =>
+      applyMigrateSteps({ format: 0, models: {} }, [
+        { from: 0, step: (p) => ({ ...p, format: 2 }) },
+      ]),
+    ).toThrow("the migration step from format 0 declared format 2, not format 1");
   });
 });
 
