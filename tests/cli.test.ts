@@ -1,5 +1,5 @@
 import { readFileSync } from "node:fs";
-import { join } from "node:path";
+import { join, resolve } from "node:path";
 import { describe, expect, test, vi } from "vitest";
 import packageJson from "../package.json" with { type: "json" };
 import { runCli } from "../src/cli-run.js";
@@ -97,7 +97,8 @@ describe("the built CLI", () => {
   });
 
   test("a missing file exits 4 with the loader envelope", () => {
-    const result = runCliBinary(["check", "--registry", "/nonexistent/registry.json"]);
+    const missing = "/nonexistent/registry.json";
+    const result = runCliBinary(["check", "--registry", missing]);
     expect(result.exitCode).toBe(4);
     expect(result.stdout).toBe("");
     expect(result.stderr.endsWith("\n")).toBe(true);
@@ -105,7 +106,9 @@ describe("the built CLI", () => {
       error: { code: string; path: string; problems: unknown[] };
     };
     expect(envelope.error.code).toBe("registry-missing");
-    expect(envelope.error.path).toBe("/nonexistent/registry.json");
+    // Windows path resolution turns the posix-looking argument into a
+    // drive-qualified path, so compare against resolve, not the literal.
+    expect(envelope.error.path).toBe(resolve(missing));
     expect(envelope.error.problems).toEqual([]);
   });
 
@@ -208,7 +211,8 @@ describe("environment isolation", () => {
       });
       expect(exitCode).toBe(0);
       const parsed = JSON.parse(stdout.text()) as { path: string };
-      expect(parsed.path).toContain("examples/registry.json");
+      // The separator is a backslash on Windows, so compare the resolved path.
+      expect(parsed.path).toBe(resolve(repoRoot, "examples", "registry.json"));
     });
   });
 });

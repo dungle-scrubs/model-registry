@@ -461,11 +461,12 @@ describe("loadRegistry", () => {
   });
 
   test("importing the built library emits nothing and exposes the public symbols", () => {
+    // A filesystem path is not a valid ESM specifier on Windows; the file URL is.
     const result = spawnSync(
       process.execPath,
       [
         "-e",
-        `import(${JSON.stringify(builtIndexPath)}).then((m) => { process.stdout.write(Object.keys(m).sort().join(",")); });`,
+        `import(${JSON.stringify(pathToFileURL(builtIndexPath).href)}).then((m) => { process.stdout.write(Object.keys(m).sort().join(",")); });`,
       ],
       { encoding: "utf8", cwd: repoRoot },
     );
