@@ -2,18 +2,24 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://dungle-scrubs.github.io/model-registry/registry.schema.json",
   "title": "Model registry, format 1",
-  "description": "The format 1 slice supported by this release of model-registry: format, models and routes. Every other top-level section is foreign and holds any non-null JSON value with finite numbers; the owned sections ratings, capabilities, meters and calibration are not supported yet and are rejected, as are the deferred model and route fields.",
+  "description": "The format 1 slice supported by this release of model-registry: format, ratings, capabilities, meters, models and routes. Every other top-level section is foreign and holds any non-null JSON value with finite numbers; the owned section calibration is not supported yet and is rejected.",
   "type": "object",
   "properties": {
     "format": {
       "const": 1
     },
+    "ratings": {
+      "$ref": "#/$defs/ratings"
+    },
+    "capabilities": {
+      "$ref": "#/$defs/capabilities"
+    },
+    "meters": {
+      "$ref": "#/$defs/meters"
+    },
     "models": {
       "$ref": "#/$defs/models"
     },
-    "ratings": false,
-    "capabilities": false,
-    "meters": false,
     "calibration": false
   },
   "required": ["format", "models"],
@@ -47,6 +53,43 @@
         }
       ]
     },
+    "ratings": {
+      "description": "Maps each rating name to a one-line description string. Every rating a model uses must be declared here.",
+      "type": "object",
+      "additionalProperties": {
+        "type": "string"
+      }
+    },
+    "capabilities": {
+      "description": "Maps each capability name to a one-sentence description string. Every capability a route lists must be declared here.",
+      "type": "object",
+      "additionalProperties": {
+        "type": "string"
+      }
+    },
+    "meters": {
+      "description": "Maps each meter name to its declaration. The closed shape accepts an optional notes string and an optional spendToZero flag, which is only meaningful when true and accepts exactly the literal true.",
+      "type": "object",
+      "additionalProperties": {
+        "$ref": "#/$defs/meter"
+      }
+    },
+    "meter": {
+      "type": "object",
+      "properties": {
+        "spendToZero": {
+          "const": true
+        },
+        "notes": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false
+    },
+    "effortLevel": {
+      "description": "An effort ladder level, in order low < medium < high < xhigh < max. The values mirror EFFORT_LADDER in src/ladder.ts; the ladder.test.ts enforces the two stay equal in order.",
+      "enum": ["low", "medium", "high", "xhigh", "max"]
+    },
     "models": {
       "description": "Models and their routes, keyed by model key.",
       "type": "object",
@@ -69,12 +112,26 @@
             "$ref": "#/$defs/route"
           }
         },
-        "ratings": false,
-        "maxEffort": false,
-        "fixedEffort": false
+        "ratings": {
+          "type": "object",
+          "additionalProperties": {
+            "$ref": "#/$defs/ratingValue"
+          }
+        },
+        "maxEffort": {
+          "$ref": "#/$defs/effortLevel"
+        },
+        "fixedEffort": {
+          "$ref": "#/$defs/effortLevel"
+        }
       },
       "required": ["family", "routes"],
       "additionalProperties": false
+    },
+    "ratingValue": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 10
     },
     "route": {
       "type": "object",
@@ -110,8 +167,15 @@
         "notes": {
           "type": "string"
         },
-        "capabilities": false,
-        "meter": false
+        "capabilities": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "meter": {
+          "type": "string"
+        }
       },
       "required": ["harness", "modelId", "hosted"],
       "additionalProperties": false
