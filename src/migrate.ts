@@ -66,9 +66,9 @@ export function applyMigrateSteps(
 }
 
 export interface MigrateOptions {
-  readonly path?: string;
-  readonly steps?: readonly MigrateStepEntry[];
-  readonly dryRun?: boolean;
+  readonly path?: string | undefined;
+  readonly steps?: readonly MigrateStepEntry[] | undefined;
+  readonly dryRun?: boolean | undefined;
 }
 
 export interface MigrateNothingToDo {

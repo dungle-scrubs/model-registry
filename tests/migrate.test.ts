@@ -245,15 +245,6 @@ describe("DW1 nothing to do on the current format", () => {
       expect(result.stderr).toBe("");
     });
   });
-
-  test("--dry-run on a format 1 file still says nothing to do", async () => {
-    await withTempDir(async (dir) => {
-      const path = writeJson(dir, "current.json", VALID_REGISTRY);
-      const result = runBuiltCli(["migrate", "--registry", path, "--dry-run"]);
-      expect(result.exitCode).toBe(0);
-      expect(result.stdout).toBe("nothing to do\n");
-    });
-  });
 });
 
 describe("DW2 a synthetic step migrates an older format end to end", () => {

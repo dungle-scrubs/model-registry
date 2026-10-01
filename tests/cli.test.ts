@@ -51,6 +51,17 @@ describe("the built CLI", () => {
     expect(result.stdout).toContain("check");
   });
 
+  test("--help lists the exit-code table", () => {
+    const result = runBuiltCli(["--help"]);
+    expect(result.exitCode).toBe(0);
+    expect(result.stdout).toContain("Exit codes:");
+    expect(result.stdout).toContain("0  the command succeeded");
+    expect(result.stdout).toContain(
+      "2  invalid usage (usage-invalid on stderr), or a migrate refusal because the backup",
+    );
+    expect(result.stdout).toContain("4  the registry file failed to load or validate");
+  });
+
   test("check --help exits 0", () => {
     const result = runBuiltCli(["check", "--help"]);
     expect(result.exitCode).toBe(0);
