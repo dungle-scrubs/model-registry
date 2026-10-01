@@ -508,6 +508,8 @@ describe("acceptance", () => {
         const problem = error.problems.find((candidate) => candidate.field === testCase.field);
         expect(problem, testCase.name).toBeDefined();
         expect(problem?.code, testCase.name).toBe("reference-unknown");
+        expect(problem?.fix, testCase.name).toContain("section");
+        expect(problem?.fix, testCase.name).toMatch(/(model|route)/);
       }
     });
   });
