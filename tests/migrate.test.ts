@@ -562,6 +562,17 @@ describe("atomic replace", () => {
     });
   });
 
+  test("the replacement restores bits the umask strips from the created temp file (mode assertion skipped when running as root)", async () => {
+    await withTempDir(async (dir) => {
+      const path = writeJson(dir, "registry.json", { format: 0, models: {} });
+      chmodSync(path, 0o666);
+      runMigrate({ path, steps: [FROM_ZERO] });
+      if ((process.geteuid?.() ?? -1) !== 0) {
+        expect(statSync(path).mode & 0o777).toBe(0o666);
+      }
+    });
+  });
+
   test("a symlinked registry migrates its target and keeps the link", async () => {
     await withTempDir(async (dir) => {
       const targetDir = join(dir, "target");
