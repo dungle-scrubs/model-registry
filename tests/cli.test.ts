@@ -88,14 +88,6 @@ describe("the built CLI", () => {
     expect(envelope.error.code).toBe("usage-invalid");
   });
 
-  test("migrate is not registered in this slice", () => {
-    const result = runBuiltCli(["migrate"]);
-    expect(result.exitCode).toBe(2);
-    const envelope = JSON.parse(result.stderr) as { error: { code: string; message: string } };
-    expect(envelope.error.code).toBe("usage-invalid");
-    expect(envelope.error.message).toContain("migrate");
-  });
-
   test("a missing file exits 4 with the loader envelope", () => {
     const missing = "/nonexistent/registry.json";
     const result = runBuiltCli(["check", "--registry", missing]);
