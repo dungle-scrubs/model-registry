@@ -5,6 +5,10 @@ through its own fit check and design before any code is written.
 
 ## Profiles: complete, separate sets of models
 
+**Start.** This work, with "Model list discovery" below, starts with a
+wayfinder map when Kevin says he is ready. Nothing is built or ticketed
+before that map settles the questions in both entries.
+
 **Want.** An operator keeps several sets of models side by side and
 chooses one per consumer or per run. Example: a budget profile built only
 from models on one low-cost subscription, next to the default profile.
