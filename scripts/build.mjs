@@ -19,19 +19,20 @@ const common = {
   logLevel: "info",
 };
 
-await build({
-  ...common,
-  entryPoints: [join(rootDir, "src/index.ts")],
-  outfile: join(rootDir, "dist/index.js"),
-});
-
-await build({
-  ...common,
-  entryPoints: [join(rootDir, "src/cli.ts")],
-  outfile: join(rootDir, "dist/cli.js"),
-  define: {
-    "process.env.MODEL_REGISTRY_VERSION": JSON.stringify(pkg.version),
-  },
-});
+await Promise.all([
+  build({
+    ...common,
+    entryPoints: [join(rootDir, "src/index.ts")],
+    outfile: join(rootDir, "dist/index.js"),
+  }),
+  build({
+    ...common,
+    entryPoints: [join(rootDir, "src/cli.ts")],
+    outfile: join(rootDir, "dist/cli.js"),
+    define: {
+      "process.env.MODEL_REGISTRY_VERSION": JSON.stringify(pkg.version),
+    },
+  }),
+]);
 
 chmodSync(join(rootDir, "dist/cli.js"), 0o755);
