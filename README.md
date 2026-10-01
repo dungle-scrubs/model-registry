@@ -81,8 +81,8 @@ Not supported yet: the owned section `calibration`. A file carrying `calibration
     meters?: Readonly<Record<string, Meter>>,        // when the file declares them
     models: Readonly<Record<string, Model>>,         // always present
   },
-  routes: Record<string, IndexedRoute>, // by label
-  sections: Record<string, JsonValue>,   // foreign sections only
+  routes: Readonly<Record<RouteLabel, IndexedRoute>>, // by label
+  sections: Readonly<Record<string, JsonValue>>,      // foreign sections only
 }
 ```
 

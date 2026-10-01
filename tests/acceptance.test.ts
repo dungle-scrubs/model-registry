@@ -598,6 +598,7 @@ describe("acceptance", () => {
       });
       const loaded = loadRegistry({ path });
       expect(loaded.registry.models["model-a"]?.family).toBe("family-a");
+      expect(Object.keys(loaded.registry)).toEqual(["models"]);
       expect(loaded.routes).toEqual({});
       expect(loaded.sections).toEqual({});
     });
