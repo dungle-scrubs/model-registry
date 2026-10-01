@@ -5,6 +5,7 @@ import type {
   JsonValue,
   LoadedRegistry,
   LoadRegistryOptions,
+  Meter,
   Model,
   RegistryDigest,
   RegistryErrorCode,
@@ -42,6 +43,30 @@ describe("public types", () => {
     >();
     expectTypeOf<LoadedRegistry["sections"]>().toEqualTypeOf<Readonly<Record<string, JsonValue>>>();
     expectTypeOf<RegistryFile>().toMatchTypeOf<{ format: 1; models: Record<string, Model> }>();
+  });
+
+  test("the declared sections are typed registry facts", () => {
+    expectTypeOf<Required<RegistryFacts>["meters"]>().toEqualTypeOf<
+      Readonly<Record<string, Meter>>
+    >();
+    expectTypeOf<RegistryFacts["meters"]>().toEqualTypeOf<
+      Readonly<Record<string, Meter>> | undefined
+    >();
+    expectTypeOf<RegistryFacts["ratings"]>().toEqualTypeOf<
+      Readonly<Record<string, string>> | undefined
+    >();
+    expectTypeOf<RegistryFacts["capabilities"]>().toEqualTypeOf<
+      Readonly<Record<string, string>> | undefined
+    >();
+    expectTypeOf<Meter>().toEqualTypeOf<{
+      readonly notes?: string;
+      readonly spendToZero?: true;
+    }>();
+    expectTypeOf<RegistryFile>().toMatchTypeOf<{
+      ratings?: Record<string, string>;
+      capabilities?: Record<string, string>;
+      meters?: Record<string, Meter>;
+    }>();
   });
 
   test("an indexed route is the route facts plus the model key", () => {
@@ -143,6 +168,8 @@ describe("public types", () => {
     const modelExtra: Model = { family: "family-a", routes: [], surprise: 1 };
     // @ts-expect-error unknown route field
     const routeCapability: Route = { harness: "h", modelId: "m", hosted: true, surprise: 1 };
+    // @ts-expect-error spendToZero accepts only the literal true
+    const spendFalse: Meter = { spendToZero: false };
     // @ts-expect-error null is not a JsonValue
     const jsonNull: JsonValue = null;
     // @ts-expect-error optional fields cannot be explicitly undefined
@@ -172,6 +199,7 @@ describe("public types", () => {
         routesMissing,
         modelExtra,
         routeCapability,
+        spendFalse,
         jsonNull,
         explicitUndefined,
         formatTwo,

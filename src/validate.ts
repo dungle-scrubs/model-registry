@@ -6,6 +6,7 @@ import { EFFORT_LADDER } from "./ladder.js";
 import type {
   IndexedRoute,
   JsonValue,
+  Meter,
   Model,
   RegistryErrorCode,
   RegistryFacts,
@@ -751,10 +752,24 @@ export function validateRegistry(root: unknown): ValidationResult {
     if (key === "format" || key === "models") {
       continue;
     }
+    if (key === "ratings" || key === "capabilities" || key === "meters") {
+      continue;
+    }
     safeSet(index.sections, key, value as JsonValue);
   }
   const models = root.models as Record<string, Model>;
-  index.registry = { models };
+  index.registry = {
+    models,
+    ...(isPlainObject(root.ratings)
+      ? { ratings: root.ratings as Readonly<Record<string, string>> }
+      : {}),
+    ...(isPlainObject(root.capabilities)
+      ? { capabilities: root.capabilities as Readonly<Record<string, string>> }
+      : {}),
+    ...(isPlainObject(root.meters)
+      ? { meters: root.meters as Readonly<Record<string, Meter>> }
+      : {}),
+  };
   buildRoutes(models, index.routes);
   return { ok: true, index };
 }

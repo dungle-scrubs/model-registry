@@ -53,7 +53,10 @@ export type Model = {
 };
 
 export interface RegistryFacts {
+  readonly capabilities?: Readonly<Record<string, string>>;
+  readonly meters?: Readonly<Record<string, Meter>>;
   readonly models: Readonly<Record<string, Model>>;
+  readonly ratings?: Readonly<Record<string, string>>;
 }
 
 /** Foreign top-level sections hold any non-null JSON value with finite numbers. */
@@ -63,6 +66,9 @@ export type ForeignSections = {
 
 export type RegistryFile = {
   format: 1;
+  ratings?: Record<string, string>;
+  capabilities?: Record<string, string>;
+  meters?: Record<string, Meter>;
   models: Record<string, Model>;
 } & ForeignSections & {
     /** calibration stays rejected until issue #24 enables it. */

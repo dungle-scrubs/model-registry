@@ -47,6 +47,9 @@ loaded.format; // 1
 loaded.digest; // "sha256:<hex>"
 loaded.path; // the resolved path
 loaded.registry.models; // the models with their written route order
+loaded.registry.ratings; // declared ratings, when the file has them
+loaded.registry.capabilities; // declared capabilities, when the file has them
+loaded.registry.meters; // declared meters, when the file has them
 loaded.routes["model-a@harness-x"]; // { model: "model-a", ...route facts }
 loaded.sections.router; // foreign sections, untouched
 
@@ -62,6 +65,28 @@ Accepted and validated in this release: top-level `format`, `ratings`, `capabili
 A model `ratings` name, a route `capabilities` entry and a route `meter` name must be declared in the matching top-level section; an undeclared reference fails with `reference-unknown` and the field is the JSONPath of the reference. An absent section declares nothing, so every reference then fails.
 
 Not supported yet: the owned section `calibration`. A file carrying `calibration` fails with `registry-invalid` and a fix that names the later slice.
+
+## Loader result
+
+`loadRegistry` returns one `LoadedRegistry`:
+
+```ts
+{
+  path: string,          // the resolved path
+  digest: "sha256:<hex>", // of the file bytes as read
+  format: 1,
+  registry: {
+    ratings?: Readonly<Record<string, string>>,    // when the file declares them
+    capabilities?: Readonly<Record<string, string>>, // when the file declares them
+    meters?: Readonly<Record<string, Meter>>,        // when the file declares them
+    models: Readonly<Record<string, Model>>,         // always present
+  },
+  routes: Record<string, IndexedRoute>, // by label
+  sections: Record<string, JsonValue>,   // foreign sections only
+}
+```
+
+`ratings`, `capabilities` and `meters` are typed sections of the format and live under `registry`; foreign sections such as `router`, `tasks` and `policy` live under `sections`. The owned `calibration` section is not yet supported and is rejected with `registry-invalid`.
 
 The runtime shape is published as `registry.schema.json` (JSON Schema 2020-12), and `examples/registry.json` holds a complete placeholder example.
 
@@ -87,8 +112,9 @@ const effort: EffortLevel = "high";
 | `format-unsupported` | a newer or older format major |
 | `registry-invalid` | a shape error, an unknown field, or `null` |
 | `label-duplicate` | two routes with the same label |
+| `reference-unknown` | a model rating, route capability or route meter that is not declared in its matching top-level section |
 
-`reference-unknown` and `rating-mismatch` belong to later tickets and are not emitted yet.
+`rating-mismatch` belongs to a later ticket and is not emitted yet.
 
 ## Development
 

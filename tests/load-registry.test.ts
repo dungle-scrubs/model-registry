@@ -829,6 +829,10 @@ describe("loadRegistry", () => {
         },
       });
       const loaded = loadRegistry({ path });
+      expect(loaded.registry.ratings).toEqual({ coding: "Writes and changes code." });
+      expect(loaded.registry.capabilities).toEqual({ browser: "Can drive a browser." });
+      expect(loaded.registry.meters).toEqual({ "plan-a": { spendToZero: true } });
+      expect(loaded.sections).toEqual({});
       expect(loaded.registry.models["model-a"]?.ratings).toEqual({ coding: 7 });
       expect(loaded.registry.models["model-a"]?.maxEffort).toBe("high");
       const route = loaded.routes["model-a@harness-x"];
