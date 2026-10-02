@@ -1191,6 +1191,30 @@ function collectReferenceProblems(
           );
         }
       }
+      // The target must match its rating: cost in overrides targets
+      // route.cost by route label, and every other rating is a model rating.
+      if (overrideValue.rating === ROUTE_RATING_NAME && typeof overrideValue.model === "string") {
+        problems.push(
+          invalidProblem(
+            childPath(entryPath, "model"),
+            `the rating "cost" is reserved for route costs, so its override must name a route, not the model "${overrideValue.model}"`,
+            'Remove the "model" field and set "route" to the label of the route whose cost is overridden.',
+          ),
+        );
+      }
+      if (
+        typeof overrideValue.rating === "string" &&
+        overrideValue.rating !== ROUTE_RATING_NAME &&
+        typeof overrideValue.route === "string"
+      ) {
+        problems.push(
+          invalidProblem(
+            childPath(entryPath, "route"),
+            `the rating "${overrideValue.rating}" is a model rating, so its override must name a model, not the route "${overrideValue.route}"`,
+            'Remove the "route" field and set "model" to the key of the model whose rating is overridden.',
+          ),
+        );
+      }
     });
   }
 

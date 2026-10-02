@@ -782,6 +782,87 @@ describe("calibration references", () => {
     });
   });
 
+  test("an override for cost must target a route, and a model-rating override must target a model", async () => {
+    await withTempDir(async (dir) => {
+      const costOnModel = writeJson(dir, "cost-on-model.json", {
+        ...rfcExampleRegistry(),
+        calibration: {
+          ...rfcCalibration,
+          overrides: [{ rating: "cost", model: "model-a", value: 9, reason: "wrong target" }],
+        },
+      });
+      const costError = catchRegistryError(() => loadRegistry({ path: costOnModel }));
+      expect(costError.code).toBe("registry-invalid");
+      expect(
+        costError.problems.some(
+          (problem) =>
+            problem.field === '$["calibration"]["overrides"][0]["model"]' &&
+            problem.message.includes('"cost"'),
+        ),
+      ).toBe(true);
+
+      const ratingOnRoute = writeJson(dir, "rating-on-route.json", {
+        ...rfcExampleRegistry(),
+        calibration: {
+          ...rfcCalibration,
+          overrides: [
+            {
+              rating: "intelligence",
+              route: "model-a@harness-y/provider-1",
+              value: 9,
+              reason: "wrong target",
+            },
+          ],
+        },
+      });
+      const routeError = catchRegistryError(() => loadRegistry({ path: ratingOnRoute }));
+      expect(routeError.code).toBe("registry-invalid");
+      expect(
+        routeError.problems.some(
+          (problem) =>
+            problem.field === '$["calibration"]["overrides"][0]["route"]' &&
+            problem.message.includes('"intelligence"'),
+        ),
+      ).toBe(true);
+    });
+  });
+
+  test("a model rating named cost is not fed by the route cost feed", async () => {
+    await withTempDir(async (dir) => {
+      // The cost feed targets route.cost by label, so the model rating named
+      // cost is never compared, although a model-keyed figure would score
+      // 9 against its written 7; the route cost itself is checked and agrees.
+      const path = writeJson(dir, "model-rating-cost.json", {
+        format: 1,
+        ratings: { cost: "A model rating that happens to share the reserved name." },
+        models: {
+          "model-a": {
+            family: "family-a",
+            ratings: { cost: 7 },
+            routes: [
+              {
+                harness: "harness-y",
+                modelId: "model-id-b",
+                provider: "provider-1",
+                hosted: true,
+                cost: 9,
+              },
+            ],
+          },
+        },
+        calibration: {
+          benchmarks: { "cost-per-task": costPerTask },
+          feeds: { cost: ["cost-per-task"] },
+          figures: {
+            "model-a": { "cost-per-task": figure(0.32) },
+            "model-a@harness-y/provider-1": { "cost-per-task": figure(0.32) },
+          },
+        },
+      });
+      expect(() => loadRegistry({ path })).not.toThrow();
+    });
+  });
+
   test("an override naming an undeclared rating, model or route fails with reference-unknown", async () => {
     await withTempDir(async (dir) => {
       const path = writeJson(dir, "override-references.json", {

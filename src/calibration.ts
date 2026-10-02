@@ -291,6 +291,11 @@ export function collectRatingMismatchProblems(input: RatingCheckInput): Registry
         if (feed === undefined || !isRatingValue(written)) {
           continue;
         }
+        // The reserved cost feed targets route costs by label; a model
+        // rating of the same name is never fed by it.
+        if (rating === ROUTE_RATING_NAME) {
+          continue;
+        }
         // handSet ratings are written by hand and need no table and no override.
         if (handSet.has(rating)) {
           continue;
