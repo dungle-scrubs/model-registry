@@ -718,11 +718,13 @@ describe("calibration shape", () => {
 describe("calibration references", () => {
   test("a feeds benchmark name that benchmarks does not declare fails with reference-unknown", async () => {
     await withTempDir(async (dir) => {
+      // The declared benchmark still computes the written 9, so the unknown
+      // name is the file's only problem.
       const path = writeJson(dir, "unknown-benchmark.json", {
         ...rfcExampleRegistry(),
         calibration: {
           ...rfcCalibration,
-          feeds: { intelligence: ["unknown-bench"] },
+          feeds: { intelligence: ["index-a", "unknown-bench"], cost: ["cost-per-task"] },
         },
       });
       const error = catchRegistryError(() => loadRegistry({ path }));
@@ -731,7 +733,7 @@ describe("calibration references", () => {
         error.problems.some(
           (problem) =>
             problem.code === "reference-unknown" &&
-            problem.field === '$["calibration"]["feeds"]["intelligence"][0]' &&
+            problem.field === '$["calibration"]["feeds"]["intelligence"][1]' &&
             problem.message.includes('"unknown-bench"'),
         ),
       ).toBe(true);
@@ -1345,10 +1347,11 @@ describe("calibration rating check", () => {
     });
   });
 
-  test("a feeds entry naming an inherited property does not throw", async () => {
+  test("a feeds entry naming an inherited property reports both problems", async () => {
     await withTempDir(async (dir) => {
       // The benchmark lookup must miss an inherited key rather than score
-      // against it; the entry is also an unknown benchmark reference.
+      // against it: the entry is an unknown benchmark reference, and the
+      // feed it sits in computes nothing, so the written rating also fails.
       const path = writeJson(
         dir,
         "prototype-benchmark.json",
@@ -1362,15 +1365,28 @@ describe("calibration rating check", () => {
         ),
       );
       const error = catchRegistryError(() => loadRegistry({ path }));
-      expect(error.code).toBe("reference-unknown");
+      expect(
+        error.problems.some(
+          (problem) =>
+            problem.code === "reference-unknown" &&
+            problem.field === '$["calibration"]["feeds"]["intelligence"][0]',
+        ),
+      ).toBe(true);
+      expect(
+        error.problems.some(
+          (problem) =>
+            problem.code === "rating-mismatch" &&
+            problem.message.includes("the table gives no value"),
+        ),
+      ).toBe(true);
     });
   });
 
-  test("a file with other problems reports them without the rating check on top", async () => {
+  test("a readable mismatch and an unrelated unknown field are reported together", async () => {
     await withTempDir(async (dir) => {
       const path = writeJson(
         dir,
-        "shape-first.json",
+        "shape-plus-mismatch.json",
         withIntelligenceRegistry(
           {
             surprise: true,
@@ -1383,7 +1399,47 @@ describe("calibration rating check", () => {
       );
       const error = catchRegistryError(() => loadRegistry({ path }));
       expect(error.code).toBe("registry-invalid");
-      expect(error.problems.every((problem) => problem.code === "registry-invalid")).toBe(true);
+      expect(
+        error.problems.some(
+          (problem) =>
+            problem.code === "registry-invalid" && problem.field === '$["calibration"]["surprise"]',
+        ),
+      ).toBe(true);
+      expect(
+        error.problems.some(
+          (problem) =>
+            problem.code === "rating-mismatch" &&
+            problem.field === '$["models"]["model-a"]["ratings"]["intelligence"]' &&
+            problem.message.includes("the table gives 8"),
+        ),
+      ).toBe(true);
+    });
+  });
+
+  test("an unrelated reference error does not suppress a readable handSet and feeds overlap", async () => {
+    await withTempDir(async (dir) => {
+      const path = writeJson(
+        dir,
+        "reference-plus-overlap.json",
+        withIntelligenceRegistry(
+          {
+            benchmarks: { "index-a": indexA },
+            feeds: { intelligence: ["unknown-bench"] },
+            handSet: ["intelligence"],
+            figures: { "model-a": { "index-a": figure(52.1) } },
+          },
+          9,
+        ),
+      );
+      const error = catchRegistryError(() => loadRegistry({ path }));
+      expect(error.problems.some((problem) => problem.code === "reference-unknown")).toBe(true);
+      expect(
+        error.problems.some(
+          (problem) =>
+            problem.code === "registry-invalid" &&
+            problem.field === '$["calibration"]["handSet"][0]',
+        ),
+      ).toBe(true);
     });
   });
 });

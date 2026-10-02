@@ -1275,14 +1275,15 @@ export function validateRegistry(
   collectLabelProblems(root, problems);
   collectReferenceProblems(root, problems);
 
-  // Rating check: only on a file whose shape, labels and references already
-  // hold, so a mismatch is never buried under the problems that made the
-  // table unreadable, and only when the file states a basis at all.
-  if (problems.length === 0 && Object.hasOwn(root, "calibration")) {
+  // Rating check: whenever the file states a calibration section. Each part
+  // guards locally, so a readable mismatch is reported beside unrelated
+  // problems, and a malformed band, figure or override skips only what
+  // depends on it.
+  if (Object.hasOwn(root, "calibration")) {
     problems.push(
       ...collectRatingMismatchProblems({
-        models: root.models as Record<string, Model>,
-        calibration: root.calibration as Calibration,
+        models: root.models,
+        calibration: root.calibration,
       }),
     );
   }
