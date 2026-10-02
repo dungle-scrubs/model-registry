@@ -30,6 +30,7 @@
   },
   "scripts": {
     "build": "node scripts/build.mjs && tsc -p tsconfig.build.json",
+    "prepare": "pnpm run build",
     "typecheck": "tsc --noEmit",
     "lint": "biome check .",
     "format": "biome format --write .",
