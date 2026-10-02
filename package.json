@@ -17,12 +17,14 @@
       "import": "./dist/index.js"
     },
     "./registry.schema.json": "./registry.schema.json",
-    "./examples/registry.json": "./examples/registry.json"
+    "./examples/registry.json": "./examples/registry.json",
+    "./prompts/rating.md": "./prompts/rating.md"
   },
   "files": [
     "dist",
     "registry.schema.json",
     "examples/registry.json",
+    "prompts",
     "README.md"
   ],
   "publishConfig": {
