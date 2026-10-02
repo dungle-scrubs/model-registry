@@ -879,42 +879,76 @@ describe("calibration rating check", () => {
     });
   });
 
-  test("a written rating the file never feeds fails: with a calibration section every written rating needs a table, an override or handSet", async () => {
+  test("a written rating the file never feeds is not checked", async () => {
     await withTempDir(async (dir) => {
+      // The figure would score 8 against the written 9, but no feed claims
+      // to compute the rating, so nothing is compared.
       const path = writeJson(
         dir,
         "unfed.json",
         withIntelligenceRegistry(
           {
             benchmarks: { "index-a": indexA },
-            figures: { "model-a": { "index-a": figure(52.1) } },
+            figures: { "model-a": { "index-a": figure(42) } },
           },
           9,
         ),
       );
-      const error = catchRegistryError(() => loadRegistry({ path }));
-      expect(error.code).toBe("rating-mismatch");
-      const unfedProblem = firstProblem(error);
-      expect(unfedProblem.message).toContain("the table gives no value for it");
-      expect(unfedProblem.fix).toContain("remove the rating");
-      expect(unfedProblem.fix).toContain("value 9");
+      expect(() => loadRegistry({ path })).not.toThrow();
+    });
+  });
+
+  test("a calibration with no feeds checks nothing", async () => {
+    await withTempDir(async (dir) => {
+      // Every written value disagrees with what the figures would score,
+      // but the calibration states no feed at all.
+      const path = writeJson(dir, "no-feeds.json", {
+        ...rfcExampleRegistry(),
+        calibration: {
+          benchmarks: { "index-a": indexA, "cost-per-task": costPerTask },
+          figures: {
+            "model-a": { "index-a": figure(42) },
+            "model-a@harness-y/provider-1": { "cost-per-task": figure(0.8) },
+          },
+        },
+      });
+      expect(() => loadRegistry({ path })).not.toThrow();
     });
   });
 
   test("a handSet rating is never compared with a table", async () => {
     await withTempDir(async (dir) => {
-      const path = writeJson(
-        dir,
-        "handset.json",
-        withIntelligenceRegistry(
-          {
-            benchmarks: { "index-a": indexA },
-            handSet: ["intelligence"],
-            figures: { "model-a": { "index-a": figure(20) } },
+      // intelligence is fed and agrees, so the rating check demonstrably
+      // runs on this file; the hand-set taste is never compared, although
+      // a figure exists whose table would score it.
+      const path = writeJson(dir, "handset.json", {
+        format: 1,
+        ratings: { intelligence: "Solves hard problems.", taste: "Subjective fit." },
+        models: {
+          "model-a": {
+            family: "family-a",
+            ratings: { intelligence: 9, taste: 4 },
+            routes: [{ harness: "harness-x", modelId: "model-id-a", hosted: false }],
           },
-          9,
-        ),
-      );
+        },
+        calibration: {
+          benchmarks: {
+            "index-a": indexA,
+            "taste-bench": {
+              source: "https://example.org/t",
+              field: "taste",
+              version: "1.0",
+              direction: "higher",
+              bands: [{ at: 0, score: 1 }],
+            },
+          },
+          feeds: { intelligence: ["index-a"] },
+          handSet: ["taste"],
+          figures: {
+            "model-a": { "index-a": figure(52.1), "taste-bench": figure(1) },
+          },
+        },
+      });
       expect(() => loadRegistry({ path })).not.toThrow();
     });
   });
@@ -1147,6 +1181,36 @@ describe("calibration rating check", () => {
         },
       });
       expect(() => loadRegistry({ path })).not.toThrow();
+    });
+  });
+
+  test("a written route cost is checked only when cost is in feeds", async () => {
+    await withTempDir(async (dir) => {
+      // The cost figure scores 8 against the written 9.
+      const calibration = {
+        benchmarks: { "index-a": indexA, "cost-per-task": costPerTask },
+        feeds: { intelligence: ["index-a"] },
+        figures: {
+          "model-a": { "index-a": figure(52.1) },
+          "model-a@harness-y/provider-1": { "cost-per-task": figure(0.8) },
+        },
+      };
+      const unfed = writeJson(dir, "cost-unfed.json", {
+        ...rfcExampleRegistry(),
+        calibration,
+      });
+      expect(() => loadRegistry({ path: unfed })).not.toThrow();
+
+      const fed = writeJson(dir, "cost-fed.json", {
+        ...rfcExampleRegistry(),
+        calibration: {
+          ...calibration,
+          feeds: { intelligence: ["index-a"], cost: ["cost-per-task"] },
+        },
+      });
+      const error = catchRegistryError(() => loadRegistry({ path: fed }));
+      expect(error.code).toBe("rating-mismatch");
+      expect(firstProblem(error).field).toBe('$["models"]["model-a"]["routes"][1]["cost"]');
     });
   });
 

@@ -188,10 +188,11 @@ export interface RatingCheckInput {
 }
 
 /**
- * Compare every written rating with the table its own file stores. A written
- * value passes when the table computes it, when an override allows exactly
- * that value, or when handSet names the rating; anything else is one
- * rating-mismatch problem per written value.
+ * Compare every written rating with the table its own file stores. Only a
+ * rating the file feeds is compared: its written value passes when the table
+ * computes it, when an override allows exactly that value, or when handSet
+ * names the rating; anything else is one rating-mismatch problem per written
+ * value. A rating no feed claims is never compared.
  */
 export function collectRatingMismatchProblems(input: RatingCheckInput): RegistryProblem[] {
   const { calibration, models } = input;
@@ -216,6 +217,11 @@ export function collectRatingMismatchProblems(input: RatingCheckInput): Registry
 
   for (const [modelKey, model] of Object.entries(models)) {
     for (const [rating, written] of Object.entries(model.ratings ?? {})) {
+      // Only ratings in feeds are checked; a rating the file does not feed
+      // states no computed basis, so its written value is never compared.
+      if (calibration.feeds?.[rating] === undefined) {
+        continue;
+      }
       // handSet ratings are written by hand and need no table and no override.
       if (handSet.has(rating)) {
         continue;
@@ -237,8 +243,9 @@ export function collectRatingMismatchProblems(input: RatingCheckInput): Registry
   }
 
   // Route cost. handSet naming the reserved rating exempts every written
-  // cost; otherwise each written cost must be computed or overridden.
-  if (!handSet.has(ROUTE_RATING_NAME)) {
+  // cost; otherwise each written cost must be computed or overridden, and the
+  // cost is compared only when a feed claims it.
+  if (calibration.feeds?.[ROUTE_RATING_NAME] !== undefined && !handSet.has(ROUTE_RATING_NAME)) {
     for (const [modelKey, model] of Object.entries(models)) {
       model.routes.forEach((route, routeIndex) => {
         const written = route.cost;
