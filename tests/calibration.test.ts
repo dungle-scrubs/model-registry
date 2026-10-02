@@ -828,6 +828,78 @@ describe("calibration references", () => {
     });
   });
 
+  test("an override with the wrong target is reported beside a malformed benchmarks, ratings or models section", async () => {
+    await withTempDir(async (dir) => {
+      // A cost override naming a model is wrong whatever the declaration
+      // sections look like; their shape problems are reported beside the
+      // target problem instead of suppressing it.
+      const wrongTarget = { rating: "cost", model: "model-a", value: 7, reason: "Wrong target." };
+
+      const benchmarksNull = writeJson(dir, "benchmarks-null.json", {
+        format: 1,
+        models: { "model-a": { family: "family-a", routes: [] } },
+        calibration: { benchmarks: null, overrides: [wrongTarget] },
+      });
+      const benchmarksError = catchRegistryError(() => loadRegistry({ path: benchmarksNull }));
+      expect(
+        benchmarksError.problems.some(
+          (problem) =>
+            problem.code === "registry-invalid" &&
+            problem.field === '$["calibration"]["benchmarks"]',
+        ),
+      ).toBe(true);
+      expect(
+        benchmarksError.problems.some(
+          (problem) =>
+            problem.code === "registry-invalid" &&
+            problem.field === '$["calibration"]["overrides"][0]["model"]' &&
+            problem.message.includes('"cost"'),
+        ),
+      ).toBe(true);
+
+      const ratingsNull = writeJson(dir, "ratings-null.json", {
+        format: 1,
+        ratings: null,
+        models: { "model-a": { family: "family-a", routes: [] } },
+        calibration: { overrides: [wrongTarget] },
+      });
+      const ratingsError = catchRegistryError(() => loadRegistry({ path: ratingsNull }));
+      expect(
+        ratingsError.problems.some(
+          (problem) => problem.code === "registry-invalid" && problem.field === '$["ratings"]',
+        ),
+      ).toBe(true);
+      expect(
+        ratingsError.problems.some(
+          (problem) =>
+            problem.code === "registry-invalid" &&
+            problem.field === '$["calibration"]["overrides"][0]["model"]' &&
+            problem.message.includes('"cost"'),
+        ),
+      ).toBe(true);
+
+      const modelsNull = writeJson(dir, "models-null.json", {
+        format: 1,
+        models: null,
+        calibration: { overrides: [wrongTarget] },
+      });
+      const modelsError = catchRegistryError(() => loadRegistry({ path: modelsNull }));
+      expect(
+        modelsError.problems.some(
+          (problem) => problem.code === "registry-invalid" && problem.field === '$["models"]',
+        ),
+      ).toBe(true);
+      expect(
+        modelsError.problems.some(
+          (problem) =>
+            problem.code === "registry-invalid" &&
+            problem.field === '$["calibration"]["overrides"][0]["model"]' &&
+            problem.message.includes('"cost"'),
+        ),
+      ).toBe(true);
+    });
+  });
+
   test("a model rating named cost is not fed by the route cost feed", async () => {
     await withTempDir(async (dir) => {
       // The cost feed targets route.cost by label, so the model rating named

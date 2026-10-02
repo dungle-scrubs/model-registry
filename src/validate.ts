@@ -1021,7 +1021,9 @@ function knownRouteLabels(root: Record<string, unknown>): ReadonlySet<string> {
  * Check every reference the models and calibration sections carry. The check
  * runs on every load, including files whose shape already failed, so it
  * reads only what it can verify itself; one problem fires per bad
- * reference and the field is the JSONPath of the reference.
+ * reference and the field is the JSONPath of the reference. A malformed
+ * declaration section skips only the checks that read it, so a target
+ * problem is still collected beside the section's shape problem.
  */
 function collectReferenceProblems(
   root: Record<string, unknown>,
@@ -1031,31 +1033,30 @@ function collectReferenceProblems(
   const declaredCapabilities = declaredNames(root.capabilities);
   const declaredMeters = declaredNames(root.meters);
   const benchmarks = declaredBenchmarks(root.calibration);
-  const routeLabels = knownRouteLabels(root);
 
   const models = root.models;
-  const declaredModelKeys = isPlainObject(models)
-    ? new Set(Object.keys(models))
-    : new Set<string>();
-  if (!isPlainObject(models)) {
-    return;
-  }
-  for (const [modelKey, modelValue] of Object.entries(models)) {
-    if (!isPlainObject(modelValue)) {
-      continue;
-    }
-    const modelPath = childPath("$", "models", modelKey);
+  // Model and route references are verified only when the models section is
+  // readable; the override target checks read nothing but their own entry.
+  const declaredModelKeys = isPlainObject(models) ? new Set(Object.keys(models)) : undefined;
+  const routeLabels = isPlainObject(models) ? knownRouteLabels(root) : undefined;
+  if (isPlainObject(models)) {
+    for (const [modelKey, modelValue] of Object.entries(models)) {
+      if (!isPlainObject(modelValue)) {
+        continue;
+      }
+      const modelPath = childPath("$", "models", modelKey);
 
-    if (declaredRatings !== undefined && isPlainObject(modelValue.ratings)) {
-      for (const rating of Object.keys(modelValue.ratings)) {
-        if (!declaredRatings.has(rating)) {
-          problems.push(
-            referenceUnknownProblem({
-              field: childPath(modelPath, "ratings", rating),
-              kind: "rating",
-              name: rating,
-            }),
-          );
+      if (declaredRatings !== undefined && isPlainObject(modelValue.ratings)) {
+        for (const rating of Object.keys(modelValue.ratings)) {
+          if (!declaredRatings.has(rating)) {
+            problems.push(
+              referenceUnknownProblem({
+                field: childPath(modelPath, "ratings", rating),
+                kind: "rating",
+                name: rating,
+              }),
+            );
+          }
         }
       }
     }
@@ -1095,12 +1096,15 @@ function collectReferenceProblems(
   if (!isPlainObject(root.calibration)) {
     return;
   }
-  if (declaredRatings === undefined || benchmarks === undefined) {
-    return;
-  }
   const calibration = root.calibration;
 
-  if (isPlainObject(calibration.feeds)) {
+  // The feeds check reads both declared ratings and declared benchmarks, so
+  // it skips when either section is unreadable; the checks below read less.
+  if (
+    declaredRatings !== undefined &&
+    benchmarks !== undefined &&
+    isPlainObject(calibration.feeds)
+  ) {
     for (const [rating, feed] of Object.entries(calibration.feeds)) {
       if (rating !== ROUTE_RATING_NAME && !declaredRatings.has(rating)) {
         problems.push(
@@ -1130,7 +1134,7 @@ function collectReferenceProblems(
     }
   }
 
-  if (Array.isArray(calibration.handSet)) {
+  if (declaredRatings !== undefined && Array.isArray(calibration.handSet)) {
     calibration.handSet.forEach((rating, index) => {
       if (typeof rating !== "string") {
         return;
@@ -1155,7 +1159,7 @@ function collectReferenceProblems(
         return;
       }
       const entryPath = childPath("$", "calibration", "overrides", index);
-      if (typeof overrideValue.rating === "string") {
+      if (declaredRatings !== undefined && typeof overrideValue.rating === "string") {
         if (
           overrideValue.rating !== ROUTE_RATING_NAME &&
           !declaredRatings.has(overrideValue.rating)
@@ -1169,7 +1173,7 @@ function collectReferenceProblems(
           );
         }
       }
-      if (typeof overrideValue.model === "string") {
+      if (declaredModelKeys !== undefined && typeof overrideValue.model === "string") {
         if (!declaredModelKeys.has(overrideValue.model)) {
           problems.push(
             referenceUnknownProblem({
@@ -1180,7 +1184,7 @@ function collectReferenceProblems(
           );
         }
       }
-      if (typeof overrideValue.route === "string") {
+      if (routeLabels !== undefined && typeof overrideValue.route === "string") {
         if (!routeLabels.has(overrideValue.route)) {
           problems.push(
             referenceUnknownProblem({
