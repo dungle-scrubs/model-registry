@@ -247,9 +247,6 @@ function classifyPath(segments: readonly string[]): OwnedPath {
         return { field: container ?? "", kind: "modelField", modelKey: head ?? "" };
       }
       if (section_ === "calibration") {
-        if (container === "benchmarks" && index === undefined && field === undefined) {
-          return { kind: "other" };
-        }
         if (head === "benchmarks" && container !== undefined) {
           return { kind: "calibrationBenchmark", benchmark: container };
         }
@@ -259,11 +256,11 @@ function classifyPath(segments: readonly string[]): OwnedPath {
         if (head === "figures" && container !== undefined) {
           return { kind: "calibrationFigureSubject", benchmark: container };
         }
-        if (head === "handSet" && index !== undefined) {
-          return { kind: "calibrationHandSetEntry", index: Number(index) };
+        if (head === "handSet" && container !== undefined) {
+          return { kind: "calibrationHandSetEntry", index: Number(container) };
         }
-        if (head === "overrides" && index !== undefined) {
-          return { kind: "calibrationOverridesEntry", index: Number(index) };
+        if (head === "overrides" && container !== undefined) {
+          return { kind: "calibrationOverridesEntry", index: Number(container) };
         }
       }
       return { kind: "other" };
@@ -292,8 +289,12 @@ function classifyPath(segments: readonly string[]): OwnedPath {
             benchmark: index,
           };
         }
-        if (head === "overrides" && index !== undefined && field !== undefined) {
-          return { kind: "calibrationOverridesEntryField", index: Number(index), field };
+        if (head === "overrides" && container !== undefined && index !== undefined) {
+          return {
+            kind: "calibrationOverridesEntryField",
+            index: Number(container),
+            field: index,
+          };
         }
       }
       return { kind: "other" };
@@ -305,10 +306,10 @@ function classifyPath(segments: readonly string[]): OwnedPath {
         section_ === "calibration" &&
         head === "benchmarks" &&
         container !== undefined &&
-        field === "bands" &&
-        index !== undefined
+        index === "bands" &&
+        field !== undefined
       ) {
-        return { kind: "calibrationBand", benchmark: container, index: Number(index) };
+        return { kind: "calibrationBand", benchmark: container, index: Number(field) };
       }
       return { kind: "other" };
     case 6:
@@ -319,14 +320,14 @@ function classifyPath(segments: readonly string[]): OwnedPath {
         section_ === "calibration" &&
         head === "benchmarks" &&
         container !== undefined &&
-        field === "bands" &&
-        index !== undefined &&
+        index === "bands" &&
+        field !== undefined &&
         leaf !== undefined
       ) {
         return {
           kind: "calibrationBandField",
           benchmark: container,
-          index: Number(index),
+          index: Number(field),
           field: leaf,
         };
       }

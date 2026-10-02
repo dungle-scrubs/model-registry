@@ -165,6 +165,20 @@ describe("calibration shape", () => {
       );
       expect(() => loadRegistry({ path: higherPath })).not.toThrow();
 
+      const lowerBoundary = writeJson(
+        dir,
+        "lower-boundary.json",
+        withIntelligenceRegistry(
+          {
+            benchmarks: { "cost-per-task": costPerTask },
+            feeds: { intelligence: ["cost-per-task"] },
+            figures: { "model-a": { "cost-per-task": figure(0.5) } },
+          },
+          9,
+        ),
+      );
+      expect(() => loadRegistry({ path: lowerBoundary })).not.toThrow();
+
       const lowerPath = writeJson(
         dir,
         "first-lower.json",
@@ -283,6 +297,307 @@ describe("calibration shape", () => {
       expect(catchRegistryError(() => loadRegistry({ path: emptyReason })).code).toBe(
         "registry-invalid",
       );
+    });
+  });
+
+  test("every calibration shape fault reports a curated problem at its field", async () => {
+    type MutableCalibration = {
+      benchmarks: Record<string, unknown>;
+      feeds: Record<string, unknown>;
+      figures: Record<string, unknown>;
+      handSet: unknown[];
+      overrides: unknown[];
+    };
+    const cases: Array<{
+      name: string;
+      fault: (calibration: MutableCalibration) => void;
+      field: string;
+      message: string;
+    }> = [
+      {
+        name: "calibration is not an object",
+        fault: () => undefined,
+        field: '$["calibration"]',
+        message: "the calibration section must be a JSON object",
+      },
+      {
+        name: "benchmark is not an object",
+        fault: (c) => {
+          c.benchmarks = { "index-a": "not-an-object" };
+        },
+        field: '$["calibration"]["benchmarks"]["index-a"]',
+        message: 'the benchmark "index-a" must be a JSON object',
+      },
+      {
+        name: "benchmark misses source",
+        fault: (c) => {
+          const b = { ...(c.benchmarks["index-a"] as Record<string, unknown>) };
+          delete b.source;
+          c.benchmarks = { "index-a": b };
+        },
+        field: '$["calibration"]["benchmarks"]["index-a"]["source"]',
+        message: 'the benchmark is missing the required field "source"',
+      },
+      {
+        name: "benchmark field is not a string",
+        fault: (c) => {
+          const b = { ...(c.benchmarks["index-a"] as Record<string, unknown>) };
+          b.version = 43;
+          c.benchmarks = { "index-a": b };
+        },
+        field: '$["calibration"]["benchmarks"]["index-a"]["version"]',
+        message: 'the benchmark field "version" must be a string',
+      },
+      {
+        name: "benchmark bands is not an array",
+        fault: (c) => {
+          const b = { ...(c.benchmarks["index-a"] as Record<string, unknown>) };
+          b.bands = "none";
+          c.benchmarks = { "index-a": b };
+        },
+        field: '$["calibration"]["benchmarks"]["index-a"]["bands"]',
+        message: "the benchmark bands field must be a non-empty array",
+      },
+      {
+        name: "benchmark notes is not a string",
+        fault: (c) => {
+          const b = { ...(c.benchmarks["index-a"] as Record<string, unknown>) };
+          b.notes = 7;
+          c.benchmarks = { "index-a": b };
+        },
+        field: '$["calibration"]["benchmarks"]["index-a"]["notes"]',
+        message: 'the benchmark field "notes" must be a string',
+      },
+      {
+        name: "band is not an object",
+        fault: (c) => {
+          const b = { ...(c.benchmarks["index-a"] as Record<string, unknown>) };
+          b.bands = ["not-an-object"];
+          c.benchmarks = { "index-a": b };
+        },
+        field: '$["calibration"]["benchmarks"]["index-a"]["bands"][0]',
+        message: "a band must be a JSON object",
+      },
+      {
+        name: "band misses at",
+        fault: (c) => {
+          const b = { ...(c.benchmarks["index-a"] as Record<string, unknown>) };
+          b.bands = [{ score: 9 }];
+          c.benchmarks = { "index-a": b };
+        },
+        field: '$["calibration"]["benchmarks"]["index-a"]["bands"][0]["at"]',
+        message: 'the band is missing the required field "at"',
+      },
+      {
+        name: "band score is out of range",
+        fault: (c) => {
+          const b = { ...(c.benchmarks["index-a"] as Record<string, unknown>) };
+          b.bands = [{ at: 50, score: 11 }];
+          c.benchmarks = { "index-a": b };
+        },
+        field: '$["calibration"]["benchmarks"]["index-a"]["bands"][0]["score"]',
+        message: 'the band field "score" must be an integer from 1 to 10',
+      },
+      {
+        name: "feeds entry is not an array",
+        fault: (c) => {
+          c.feeds = { intelligence: "index-a" };
+        },
+        field: '$["calibration"]["feeds"]["intelligence"]',
+        message: 'the calibration feeds entry for "intelligence" must be a non-empty array',
+      },
+      {
+        name: "feeds entry item is not a string",
+        fault: (c) => {
+          c.feeds = { intelligence: [5] };
+        },
+        field: '$["calibration"]["feeds"]["intelligence"][0]',
+        message: "a feeds benchmark entry must be a string",
+      },
+      {
+        name: "figures subject is not an object",
+        fault: (c) => {
+          c.figures = { "model-a": "not-an-object" };
+        },
+        field: '$["calibration"]["figures"]["model-a"]',
+        message: 'the figures entry for "model-a" must be a JSON object',
+      },
+      {
+        name: "figure is not an object",
+        fault: (c) => {
+          c.figures = { "model-a": { "index-a": "not-an-object" } };
+        },
+        field: '$["calibration"]["figures"]["model-a"]["index-a"]',
+        message: 'the figure for "index-a" on "model-a" must be a JSON object',
+      },
+      {
+        name: "figure misses value",
+        fault: (c) => {
+          c.figures = { "model-a": { "index-a": { read: "2026-09-30", effort: "high" } } };
+        },
+        field: '$["calibration"]["figures"]["model-a"]["index-a"]["value"]',
+        message: 'the figure is missing the required field "value"',
+      },
+      {
+        name: "handSet entry is not a string",
+        fault: (c) => {
+          c.handSet = [5];
+        },
+        field: '$["calibration"]["handSet"][0]',
+        message: "a handSet entry must be a string",
+      },
+      {
+        name: "override entry is not an object",
+        fault: (c) => {
+          c.overrides = ["not-an-object"];
+        },
+        field: '$["calibration"]["overrides"][0]',
+        message: "an override entry must be a JSON object",
+      },
+      {
+        name: "override misses reason",
+        fault: (c) => {
+          c.overrides = [{ rating: "cost", route: "model-a@harness-y/provider-1", value: 9 }];
+        },
+        field: '$["calibration"]["overrides"][0]["reason"]',
+        message: 'the override is missing the required field "reason"',
+      },
+      {
+        name: "override route is not a string",
+        fault: (c) => {
+          c.overrides = [{ rating: "cost", route: 5, value: 9, reason: "x" }];
+        },
+        field: '$["calibration"]["overrides"][0]["route"]',
+        message: 'the override field "route" must be a string',
+      },
+      {
+        name: "override value is not an integer in range",
+        fault: (c) => {
+          c.overrides = [
+            { rating: "cost", route: "model-a@harness-y/provider-1", value: "9", reason: "x" },
+          ];
+        },
+        field: '$["calibration"]["overrides"][0]["value"]',
+        message: 'the override field "value" must be an integer from 1 to 10',
+      },
+    ];
+    await withTempDir(async (dir) => {
+      for (const [index, testCase] of cases.entries()) {
+        const calibration =
+          testCase.name === "calibration is not an object"
+            ? "not-an-object"
+            : structuredClone(rfcCalibration);
+        if (typeof calibration !== "string") {
+          testCase.fault(calibration as unknown as MutableCalibration);
+        }
+        const path = writeJson(dir, `fault-${index}.json`, {
+          ...rfcExampleRegistry(),
+          calibration,
+        });
+        const error = catchRegistryError(() => loadRegistry({ path }));
+        expect(error.code, testCase.name).toBe("registry-invalid");
+        const problem = error.problems.find((candidate) => candidate.field === testCase.field);
+        expect(problem, `${testCase.name}: field ${testCase.field}`).toBeDefined();
+        expect(problem?.message, testCase.name).toContain(testCase.message);
+      }
+    });
+  });
+
+  test("shape faults outside calibration keep their curated problems", async () => {
+    const cases: Array<{
+      name: string;
+      registry: Record<string, unknown>;
+      field: string;
+      message: string;
+    }> = [
+      {
+        name: "route hosted is not a boolean",
+        registry: {
+          ...rfcExampleRegistry(),
+          models: {
+            "model-a": {
+              family: "family-a",
+              routes: [{ harness: "harness-x", modelId: "model-id-a", hosted: "yes" }],
+            },
+          },
+        },
+        field: '$["models"]["model-a"]["routes"][0]["hosted"]',
+        message: 'the field "hosted" must be a boolean',
+      },
+      {
+        name: "route cost is not an integer in range",
+        registry: {
+          ...rfcExampleRegistry(),
+          models: {
+            "model-a": {
+              family: "family-a",
+              routes: [{ harness: "harness-x", modelId: "model-id-a", hosted: true, cost: "9" }],
+            },
+          },
+        },
+        field: '$["models"]["model-a"]["routes"][0]["cost"]',
+        message: 'the field "cost" must be an integer from 1 to 10',
+      },
+      {
+        name: "model maxEffort is off the ladder",
+        registry: {
+          ...rfcExampleRegistry(),
+          models: {
+            "model-a": {
+              family: "family-a",
+              maxEffort: "turbo",
+              routes: [],
+            },
+          },
+        },
+        field: '$["models"]["model-a"]["maxEffort"]',
+        message: 'the field "maxEffort" must be one of low, medium, high, xhigh, max',
+      },
+      {
+        name: "meter spendToZero is not the literal true",
+        registry: {
+          ...rfcExampleRegistry(),
+          meters: { "plan-a": { spendToZero: false } },
+        },
+        field: '$["meters"]["plan-a"]["spendToZero"]',
+        message: "accepts only the literal true",
+      },
+      {
+        name: "meter notes is not a string",
+        registry: {
+          ...rfcExampleRegistry(),
+          meters: { "plan-a": { notes: 5 } },
+        },
+        field: '$["meters"]["plan-a"]["notes"]',
+        message: 'field "notes" must be a string',
+      },
+    ];
+    await withTempDir(async (dir) => {
+      for (const [index, testCase] of cases.entries()) {
+        const path = writeJson(dir, `base-fault-${index}.json`, testCase.registry);
+        const error = catchRegistryError(() => loadRegistry({ path }));
+        expect(error.code, testCase.name).toBe("registry-invalid");
+        const problem = error.problems.find((candidate) => candidate.field === testCase.field);
+        expect(problem, `${testCase.name}: field ${testCase.field}`).toBeDefined();
+        expect(problem?.message, testCase.name).toContain(testCase.message);
+      }
+    });
+  });
+
+  test("a file with problems of two codes reports the aggregate registry-invalid", async () => {
+    await withTempDir(async (dir) => {
+      const path = writeJson(dir, "mixed-codes.json", {
+        ...rfcExampleRegistry(),
+        calibration: {
+          ...rfcCalibration,
+          surprise: true,
+          feeds: { intelligence: ["unknown-bench"], cost: ["cost-per-task"] },
+        },
+      });
+      const error = catchRegistryError(() => loadRegistry({ path }));
+      expect(error.code).toBe("registry-invalid");
+      expect(error.problems.some((problem) => problem.code === "reference-unknown")).toBe(true);
+      expect(error.problems.some((problem) => problem.code === "registry-invalid")).toBe(true);
     });
   });
 });
@@ -466,7 +781,10 @@ describe("calibration rating check", () => {
       );
       const error = catchRegistryError(() => loadRegistry({ path }));
       expect(error.code).toBe("rating-mismatch");
-      expect(firstProblem(error).message).toContain("the table gives no value for it");
+      const unfedProblem = firstProblem(error);
+      expect(unfedProblem.message).toContain("the table gives no value for it");
+      expect(unfedProblem.fix).toContain("remove the rating");
+      expect(unfedProblem.fix).toContain("value 9");
     });
   });
 
@@ -617,6 +935,7 @@ describe("calibration rating check", () => {
       expect(problem.message).toBe(
         'the written cost of route "model-a@harness-y/provider-1" is 9 but the table gives 8',
       );
+      expect(problem.fix).toContain("to 8 (the table gives 8)");
       expect(problem.fix).toContain('route "model-a@harness-y/provider-1"');
       expect(problem.fix).toContain('rating "cost"');
       expect(problem.fix).toContain("value 9");
@@ -635,7 +954,10 @@ describe("calibration rating check", () => {
       const failing = writeJson(dir, "cost-no-figure.json", withoutCostFigure);
       const error = catchRegistryError(() => loadRegistry({ path: failing }));
       expect(error.code).toBe("rating-mismatch");
-      expect(firstProblem(error).message).toContain("the table gives no value for it");
+      const noValueProblem = firstProblem(error);
+      expect(noValueProblem.message).toContain("the table gives no value for it");
+      expect(noValueProblem.fix).toContain("The table gives no value for the cost");
+      expect(noValueProblem.fix).toContain("remove the cost");
 
       const carried = writeJson(dir, "cost-override.json", {
         ...withoutCostFigure,

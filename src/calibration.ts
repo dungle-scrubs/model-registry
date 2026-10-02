@@ -79,10 +79,9 @@ function computedRating(
   }
   const scores: RatingValue[] = [];
   for (const benchmarkName of feed) {
-    const benchmark = calibration.benchmarks?.[benchmarkName];
-    if (benchmark === undefined) {
-      continue;
-    }
+    // The reference check already failed any feeds entry naming an
+    // undeclared benchmark, so the lookup always hits.
+    const benchmark = calibration.benchmarks?.[benchmarkName] as Benchmark;
     const figure = calibration.figures?.[subject]?.[benchmarkName];
     if (figure === undefined) {
       continue;
