@@ -979,8 +979,33 @@ describe("calibration rating check", () => {
     });
   });
 
-  test("an override whose value differs from the written rating fails with rating-mismatch naming the override", async () => {
+  test("an override whose value differs never fails a value the table computes", async () => {
     await withTempDir(async (dir) => {
+      // The table computes 9 and the written rating is 9; a stale override
+      // naming 6 must not reject the file.
+      const path = writeJson(
+        dir,
+        "override-stale-table-correct.json",
+        withIntelligenceRegistry(
+          {
+            benchmarks: { "index-a": indexA },
+            feeds: { intelligence: ["index-a"] },
+            figures: { "model-a": { "index-a": figure(52.1) } },
+            overrides: [
+              { rating: "intelligence", model: "model-a", value: 6, reason: "stale override" },
+            ],
+          },
+          9,
+        ),
+      );
+      expect(() => loadRegistry({ path })).not.toThrow();
+    });
+  });
+
+  test("a written value no table result and no override allows fails naming the computed value", async () => {
+    await withTempDir(async (dir) => {
+      // The table computes 9, the written rating is 7 and the only override
+      // names 6: the fix must offer the computed 9 and an override for 7.
       const path = writeJson(
         dir,
         "override-mismatch.json",
@@ -1001,10 +1026,37 @@ describe("calibration rating check", () => {
       const problem = firstProblem(error);
       expect(problem.field).toBe('$["models"]["model-a"]["ratings"]["intelligence"]');
       expect(problem.message).toBe(
-        'the written rating "intelligence" of model "model-a" is 7 but the override at calibration.overrides[0] gives 6',
+        'the written rating "intelligence" of model "model-a" is 7 but the table gives 9',
       );
-      expect(problem.fix).toContain("calibration.overrides[0]");
-      expect(problem.fix).toContain("value to 7");
+      expect(problem.fix).toContain("to 9 (the table gives 9)");
+      expect(problem.fix).toContain("value 7");
+    });
+  });
+
+  test("any duplicate override that matches the written value allows it, in any order", async () => {
+    await withTempDir(async (dir) => {
+      const calibration = (first: number, second: number) => ({
+        benchmarks: { "index-a": indexA },
+        feeds: { intelligence: ["index-a"] },
+        figures: { "model-a": { "index-a": figure(52.1) } },
+        overrides: [
+          { rating: "intelligence", model: "model-a", value: first, reason: "first" },
+          { rating: "intelligence", model: "model-a", value: second, reason: "second" },
+        ],
+      });
+      const matchingLast = writeJson(
+        dir,
+        "matching-last.json",
+        withIntelligenceRegistry(calibration(6, 7), 7),
+      );
+      expect(() => loadRegistry({ path: matchingLast })).not.toThrow();
+
+      const matchingFirst = writeJson(
+        dir,
+        "matching-first.json",
+        withIntelligenceRegistry(calibration(7, 6), 7),
+      );
+      expect(() => loadRegistry({ path: matchingFirst })).not.toThrow();
     });
   });
 
@@ -1124,9 +1176,11 @@ describe("calibration rating check", () => {
     });
   });
 
-  test("a cost override whose value differs from the written cost fails with rating-mismatch", async () => {
+  test("a cost override whose value differs never fails a cost the table computes", async () => {
     await withTempDir(async (dir) => {
-      const path = writeJson(dir, "cost-override-mismatch.json", {
+      // The table computes 9 and the written cost is 9; a stale override
+      // naming 6 must not reject the file.
+      const path = writeJson(dir, "cost-override-stale.json", {
         ...rfcExampleRegistry(),
         calibration: {
           ...rfcCalibration,
@@ -1140,13 +1194,7 @@ describe("calibration rating check", () => {
           ],
         },
       });
-      const error = catchRegistryError(() => loadRegistry({ path }));
-      expect(error.code).toBe("rating-mismatch");
-      const problem = firstProblem(error);
-      expect(problem.field).toBe('$["models"]["model-a"]["routes"][1]["cost"]');
-      expect(problem.message).toBe(
-        'the written cost of route "model-a@harness-y/provider-1" is 9 but the override at calibration.overrides[0] gives 6',
-      );
+      expect(() => loadRegistry({ path })).not.toThrow();
     });
   });
 
@@ -1401,11 +1449,17 @@ describe("the example registry's calibration", () => {
       }
       return Math.floor(scores.reduce((a, b) => a + b, 0) / scores.length);
     };
-    const overrideFor = (rating: string, model: string, route: string | undefined) =>
-      overrides.find(
+    const allowsWritten = (
+      rating: string,
+      model: string,
+      route: string | undefined,
+      written: number,
+    ) =>
+      overrides.some(
         (entry) =>
           entry.rating === rating &&
-          (route !== undefined ? entry.route === route : entry.model === model),
+          (route !== undefined ? entry.route === route : entry.model === model) &&
+          entry.value === written,
       );
 
     for (const [modelKey, model] of Object.entries(example.models)) {
@@ -1413,18 +1467,24 @@ describe("the example registry's calibration", () => {
         if (handSet.includes(rating)) {
           continue;
         }
-        const override = overrideFor(rating, modelKey, undefined);
-        const expected = override ? override.value : compute(rating, modelKey);
-        expect(expected, `${modelKey} rating ${rating}`).toBe(written);
+        // The written value must be what the table computes, or what any
+        // override for that rating and target carries.
+        const computed = compute(rating, modelKey);
+        expect(
+          computed === written || allowsWritten(rating, modelKey, undefined, written),
+          `${modelKey} rating ${rating}`,
+        ).toBe(true);
       }
       for (const route of model.routes) {
         if (route.cost === undefined) {
           continue;
         }
         const label = `${modelKey}@${route.harness}${route.provider ? `/${route.provider}` : ""}`;
-        const override = overrideFor("cost", modelKey, label);
-        const expected = override ? override.value : compute("cost", label);
-        expect(expected, `route ${label}`).toBe(route.cost);
+        const computed = compute("cost", label);
+        expect(
+          computed === route.cost || allowsWritten("cost", modelKey, label, route.cost),
+          `route ${label}`,
+        ).toBe(true);
       }
     }
 
