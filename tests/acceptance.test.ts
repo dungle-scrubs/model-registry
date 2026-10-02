@@ -340,13 +340,14 @@ describe("acceptance", () => {
     expect(supportedProperties(schema.$defs.route.properties)).toEqual([...routeKeys].sort());
     expect(deferredProperties(schema.$defs.route.properties)).toEqual([]);
     expect(supportedProperties(schema.properties)).toEqual([
+      "calibration",
       "capabilities",
       "format",
       "meters",
       "models",
       "ratings",
     ]);
-    expect(deferredProperties(schema.properties)).toEqual(["calibration"]);
+    expect(deferredProperties(schema.properties)).toEqual([]);
 
     const negatives: unknown[] = [
       {
@@ -746,6 +747,7 @@ describe("acceptance", () => {
       "ratings",
       "capabilities",
       "meters",
+      "calibration",
     ]);
     expect(example.ratings).toBeDefined();
     expect(Object.values(example.ratings ?? {}).every((value) => typeof value === "string")).toBe(
