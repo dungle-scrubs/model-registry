@@ -594,22 +594,25 @@ describe("loadRegistry", () => {
     expect(error.fix).toContain("Give a registry path");
   });
 
-  test("an unreadable file names the unreadable file", async () => {
-    await withTempDir(async (dir) => {
-      const path = writeJson(dir, "registry.json", validRegistry);
-      chmodSync(path, 0o000);
-      try {
-        const error = catchRegistryError(() => loadRegistry({ path }));
-        expect(error.code).toBe("registry-unreadable");
-        expect(error.message).toBe(`the registry file at "${path}" cannot be read`);
-        expect(error.fix).toBe(
-          "Make the file a readable file, then run model-registry check again.",
-        );
-      } finally {
-        chmodSync(path, 0o600);
-      }
-    });
-  });
+  test.skipIf(process.platform === "win32")(
+    "an unreadable file names the unreadable file",
+    async () => {
+      await withTempDir(async (dir) => {
+        const path = writeJson(dir, "registry.json", validRegistry);
+        chmodSync(path, 0o000);
+        try {
+          const error = catchRegistryError(() => loadRegistry({ path }));
+          expect(error.code).toBe("registry-unreadable");
+          expect(error.message).toBe(`the registry file at "${path}" cannot be read`);
+          expect(error.fix).toBe(
+            "Make the file a readable file, then run model-registry check again.",
+          );
+        } finally {
+          chmodSync(path, 0o600);
+        }
+      });
+    },
+  );
 
   test("a file that is not JSON names the syntax fault", async () => {
     await withTempDir(async (dir) => {

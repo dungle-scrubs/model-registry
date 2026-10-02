@@ -59,24 +59,27 @@ describe("a failed backup write", () => {
 });
 
 describe("the temp file write", () => {
-  test("creates the temp file exclusively with the registry's mode, then chmods it into place", async () => {
-    await withTempDir(async (dir) => {
-      const path = writeJson(dir, "registry.json", { format: 0, models: {} });
-      chmodSync(path, 0o600);
-      const tempOptions: unknown[] = [];
-      mockedWrite.mockImplementation((file, data, options) => {
-        if (typeof file === "string" && file.endsWith(".tmp")) {
-          tempOptions.push(options);
-        }
-        return actualFs.writeFileSync(file, data, options);
+  test.skipIf(process.platform === "win32")(
+    "creates the temp file exclusively with the registry's mode, then chmods it into place",
+    async () => {
+      await withTempDir(async (dir) => {
+        const path = writeJson(dir, "registry.json", { format: 0, models: {} });
+        chmodSync(path, 0o600);
+        const tempOptions: unknown[] = [];
+        mockedWrite.mockImplementation((file, data, options) => {
+          if (typeof file === "string" && file.endsWith(".tmp")) {
+            tempOptions.push(options);
+          }
+          return actualFs.writeFileSync(file, data, options);
+        });
+
+        runMigrate({ path, steps: [{ from: 0, step: STEP_ZERO_TO_ONE }] });
+
+        expect(tempOptions).toEqual([{ flag: "wx", mode: 0o600 }]);
+        expect(statSync(path).mode & 0o777).toBe(0o600);
       });
-
-      runMigrate({ path, steps: [{ from: 0, step: STEP_ZERO_TO_ONE }] });
-
-      expect(tempOptions).toEqual([{ flag: "wx", mode: 0o600 }]);
-      expect(statSync(path).mode & 0o777).toBe(0o600);
-    });
-  });
+    },
+  );
 });
 
 describe("a failed replacement", () => {

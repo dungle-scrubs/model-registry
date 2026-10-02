@@ -366,20 +366,23 @@ describe("DW2 a synthetic step migrates an older format end to end", () => {
 });
 
 describe("DW3 an existing backup refuses and writes nothing", () => {
-  test("a backup write failure that is not an existing backup propagates", async () => {
-    await withTempDir(async (dir) => {
-      const path = writeJson(dir, "registry.json", {
-        format: 0,
-        models: { "model-a": { family: "family-a", routes: [] } },
+  test.skipIf(process.platform === "win32")(
+    "a backup write failure that is not an existing backup propagates",
+    async () => {
+      await withTempDir(async (dir) => {
+        const path = writeJson(dir, "registry.json", {
+          format: 0,
+          models: { "model-a": { family: "family-a", routes: [] } },
+        });
+        chmodSync(dir, 0o500);
+        try {
+          expect(() => runMigrate({ path, steps: [FROM_ZERO] })).toThrow(/EACCES|permission/i);
+        } finally {
+          chmodSync(dir, 0o700);
+        }
       });
-      chmodSync(dir, 0o500);
-      try {
-        expect(() => runMigrate({ path, steps: [FROM_ZERO] })).toThrow(/EACCES|permission/i);
-      } finally {
-        chmodSync(dir, 0o700);
-      }
-    });
-  });
+    },
+  );
 
   test("runMigrate returns backup-exists and does not modify the file", async () => {
     await withTempDir(async (dir) => {
@@ -541,26 +544,32 @@ describe("atomic replace", () => {
     });
   });
 
-  test("the replacement keeps the original file mode", async () => {
-    await withTempDir(async (dir) => {
-      const path = writeJson(dir, "registry.json", { format: 0, models: {} });
-      chmodSync(path, 0o600);
-      runMigrate({ path, steps: [FROM_ZERO] });
-      expect(statSync(path).mode & 0o777).toBe(0o600);
-    });
-  });
+  test.skipIf(process.platform === "win32")(
+    "the replacement keeps the original file mode",
+    async () => {
+      await withTempDir(async (dir) => {
+        const path = writeJson(dir, "registry.json", { format: 0, models: {} });
+        chmodSync(path, 0o600);
+        runMigrate({ path, steps: [FROM_ZERO] });
+        expect(statSync(path).mode & 0o777).toBe(0o600);
+      });
+    },
+  );
 
-  test("the backup keeps the original file mode, not the default creation mode (mode assertion skipped when running as root)", async () => {
-    await withTempDir(async (dir) => {
-      const path = writeJson(dir, "registry.json", { format: 0, models: {} });
-      chmodSync(path, 0o600);
-      runMigrate({ path, steps: [FROM_ZERO] });
-      const backupPath = join(dir, "registry.json.format-0.bak");
-      if ((process.geteuid?.() ?? -1) !== 0) {
-        expect(statSync(backupPath).mode & 0o777).toBe(0o600);
-      }
-    });
-  });
+  test.skipIf(process.platform === "win32")(
+    "the backup keeps the original file mode, not the default creation mode (mode assertion skipped when running as root)",
+    async () => {
+      await withTempDir(async (dir) => {
+        const path = writeJson(dir, "registry.json", { format: 0, models: {} });
+        chmodSync(path, 0o600);
+        runMigrate({ path, steps: [FROM_ZERO] });
+        const backupPath = join(dir, "registry.json.format-0.bak");
+        if ((process.geteuid?.() ?? -1) !== 0) {
+          expect(statSync(backupPath).mode & 0o777).toBe(0o600);
+        }
+      });
+    },
+  );
 
   test("the replacement restores bits the umask strips from the created temp file (mode assertion skipped when running as root)", async () => {
     await withTempDir(async (dir) => {
@@ -597,21 +606,24 @@ describe("atomic replace", () => {
     });
   });
 
-  test("the backup name keeps a backslash in the file name", async () => {
-    await withTempDir(async (dir) => {
-      // On POSIX a backslash is a legal file-name character, so the
-      // backup must be named from the whole file name.
-      const path = join(dir, "weird\\name.json");
-      writeFileSync(path, JSON.stringify({ format: 0, models: {} }));
-      const outcome = runMigrate({ path, steps: [FROM_ZERO] });
-      expect(outcome).toMatchObject({
-        kind: "applied",
-        backupPath: join(realpathSync(dir), "weird\\name.json.format-0.bak"),
+  test.skipIf(process.platform === "win32")(
+    "the backup name keeps a backslash in the file name",
+    async () => {
+      await withTempDir(async (dir) => {
+        // On POSIX a backslash is a legal file-name character, so the
+        // backup must be named from the whole file name.
+        const path = join(dir, "weird\\name.json");
+        writeFileSync(path, JSON.stringify({ format: 0, models: {} }));
+        const outcome = runMigrate({ path, steps: [FROM_ZERO] });
+        expect(outcome).toMatchObject({
+          kind: "applied",
+          backupPath: join(realpathSync(dir), "weird\\name.json.format-0.bak"),
+        });
+        expect(existsSync(join(dir, "weird\\name.json.format-0.bak"))).toBe(true);
+        expect(existsSync(join(dir, "name.json.format-0.bak"))).toBe(false);
       });
-      expect(existsSync(join(dir, "weird\\name.json.format-0.bak"))).toBe(true);
-      expect(existsSync(join(dir, "name.json.format-0.bak"))).toBe(false);
-    });
-  });
+    },
+  );
 });
 
 describe("production step table", () => {
