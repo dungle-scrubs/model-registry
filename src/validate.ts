@@ -429,7 +429,7 @@ function benchmarkRequiredProblem(path: string, missing: string): RegistryProble
     field: 'Add a "field" string naming the benchmark column.',
     version: 'Add a "version" string for the table version.',
     direction: 'Add a "direction" of "higher" or "lower".',
-    bands: "Add a bands array with at least one band.",
+    bands: 'Add a "bands" array of {at, score} bands.',
   };
   return invalidProblem(
     childPath(path, missing),
@@ -736,8 +736,8 @@ function typeProblem(location: OwnedPath, path: string): RegistryProblem | undef
         case "bands":
           return invalidProblem(
             path,
-            "the benchmark bands field must be a non-empty array",
-            "Set bands to a non-empty array of {at, score} objects.",
+            "the benchmark bands field must be an array",
+            "Set bands to an array of {at, score} objects.",
           );
         case "notes":
           return invalidProblem(
@@ -772,8 +772,8 @@ function typeProblem(location: OwnedPath, path: string): RegistryProblem | undef
     case "calibrationFeeds":
       return invalidProblem(
         path,
-        `the calibration feeds entry for "${location.rating}" must be a non-empty array of benchmark names`,
-        "Set the feeds entry to a non-empty array of benchmark names declared in calibration.benchmarks.",
+        `the calibration feeds entry for "${location.rating}" must be an array of benchmark names`,
+        "Set the feeds entry to an array of benchmark names declared in calibration.benchmarks.",
       );
     case "calibrationFeedsEntry":
       return invalidProblem(

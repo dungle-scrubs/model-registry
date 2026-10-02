@@ -362,8 +362,8 @@ describe("calibration shape", () => {
           c.benchmarks = { "index-a": b };
         },
         field: '$["calibration"]["benchmarks"]["index-a"]["bands"]',
-        message: "the benchmark bands field must be a non-empty array",
-        fix: "Set bands to a non-empty array of {at, score} objects.",
+        message: "the benchmark bands field must be an array",
+        fix: "Set bands to an array of {at, score} objects.",
       },
       {
         name: "benchmark notes is not a string",
@@ -415,8 +415,9 @@ describe("calibration shape", () => {
           c.feeds = { intelligence: "index-a" };
         },
         field: '$["calibration"]["feeds"]["intelligence"]',
-        message: 'the calibration feeds entry for "intelligence" must be a non-empty array',
-        fix: "Set the feeds entry to a non-empty array of benchmark names declared in calibration.benchmarks.",
+        message:
+          'the calibration feeds entry for "intelligence" must be an array of benchmark names',
+        fix: "Set the feeds entry to an array of benchmark names declared in calibration.benchmarks.",
       },
       {
         name: "feeds entry item is not a string",
@@ -510,7 +511,7 @@ describe("calibration shape", () => {
         },
         field: '$["calibration"]["benchmarks"]["index-a"]["bands"]',
         message: 'the benchmark is missing the required field "bands"',
-        fix: "Add a bands array with at least one band.",
+        fix: 'Add a "bands" array of {at, score} bands.',
       },
       {
         name: "band misses score",
@@ -996,6 +997,62 @@ describe("calibration rating check", () => {
         },
       });
       expect(() => loadRegistry({ path })).not.toThrow();
+    });
+  });
+
+  test("empty bands and an empty feed are valid and compute nothing", async () => {
+    await withTempDir(async (dir) => {
+      // bands: [] - no band can match, so the figure scores nothing.
+      const emptyBands = writeJson(
+        dir,
+        "empty-bands.json",
+        withIntelligenceRegistry(
+          {
+            benchmarks: { "index-a": { ...indexA, bands: [] } },
+            feeds: { intelligence: ["index-a"] },
+            figures: { "model-a": { "index-a": figure(52.1) } },
+          },
+          7,
+        ),
+      );
+      const bandsError = catchRegistryError(() => loadRegistry({ path: emptyBands }));
+      expect(bandsError.code).toBe("rating-mismatch");
+      expect(firstProblem(bandsError).message).toContain("the table gives no value");
+
+      // feeds: [] - the rating is fed but no benchmark contributes.
+      const emptyFeed = writeJson(
+        dir,
+        "empty-feed.json",
+        withIntelligenceRegistry(
+          {
+            benchmarks: { "index-a": indexA },
+            feeds: { intelligence: [] },
+            figures: { "model-a": { "index-a": figure(52.1) } },
+          },
+          7,
+        ),
+      );
+      const feedError = catchRegistryError(() => loadRegistry({ path: emptyFeed }));
+      expect(feedError.code).toBe("rating-mismatch");
+      expect(firstProblem(feedError).message).toContain("the table gives no value");
+
+      // An override carries the written value past the empty feed.
+      const carried = writeJson(
+        dir,
+        "empty-feed-override.json",
+        withIntelligenceRegistry(
+          {
+            benchmarks: { "index-a": indexA },
+            feeds: { intelligence: [] },
+            figures: { "model-a": { "index-a": figure(52.1) } },
+            overrides: [
+              { rating: "intelligence", model: "model-a", value: 7, reason: "no benchmark yet" },
+            ],
+          },
+          7,
+        ),
+      );
+      expect(() => loadRegistry({ path: carried })).not.toThrow();
     });
   });
 

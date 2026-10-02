@@ -199,8 +199,7 @@
             "type": "array",
             "items": {
               "type": "string"
-            },
-            "minItems": 1
+            }
           }
         },
         "handSet": {
@@ -247,8 +246,7 @@
           "type": "array",
           "items": {
             "$ref": "#/$defs/band"
-          },
-          "minItems": 1
+          }
         },
         "notes": {
           "type": "string"
