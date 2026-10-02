@@ -459,9 +459,9 @@ Owner: `model-router`. Source: [Define the router's registry sections][t17].
   "implement": {
     "description": "Write or change code to a stated spec.",
     "minimums": {
-      "low":    { "coding": 6, "taste": 3 },
-      "normal": { "coding": 7, "taste": 5 },
-      "high":   { "coding": 8, "taste": 6 }
+      "low":    { "coding": 6, "taste": 2 },
+      "normal": { "coding": 7, "taste": 4 },
+      "high":   { "coding": 8, "taste": 5 }
     },
     "rank": ["coding", "taste"],
     "needs": ["repo-access"],
@@ -837,7 +837,7 @@ normative (Kevin, 2026-10-01; it was an assumption in
 - The last tie-break is file order.
 
 Example: task `implement` with `rank: ["coding", "taste"]` at normal
-stakes keeps routes with `coding >= 7` and `taste >= 5` as clearing and
+stakes keeps routes with `coding >= 7` and `taste >= 4` as clearing and
 orders them cheapest first, then by `coding`, then by `taste`. A query
 for the misspelled task `implemnt` orders every route that passed the
 hard limits by `router.rank` and adds the unknown-task warning.
