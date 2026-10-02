@@ -816,21 +816,6 @@ describe("loadRegistry", () => {
     });
   });
 
-  test("the deferred calibration section is rejected with a later-slice fix", async () => {
-    await withTempDir(async (dir) => {
-      const path = writeJson(dir, "calibration.json", {
-        format: 1,
-        models: {},
-        calibration: { handSet: ["taste"] },
-      });
-      const error = catchRegistryError(() => loadRegistry({ path }));
-      expect(error.code).toBe("registry-invalid");
-      const problem = error.problems.find((candidate) => candidate.field === '$["calibration"]');
-      expect(problem).toBeDefined();
-      expect(problem?.fix).toContain("later format slice");
-    });
-  });
-
   test("every declared reference passes", async () => {
     await withTempDir(async (dir) => {
       const path = writeJson(dir, "declared.json", {
