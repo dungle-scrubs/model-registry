@@ -57,27 +57,29 @@ describe("registry.schema.json", () => {
   });
 
   test("property tables match the TypeScript types", () => {
-    expect(supportedProperties(schema.properties)).toEqual(["format", "models"]);
-    expect(deferredProperties(schema.properties)).toEqual([
-      "calibration",
+    expect(supportedProperties(schema.properties)).toEqual([
       "capabilities",
+      "format",
       "meters",
+      "models",
       "ratings",
     ]);
+    expect(deferredProperties(schema.properties)).toEqual(["calibration"]);
     expect(supportedProperties(schema.$defs.model.properties)).toEqual([
       "family",
-      "notes",
-      "routes",
-    ]);
-    expect(deferredProperties(schema.$defs.model.properties)).toEqual([
       "fixedEffort",
       "maxEffort",
+      "notes",
       "ratings",
+      "routes",
     ]);
+    expect(deferredProperties(schema.$defs.model.properties)).toEqual([]);
     expect(supportedProperties(schema.$defs.route.properties)).toEqual([
+      "capabilities",
       "cost",
       "harness",
       "hosted",
+      "meter",
       "modelId",
       "notes",
       "privacyEligible",
@@ -85,7 +87,7 @@ describe("registry.schema.json", () => {
       "rateLimitRpm",
       "responseSeconds",
     ]);
-    expect(deferredProperties(schema.$defs.route.properties)).toEqual(["capabilities", "meter"]);
+    expect(deferredProperties(schema.$defs.route.properties)).toEqual([]);
   });
 
   test("cost range mirrors the rating union", () => {
@@ -179,42 +181,172 @@ describe("registry.schema.json", () => {
     }
   });
 
-  test("rejects the deferred owned fields", () => {
-    const withModels = (models: unknown): unknown => ({ format: 1, models });
+  test("rejects the deferred calibration section", () => {
+    expect(validate({ format: 1, models: {}, calibration: {} })).toBe(false);
+    expect(validate({ format: 1, models: {}, calibration: { handSet: ["taste"] } })).toBe(false);
+  });
+
+  test("accepts the enabled owned fields with valid shapes", () => {
+    const withSections = (
+      sections: Record<string, unknown>,
+      models: unknown = { "model-a": fullModel },
+    ): unknown => ({ format: 1, ...sections, models });
+    expect(
+      validate(
+        withSections({
+          ratings: { coding: "writes code" },
+          capabilities: { browser: "drives a browser" },
+          meters: { "plan-a": { spendToZero: true } },
+        }),
+      ),
+    ).toBe(true);
+    expect(
+      validate(
+        withSections({
+          meters: {
+            "plan-a": { spendToZero: true, notes: "placeholder" },
+          },
+        }),
+      ),
+    ).toBe(true);
+    expect(
+      validate(
+        withSections({
+          ratings: { coding: "x" },
+          models: {
+            "model-a": { ...fullModel, ratings: { coding: 5 }, maxEffort: "high" },
+          },
+        }),
+      ),
+    ).toBe(true);
+    expect(
+      validate(
+        withSections(
+          {},
+          {
+            "model-a": {
+              ...fullModel,
+              routes: [{ ...fullRoute, capabilities: ["browser"], meter: "plan-a" }],
+            },
+          },
+        ),
+      ),
+    ).toBe(true);
+  });
+
+  test("rejects wrong shapes for the enabled owned fields", () => {
     const negatives: Array<{ name: string; value: unknown }> = [
-      { name: "top-level ratings", value: { format: 1, models: {}, ratings: { coding: "x" } } },
       {
-        name: "top-level capabilities",
-        value: { format: 1, models: {}, capabilities: { browser: "x" } },
+        name: "ratings wrong type",
+        value: { format: 1, models: {}, ratings: { coding: 5 } },
       },
       {
-        name: "top-level meters",
-        value: { format: 1, models: {}, meters: { plan: { spendToZero: true } } },
-      },
-      { name: "top-level calibration", value: { format: 1, models: {}, calibration: {} } },
-      {
-        name: "model ratings",
-        value: withModels({ "model-a": { ...fullModel, ratings: { coding: 5 } } }),
+        name: "capabilities wrong type",
+        value: { format: 1, models: {}, capabilities: ["browser"] },
       },
       {
-        name: "model maxEffort",
-        value: withModels({ "model-a": { ...fullModel, maxEffort: "high" } }),
+        name: "meters wrong type",
+        value: { format: 1, models: {}, meters: ["plan-a"] },
       },
       {
-        name: "model fixedEffort",
-        value: withModels({ "model-a": { ...fullModel, fixedEffort: "low" } }),
+        name: "meter spendToZero not true",
+        value: { format: 1, models: {}, meters: { "plan-a": { spendToZero: false } } },
       },
       {
-        name: "route capabilities",
-        value: withModels({
-          "model-a": { ...fullModel, routes: [{ ...fullRoute, capabilities: ["browser"] }] },
-        }),
+        name: "meter spendToZero wrong type",
+        value: { format: 1, models: {}, meters: { "plan-a": { spendToZero: 1 } } },
       },
       {
-        name: "route meter",
-        value: withModels({
-          "model-a": { ...fullModel, routes: [{ ...fullRoute, meter: "plan" }] },
-        }),
+        name: "meter notes wrong type",
+        value: { format: 1, models: {}, meters: { "plan-a": { notes: 5 } } },
+      },
+      {
+        name: "meter extra field",
+        value: { format: 1, models: {}, meters: { "plan-a": { surprise: true } } },
+      },
+      {
+        name: "model ratings wrong shape",
+        value: {
+          format: 1,
+          models: { "model-a": { ...fullModel, ratings: ["coding"] } },
+        },
+      },
+      {
+        name: "model rating value below range",
+        value: {
+          format: 1,
+          models: { "model-a": { ...fullModel, ratings: { coding: 0 } } },
+        },
+      },
+      {
+        name: "model rating value above range",
+        value: {
+          format: 1,
+          models: { "model-a": { ...fullModel, ratings: { coding: 11 } } },
+        },
+      },
+      {
+        name: "model rating value fractional",
+        value: {
+          format: 1,
+          models: { "model-a": { ...fullModel, ratings: { coding: 5.5 } } },
+        },
+      },
+      {
+        name: "model rating value string",
+        value: {
+          format: 1,
+          models: { "model-a": { ...fullModel, ratings: { coding: "5" } } },
+        },
+      },
+      {
+        name: "model ratings wrong type",
+        value: {
+          format: 1,
+          models: { "model-a": { ...fullModel, ratings: 5 } },
+        },
+      },
+      {
+        name: "maxEffort off ladder",
+        value: {
+          format: 1,
+          models: { "model-a": { ...fullModel, maxEffort: "off-the-ladder" } },
+        },
+      },
+      {
+        name: "fixedEffort off ladder",
+        value: {
+          format: 1,
+          models: { "model-a": { ...fullModel, fixedEffort: "off-the-ladder" } },
+        },
+      },
+      {
+        name: "maxEffort wrong type",
+        value: {
+          format: 1,
+          models: { "model-a": { ...fullModel, maxEffort: 1 } },
+        },
+      },
+      {
+        name: "route capabilities wrong type",
+        value: {
+          format: 1,
+          models: { "model-a": { ...fullModel, routes: [{ ...fullRoute, capabilities: {} }] } },
+        },
+      },
+      {
+        name: "route capabilities entry wrong type",
+        value: {
+          format: 1,
+          models: { "model-a": { ...fullModel, routes: [{ ...fullRoute, capabilities: [1] }] } },
+        },
+      },
+      {
+        name: "route meter wrong type",
+        value: {
+          format: 1,
+          models: { "model-a": { ...fullModel, routes: [{ ...fullRoute, meter: 5 }] } },
+        },
       },
     ];
     for (const negative of negatives) {

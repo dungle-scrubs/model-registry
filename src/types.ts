@@ -1,3 +1,5 @@
+import type { EffortLevel } from "./ladder.js";
+
 export type JsonValue =
   | string
   | number
@@ -20,10 +22,19 @@ export type RegistryErrorCode =
   | "rating-mismatch"
   | "backup-exists";
 
+export type RatingValue = 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10;
+
+export type Meter = {
+  readonly notes?: string;
+  readonly spendToZero?: true;
+};
+
 export type Route = {
-  readonly cost?: 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10;
+  readonly capabilities?: readonly string[];
+  readonly cost?: RatingValue;
   readonly harness: string;
   readonly hosted: boolean;
+  readonly meter?: string;
   readonly modelId: string;
   readonly notes?: string;
   readonly privacyEligible?: boolean;
@@ -34,12 +45,18 @@ export type Route = {
 
 export type Model = {
   readonly family: string;
+  readonly fixedEffort?: EffortLevel;
+  readonly maxEffort?: EffortLevel;
   readonly notes?: string;
+  readonly ratings?: Readonly<Record<string, RatingValue>>;
   readonly routes: readonly Route[];
 };
 
 export interface RegistryFacts {
+  readonly capabilities?: Readonly<Record<string, string>>;
+  readonly meters?: Readonly<Record<string, Meter>>;
   readonly models: Readonly<Record<string, Model>>;
+  readonly ratings?: Readonly<Record<string, string>>;
 }
 
 /** Foreign top-level sections hold any non-null JSON value with finite numbers. */
@@ -47,15 +64,26 @@ export type ForeignSections = {
   [section: string]: JsonValue;
 };
 
+/** The top-level sections that declare the names models and routes reference. */
+export const DECLARATION_SECTIONS = ["ratings", "capabilities", "meters"] as const;
+
+export type DeclarationSection = (typeof DECLARATION_SECTIONS)[number];
+
+/** Each declaration section's shape in a registry file. */
+type DeclarationMembers = {
+  capabilities: Record<string, string>;
+  meters: Record<string, Meter>;
+  ratings: Record<string, string>;
+};
+
 export type RegistryFile = {
   format: 1;
   models: Record<string, Model>;
+} & {
+  [Section in DeclarationSection]?: DeclarationMembers[Section];
 } & ForeignSections & {
-    // Deferred owned sections stay rejected until their format slice ships.
+    /** Calibration stays rejected until issue #24 enables it. */
     calibration?: never;
-    capabilities?: never;
-    meters?: never;
-    ratings?: never;
   };
 
 export type IndexedRoute = Route & { model: string };

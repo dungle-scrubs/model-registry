@@ -3,9 +3,10 @@ import { join, resolve } from "node:path";
 import { Ajv2020 } from "ajv/dist/2020.js";
 import { describe, expect, expectTypeOf, test } from "vitest";
 import { RegistryError } from "../src/error.js";
+import { EFFORT_LADDER } from "../src/ladder.js";
 import { loadRegistry } from "../src/load-registry.js";
 import { resolveRegistryPath } from "../src/path.js";
-import type { Model, Route } from "../src/types.js";
+import type { Model, RegistryProblem, Route } from "../src/types.js";
 import { AJV_OPTIONS } from "../src/validate.js";
 import {
   catchRegistryError,
@@ -317,50 +318,37 @@ describe("acceptance", () => {
     const fullRegistry = { format: 1, models: { "model-a": fullModel } };
     expect(validate(fullRegistry)).toBe(true);
 
-    const modelKeys = ["family", "notes", "routes"] as const;
+    const modelKeys = ["family", "fixedEffort", "maxEffort", "notes", "ratings", "routes"] as const;
     expectTypeOf<(typeof modelKeys)[number]>().toEqualTypeOf<keyof Model>();
-    const deferredModelKeys = ["ratings", "maxEffort", "fixedEffort"] as const;
     const routeKeys = [
-      "harness",
-      "modelId",
-      "provider",
-      "hosted",
-      "privacyEligible",
+      "capabilities",
       "cost",
+      "harness",
+      "hosted",
+      "meter",
+      "modelId",
+      "notes",
+      "privacyEligible",
+      "provider",
       "rateLimitRpm",
       "responseSeconds",
-      "notes",
     ] as const;
     expectTypeOf<(typeof routeKeys)[number]>().toEqualTypeOf<keyof Route>();
-    const deferredRouteKeys = ["capabilities", "meter"] as const;
 
     expect(supportedProperties(schema.$defs.model.properties)).toEqual([...modelKeys].sort());
-    expect(deferredProperties(schema.$defs.model.properties)).toEqual(
-      [...deferredModelKeys].sort(),
-    );
+    expect(deferredProperties(schema.$defs.model.properties)).toEqual([]);
     expect(supportedProperties(schema.$defs.route.properties)).toEqual([...routeKeys].sort());
-    expect(deferredProperties(schema.$defs.route.properties)).toEqual(
-      [...deferredRouteKeys].sort(),
-    );
-    expect(supportedProperties(schema.properties)).toEqual(["format", "models"]);
-    expect(deferredProperties(schema.properties)).toEqual([
-      "calibration",
+    expect(deferredProperties(schema.$defs.route.properties)).toEqual([]);
+    expect(supportedProperties(schema.properties)).toEqual([
       "capabilities",
+      "format",
       "meters",
+      "models",
       "ratings",
     ]);
+    expect(deferredProperties(schema.properties)).toEqual(["calibration"]);
 
     const negatives: unknown[] = [
-      { format: 1, models: { "model-a": { ...fullModel, ratings: { coding: 5 } } } },
-      {
-        format: 1,
-        models: {
-          "model-a": {
-            ...fullModel,
-            routes: [{ ...fullRoute, capabilities: ["browser"] }],
-          },
-        },
-      },
       {
         format: 1,
         models: { "model-a": { ...fullModel, routes: [{ ...fullRoute, hosted: "yes" }] } },
@@ -391,9 +379,415 @@ describe("acceptance", () => {
       { format: "1", models: {} },
       { models: {} },
       [1, 2],
+      { format: 1, models: { "model-a": { ...fullModel, ratings: { coding: 11 } } } },
+      { format: 1, models: { "model-a": { ...fullModel, ratings: { coding: 1.5 } } } },
+      { format: 1, models: { "model-a": { ...fullModel, maxEffort: "off-the-ladder" } } },
+      { format: 1, models: { "model-a": { ...fullModel, fixedEffort: "off-the-ladder" } } },
+      { format: 1, models: { "model-a": { ...fullModel, routes: [{ ...fullRoute, meter: 5 }] } } },
+      {
+        format: 1,
+        models: { "model-a": { ...fullModel, routes: [{ ...fullRoute, capabilities: [1] }] } },
+      },
     ];
     for (const negative of negatives) {
       expect(validate(negative), JSON.stringify(negative)).toBe(false);
     }
+  });
+
+  test("DW9 undeclared rating, capability or meter fails with reference-unknown naming the field", async () => {
+    await withTempDir(async (dir) => {
+      const ratingProblem: RegistryProblem = {
+        code: "reference-unknown",
+        field: '$["models"]["model-a"]["ratings"]["coding"]',
+        fix: 'Add "coding" to the ratings section, or remove the rating from the model.',
+        message: 'the rating "coding" is not declared in the ratings section',
+      };
+      const capabilityProblem: RegistryProblem = {
+        code: "reference-unknown",
+        field: '$["models"]["model-a"]["routes"][0]["capabilities"][0]',
+        fix: 'Add "browser" to the capabilities section, or remove the capability from the route.',
+        message: 'the capability "browser" is not declared in the capabilities section',
+      };
+      const meterProblem: RegistryProblem = {
+        code: "reference-unknown",
+        field: '$["models"]["model-a"]["routes"][0]["meter"]',
+        fix: 'Add "plan-a" to the meters section, or remove the meter from the route.',
+        message: 'the meter "plan-a" is not declared in the meters section',
+      };
+      const cases: Array<{ name: string; data: unknown; problem: RegistryProblem }> = [
+        {
+          name: "rating without a top-level ratings section",
+          data: {
+            format: 1,
+            models: {
+              "model-a": { family: "family-a", ratings: { coding: 7 }, routes: [] },
+            },
+          },
+          problem: ratingProblem,
+        },
+        {
+          name: "rating not in the declared ratings",
+          data: {
+            format: 1,
+            ratings: { taste: "Subjective." },
+            models: {
+              "model-a": { family: "family-a", ratings: { coding: 7 }, routes: [] },
+            },
+          },
+          problem: ratingProblem,
+        },
+        {
+          name: "route capability without a top-level capabilities section",
+          data: {
+            format: 1,
+            models: {
+              "model-a": {
+                family: "family-a",
+                routes: [
+                  {
+                    harness: "harness-x",
+                    modelId: "model-id-a",
+                    hosted: false,
+                    capabilities: ["browser"],
+                  },
+                ],
+              },
+            },
+          },
+          problem: capabilityProblem,
+        },
+        {
+          name: "route capability not in the declared capabilities",
+          data: {
+            format: 1,
+            capabilities: { image: "Sees images." },
+            models: {
+              "model-a": {
+                family: "family-a",
+                routes: [
+                  {
+                    harness: "harness-x",
+                    modelId: "model-id-a",
+                    hosted: false,
+                    capabilities: ["browser"],
+                  },
+                ],
+              },
+            },
+          },
+          problem: capabilityProblem,
+        },
+        {
+          name: "route meter without a top-level meters section",
+          data: {
+            format: 1,
+            models: {
+              "model-a": {
+                family: "family-a",
+                routes: [
+                  {
+                    harness: "harness-x",
+                    modelId: "model-id-a",
+                    hosted: false,
+                    meter: "plan-a",
+                  },
+                ],
+              },
+            },
+          },
+          problem: meterProblem,
+        },
+        {
+          name: "route meter not in the declared meters",
+          data: {
+            format: 1,
+            meters: { "plan-b": { spendToZero: true } },
+            models: {
+              "model-a": {
+                family: "family-a",
+                routes: [
+                  {
+                    harness: "harness-x",
+                    modelId: "model-id-a",
+                    hosted: false,
+                    meter: "plan-a",
+                  },
+                ],
+              },
+            },
+          },
+          problem: meterProblem,
+        },
+      ];
+      for (const testCase of cases) {
+        const path = writeJson(dir, `${testCase.name.replace(/\W+/g, "-")}.json`, testCase.data);
+        const error = catchRegistryError(() => loadRegistry({ path }));
+        expect(error.code, testCase.name).toBe("reference-unknown");
+        expect(error.problems, testCase.name).toEqual([testCase.problem]);
+      }
+    });
+  });
+
+  test("several bad references in one file report one problem per reference, in order", async () => {
+    await withTempDir(async (dir) => {
+      const path = writeJson(dir, "four-unknown-references.json", {
+        format: 1,
+        ratings: { declared: "Declared and described." },
+        capabilities: { declared: "Declared and described." },
+        meters: { "plan-declared": { spendToZero: true } },
+        models: {
+          "model-a": {
+            family: "family-a",
+            ratings: { taste: 7 },
+            routes: [
+              {
+                harness: "harness-x",
+                modelId: "model-id-a",
+                hosted: false,
+                capabilities: ["unknown-a", "declared", "unknown-b"],
+                meter: "plan-unknown",
+              },
+            ],
+          },
+        },
+      });
+      const error = catchRegistryError(() => loadRegistry({ path }));
+      expect(error.code).toBe("reference-unknown");
+      expect(error.problems.map((problem) => problem.field)).toEqual([
+        '$["models"]["model-a"]["ratings"]["taste"]',
+        '$["models"]["model-a"]["routes"][0]["capabilities"][0]',
+        '$["models"]["model-a"]["routes"][0]["capabilities"][2]',
+        '$["models"]["model-a"]["routes"][0]["meter"]',
+      ]);
+    });
+  });
+
+  test("a wrongly shaped declaration section is a shape problem, never a false reference-unknown", async () => {
+    await withTempDir(async (dir) => {
+      const path = writeJson(dir, "bad-declaration-sections.json", {
+        format: 1,
+        ratings: "not an object",
+        capabilities: ["browser"],
+        meters: "not an object",
+        models: {
+          "model-a": {
+            family: "family-a",
+            ratings: { coding: 7 },
+            routes: [
+              {
+                harness: "harness-x",
+                modelId: "model-id-a",
+                hosted: false,
+                capabilities: ["browser"],
+                meter: "plan-a",
+              },
+            ],
+          },
+        },
+      });
+      const error = catchRegistryError(() => loadRegistry({ path }));
+      expect(error.code).toBe("registry-invalid");
+      expect(error.problems.map((problem) => problem.field).sort()).toEqual([
+        '$["capabilities"]',
+        '$["meters"]',
+        '$["ratings"]',
+      ]);
+      expect(error.problems.every((problem) => problem.code === "registry-invalid")).toBe(true);
+    });
+  });
+
+  test("DW10 a model rating outside 1 to 10, or a non-integer, fails with registry-invalid", async () => {
+    await withTempDir(async (dir) => {
+      const cases: Array<{ name: string; rating: unknown }> = [
+        { name: "below the range", rating: 0 },
+        { name: "above the range", rating: 11 },
+        { name: "fractional", rating: 5.5 },
+        { name: "string", rating: "5" },
+        { name: "boolean", rating: true },
+        { name: "null", rating: null },
+      ];
+      for (const testCase of cases) {
+        const path = writeJson(dir, `${testCase.name.replace(/\W+/g, "-")}.json`, {
+          format: 1,
+          ratings: { coding: "Writes and changes code." },
+          models: {
+            "model-a": {
+              family: "family-a",
+              ratings: { coding: testCase.rating },
+              routes: [],
+            },
+          },
+        });
+        const error = catchRegistryError(() => loadRegistry({ path }));
+        expect(error.code, testCase.name).toBe("registry-invalid");
+        expect(error.problems, testCase.name).toEqual([
+          {
+            code: "registry-invalid",
+            field: '$["models"]["model-a"]["ratings"]["coding"]',
+            fix: 'Set the rating "coding" of model "model-a" to an integer from 1 to 10.',
+            message: 'the rating "coding" of model "model-a" must be an integer from 1 to 10',
+          },
+        ]);
+      }
+    });
+  });
+
+  test("DW11 maxEffort or fixedEffort off the ladder fails with registry-invalid", async () => {
+    await withTempDir(async (dir) => {
+      const cases: Array<{ name: string; effortKey: "maxEffort" | "fixedEffort" }> = [
+        { name: "maxEffort off ladder", effortKey: "maxEffort" },
+        { name: "fixedEffort off ladder", effortKey: "fixedEffort" },
+      ];
+      for (const testCase of cases) {
+        const path = writeJson(dir, `${testCase.name.replace(/\W+/g, "-")}.json`, {
+          format: 1,
+          models: {
+            "model-a": {
+              family: "family-a",
+              routes: [],
+              [testCase.effortKey]: "off-the-ladder",
+            },
+          },
+        });
+        const error = catchRegistryError(() => loadRegistry({ path }));
+        expect(error.code, testCase.name).toBe("registry-invalid");
+        expect(error.problems, testCase.name).toEqual([
+          {
+            code: "registry-invalid",
+            field: `$["models"]["model-a"]["${testCase.effortKey}"]`,
+            fix: `Set "${testCase.effortKey}" to one of low, medium, high, xhigh, max.`,
+            message: `the field "${testCase.effortKey}" must be one of low, medium, high, xhigh, max`,
+          },
+        ]);
+      }
+    });
+  });
+
+  test("rating bounds 1 and 10 are accepted", async () => {
+    await withTempDir(async (dir) => {
+      for (const value of [1, 10] as const) {
+        const path = writeJson(dir, `rating-bound-${value}.json`, {
+          format: 1,
+          ratings: { coding: "Writes and changes code." },
+          models: {
+            "model-a": { family: "family-a", ratings: { coding: value }, routes: [] },
+          },
+        });
+        const loaded = loadRegistry({ path });
+        expect(loaded.registry.models["model-a"]?.ratings).toEqual({ coding: value });
+      }
+    });
+  });
+
+  test("every effort ladder level is accepted on maxEffort and fixedEffort", async () => {
+    await withTempDir(async (dir) => {
+      for (const level of EFFORT_LADDER) {
+        const path = writeJson(dir, `effort-${level}.json`, {
+          format: 1,
+          models: {
+            "model-a": { family: "family-a", maxEffort: level, fixedEffort: level, routes: [] },
+          },
+        });
+        const loaded = loadRegistry({ path });
+        expect(loaded.registry.models["model-a"]?.maxEffort).toBe(level);
+        expect(loaded.registry.models["model-a"]?.fixedEffort).toBe(level);
+      }
+    });
+  });
+
+  test("DW12 a file with only format and models passes check", async () => {
+    await withTempDir(async (dir) => {
+      const path = writeJson(dir, "minimal.json", {
+        format: 1,
+        models: {
+          "model-a": {
+            family: "family-a",
+            routes: [],
+          },
+        },
+      });
+      const loaded = loadRegistry({ path });
+      expect(loaded.registry.models["model-a"]?.family).toBe("family-a");
+      expect(Object.keys(loaded.registry)).toEqual(["models"]);
+      expect(loaded.routes).toEqual({});
+      expect(loaded.sections).toEqual({});
+      const result = runBuiltCli(["check", "--registry", path]);
+      expect(result.exitCode).toBe(0);
+      expect(result.stderr).toBe("");
+    });
+  });
+
+  test("DW13 the effort ladder is exported in order", () => {
+    expect(EFFORT_LADDER).toEqual(["low", "medium", "high", "xhigh", "max"]);
+    const publishedSchema = JSON.parse(
+      readFileSync(join(repoRoot, "registry.schema.json"), "utf8"),
+    ) as { $defs?: Record<string, { enum?: unknown }> };
+    const enumValues = publishedSchema.$defs?.effortLevel?.enum;
+    expect(enumValues).toEqual(EFFORT_LADDER);
+    expect(new Set(EFFORT_LADDER).size).toBe(EFFORT_LADDER.length);
+  });
+
+  test("DW14 examples/registry.json declares placeholder ratings, capabilities and a meter with spendToZero, and passes check", () => {
+    const example = JSON.parse(exampleBytes.toString("utf8")) as {
+      ratings?: Record<string, string>;
+      capabilities?: Record<string, string>;
+      meters?: Record<string, { spendToZero?: unknown; notes?: unknown }>;
+      models?: Record<
+        string,
+        {
+          ratings?: Record<string, number>;
+          maxEffort?: string;
+          routes?: Array<{ capabilities?: string[]; meter?: string }>;
+        }
+      >;
+    };
+    expect(Object.keys(loadRegistry({ path: examplePath }).registry)).toEqual([
+      "models",
+      "ratings",
+      "capabilities",
+      "meters",
+    ]);
+    expect(example.ratings).toBeDefined();
+    expect(Object.values(example.ratings ?? {}).every((value) => typeof value === "string")).toBe(
+      true,
+    );
+    expect(example.capabilities).toBeDefined();
+    expect(
+      Object.values(example.capabilities ?? {}).every((value) => typeof value === "string"),
+    ).toBe(true);
+    expect(example.meters).toBeDefined();
+    const meterNames = Object.keys(example.meters ?? {});
+    expect(meterNames.length).toBeGreaterThan(0);
+    expect(
+      meterNames.some((name) => example.meters?.[name]?.spendToZero === true),
+      "some meter spends to zero",
+    ).toBe(true);
+    const declaredCapabilities = new Set(Object.keys(example.capabilities ?? {}));
+    const declaredMeters = new Set(meterNames);
+    const routes = Object.values(example.models ?? {}).flatMap((model) => model?.routes ?? []);
+    expect(
+      routes.some((route) =>
+        (route?.capabilities ?? []).some((name) => declaredCapabilities.has(name)),
+      ),
+      "some route references a declared capability",
+    ).toBe(true);
+    expect(
+      routes.some((route) => route?.meter !== undefined && declaredMeters.has(route.meter)),
+      "some route references a declared meter",
+    ).toBe(true);
+    const model = example.models?.["model-a"];
+    expect(model?.ratings).toBeDefined();
+    expect(Object.keys(model?.ratings ?? {}).length).toBeGreaterThan(0);
+    for (const rating of Object.values(model?.ratings ?? {})) {
+      expect(Number.isInteger(rating)).toBe(true);
+      expect(rating).toBeGreaterThanOrEqual(1);
+      expect(rating).toBeLessThanOrEqual(10);
+    }
+
+    const result = runBuiltCli(["check", "--registry", "examples/registry.json"]);
+    expect(result.exitCode).toBe(0);
+    expect(result.stderr).toBe("");
+    const parsed = JSON.parse(result.stdout) as Record<string, unknown>;
+    expect(parsed.format).toBe(1);
   });
 });

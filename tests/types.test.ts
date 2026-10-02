@@ -1,9 +1,11 @@
 import { describe, expectTypeOf, test } from "vitest";
+import type { EffortLevel } from "../src/ladder.js";
 import type {
   IndexedRoute,
   JsonValue,
   LoadedRegistry,
   LoadRegistryOptions,
+  Meter,
   Model,
   RegistryDigest,
   RegistryErrorCode,
@@ -43,6 +45,30 @@ describe("public types", () => {
     expectTypeOf<RegistryFile>().toMatchTypeOf<{ format: 1; models: Record<string, Model> }>();
   });
 
+  test("the declared sections are typed registry facts", () => {
+    expectTypeOf<Required<RegistryFacts>["meters"]>().toEqualTypeOf<
+      Readonly<Record<string, Meter>>
+    >();
+    expectTypeOf<RegistryFacts["meters"]>().toEqualTypeOf<
+      Readonly<Record<string, Meter>> | undefined
+    >();
+    expectTypeOf<RegistryFacts["ratings"]>().toEqualTypeOf<
+      Readonly<Record<string, string>> | undefined
+    >();
+    expectTypeOf<RegistryFacts["capabilities"]>().toEqualTypeOf<
+      Readonly<Record<string, string>> | undefined
+    >();
+    expectTypeOf<Meter>().toEqualTypeOf<{
+      readonly notes?: string;
+      readonly spendToZero?: true;
+    }>();
+    expectTypeOf<RegistryFile>().toMatchTypeOf<{
+      ratings?: Record<string, string>;
+      capabilities?: Record<string, string>;
+      meters?: Record<string, Meter>;
+    }>();
+  });
+
   test("an indexed route is the route facts plus the model key", () => {
     const indexed: IndexedRoute = { model: "model-a", ...route };
     expectTypeOf<IndexedRoute>().toEqualTypeOf<Route & { model: string }>();
@@ -53,6 +79,9 @@ describe("public types", () => {
     expectTypeOf<Model>().toMatchTypeOf<{
       family: string;
       notes?: string;
+      ratings?: Readonly<Record<string, 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10>>;
+      maxEffort?: EffortLevel;
+      fixedEffort?: EffortLevel;
       routes: readonly Route[];
     }>();
     expectTypeOf<Route>().toMatchTypeOf<{
@@ -61,9 +90,12 @@ describe("public types", () => {
       provider?: string;
       hosted: boolean;
       privacyEligible?: boolean;
+      cost?: 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10;
       rateLimitRpm?: number;
       responseSeconds?: number;
       notes?: string;
+      capabilities?: readonly string[];
+      meter?: string;
     }>();
     expectTypeOf<Required<Route>["cost"]>().toEqualTypeOf<1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10>();
   });
@@ -135,12 +167,8 @@ describe("public types", () => {
     const routesMissing: Model = { family: "family-a" };
     // @ts-expect-error unknown model field
     const modelExtra: Model = { family: "family-a", routes: [], surprise: 1 };
-    // @ts-expect-error deferred route capability field
-    const routeCapability: Route = { harness: "h", modelId: "m", hosted: true, capabilities: [] };
-    // @ts-expect-error deferred route meter field
-    const routeMeter: Route = { harness: "h", modelId: "m", hosted: true, meter: "plan-a" };
-    // @ts-expect-error deferred model maxEffort field
-    const modelEffort: Model = { family: "family-a", routes: [], maxEffort: "high" };
+    // @ts-expect-error spendToZero accepts only the literal true
+    const spendFalse: Meter = { spendToZero: false };
     // @ts-expect-error null is not a JsonValue
     const jsonNull: JsonValue = null;
     // @ts-expect-error optional fields cannot be explicitly undefined
@@ -152,12 +180,6 @@ describe("public types", () => {
     };
     // @ts-expect-error format 1 only
     const formatTwo: RegistryFile = { format: 2, models: {} };
-    // @ts-expect-error deferred top-level section ratings
-    const topLevelRatings: RegistryFile = { format: 1, models: {}, ratings: { coding: "x" } };
-    // @ts-expect-error deferred top-level section capabilities
-    const topLevelCapabilities: RegistryFile = { format: 1, models: {}, capabilities: 1 };
-    // @ts-expect-error deferred top-level section meters
-    const topLevelMeters: RegistryFile = { format: 1, models: {}, meters: 1 };
     // @ts-expect-error deferred top-level section calibration
     const topLevelCalibration: RegistryFile = { format: 1, models: {}, calibration: {} };
     // @ts-expect-error a digest requires the sha256: prefix
@@ -175,15 +197,10 @@ describe("public types", () => {
         familyMissing,
         routesMissing,
         modelExtra,
-        routeCapability,
-        routeMeter,
-        modelEffort,
+        spendFalse,
         jsonNull,
         explicitUndefined,
         formatTwo,
-        topLevelRatings,
-        topLevelCapabilities,
-        topLevelMeters,
         topLevelCalibration,
         digestWithoutPrefix,
       }).length,
