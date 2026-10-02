@@ -4,6 +4,11 @@ export type { EffortLevel } from "./ladder.js";
 export { EFFORT_LADDER } from "./ladder.js";
 export { loadRegistry } from "./load-registry.js";
 export type {
+  Band,
+  BandDirection,
+  Benchmark,
+  Calibration,
+  Figure,
   ForeignSections,
   IndexedRoute,
   JsonValue,
@@ -11,6 +16,7 @@ export type {
   LoadRegistryOptions,
   Meter,
   Model,
+  Override,
   RatingValue,
   RegistryDigest,
   RegistryErrorCode,
@@ -20,4 +26,6 @@ export type {
   RegistryProblem,
   Route,
   RouteLabel,
+  RouteRatingName,
 } from "./types.js";
+export { ROUTE_RATING_NAME } from "./types.js";

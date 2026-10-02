@@ -52,7 +52,61 @@ export type Model = {
   readonly routes: readonly Route[];
 };
 
+/** The reserved route-level rating name. It needs no entry in `ratings`. */
+export const ROUTE_RATING_NAME = "cost" as const;
+export type RouteRatingName = typeof ROUTE_RATING_NAME;
+
+export type BandDirection = "higher" | "lower";
+
+export type Band = {
+  readonly at: number;
+  readonly score: RatingValue;
+};
+
+export type Benchmark = {
+  readonly bands: readonly Band[];
+  readonly direction: BandDirection;
+  readonly field: string;
+  readonly notes?: string;
+  readonly source: string;
+  readonly version: string;
+};
+
+export type Figure = {
+  readonly effort: EffortLevel;
+  readonly read: string;
+  readonly value: number;
+};
+
+/**
+ * One override: a written rating the table does not give, with its reason.
+ * Exactly one of `model` or `route` is present; the schema enforces it.
+ */
+export type Override =
+  | {
+      readonly model: string;
+      readonly rating: string;
+      readonly reason: string;
+      readonly value: RatingValue;
+    }
+  | {
+      readonly rating: string;
+      readonly reason: string;
+      readonly route: string;
+      readonly value: RatingValue;
+    };
+
+export type Calibration = {
+  readonly benchmarks?: Readonly<Record<string, Benchmark>>;
+  readonly feeds?: Readonly<Record<string, readonly string[]>>;
+  readonly figures?: Readonly<Record<string, Readonly<Record<string, Figure>>>>;
+  readonly handSet?: readonly string[];
+  readonly notes?: string;
+  readonly overrides?: readonly Override[];
+};
+
 export interface RegistryFacts {
+  readonly calibration?: Calibration;
   readonly capabilities?: Readonly<Record<string, string>>;
   readonly meters?: Readonly<Record<string, Meter>>;
   readonly models: Readonly<Record<string, Model>>;
@@ -65,12 +119,13 @@ export type ForeignSections = {
 };
 
 /** The top-level sections that declare the names models and routes reference. */
-export const DECLARATION_SECTIONS = ["ratings", "capabilities", "meters"] as const;
+export const DECLARATION_SECTIONS = ["ratings", "capabilities", "meters", "calibration"] as const;
 
 export type DeclarationSection = (typeof DECLARATION_SECTIONS)[number];
 
 /** Each declaration section's shape in a registry file. */
 type DeclarationMembers = {
+  calibration: Calibration;
   capabilities: Record<string, string>;
   meters: Record<string, Meter>;
   ratings: Record<string, string>;
@@ -81,10 +136,7 @@ export type RegistryFile = {
   models: Record<string, Model>;
 } & {
   [Section in DeclarationSection]?: DeclarationMembers[Section];
-} & ForeignSections & {
-    /** Calibration stays rejected until issue #24 enables it. */
-    calibration?: never;
-  };
+} & ForeignSections;
 
 export type IndexedRoute = Route & { model: string };
 

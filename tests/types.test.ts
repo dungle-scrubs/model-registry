@@ -180,8 +180,6 @@ describe("public types", () => {
     };
     // @ts-expect-error format 1 only
     const formatTwo: RegistryFile = { format: 2, models: {} };
-    // @ts-expect-error deferred top-level section calibration
-    const topLevelCalibration: RegistryFile = { format: 1, models: {}, calibration: {} };
     // @ts-expect-error a digest requires the sha256: prefix
     const digestWithoutPrefix: RegistryDigest = "00000000000000000000000000000000";
     expectTypeOf(
@@ -201,7 +199,6 @@ describe("public types", () => {
         jsonNull,
         explicitUndefined,
         formatTwo,
-        topLevelCalibration,
         digestWithoutPrefix,
       }).length,
     ).toBeNumber();
