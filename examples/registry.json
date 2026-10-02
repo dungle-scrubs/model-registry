@@ -1,13 +1,31 @@
 {
   "format": 1,
+  "ratings": {
+    "coding": "Writes and changes code to a spec."
+  },
+  "capabilities": {
+    "browser": "Can drive a web browser."
+  },
+  "meters": {
+    "plan-a": {
+      "spendToZero": true,
+      "notes": "Drains to zero so the user never runs out."
+    }
+  },
   "models": {
     "model-a": {
       "family": "family-a",
+      "ratings": {
+        "coding": 7
+      },
+      "maxEffort": "high",
       "routes": [
         {
           "harness": "harness-x",
           "modelId": "model-id-a",
-          "hosted": false
+          "hosted": false,
+          "capabilities": ["browser"],
+          "meter": "plan-a"
         },
         {
           "harness": "harness-y",
