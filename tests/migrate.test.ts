@@ -452,6 +452,72 @@ describe("DW5 an invalid migrated result exits 4 and replaces nothing", () => {
     });
   });
 
+  test("a migrated file with a rating mismatch fails with exit 4 and nothing is written", async () => {
+    await withTempDir(async (dir) => {
+      const path = writeJson(dir, "registry.json", { format: 0, models: {} });
+      const bytesBefore = readFileSync(path);
+      const stdout = captureStream();
+      const stderr = captureStream();
+      // A test-only step produces a format 1 file whose readable table
+      // scores 8 against the written 7, beside an unknown calibration field.
+      const step: MigrateStepEntry = {
+        from: 0,
+        step: (parsed) => ({
+          ...parsed,
+          format: 1,
+          ratings: { intelligence: "Solves hard problems." },
+          models: {
+            "model-a": {
+              family: "family-a",
+              ratings: { intelligence: 7 },
+              routes: [],
+            },
+          },
+          calibration: {
+            surprise: true,
+            benchmarks: {
+              "index-a": {
+                source: "https://example.org/a",
+                field: "index",
+                version: "4.3",
+                direction: "higher",
+                bands: [
+                  { at: 50, score: 9 },
+                  { at: 40, score: 8 },
+                  { at: 30, score: 7 },
+                ],
+              },
+            },
+            feeds: { intelligence: ["index-a"] },
+            figures: {
+              "model-a": { "index-a": { value: 42, read: "2026-09-30", effort: "high" } },
+            },
+          },
+        }),
+      };
+      const exitCode = runCli(
+        ["migrate", "--registry", path],
+        { stdout: stdout.stream, stderr: stderr.stream },
+        { steps: [step] },
+      );
+      expect(exitCode).toBe(4);
+      const envelope = JSON.parse(stderr.text()) as {
+        error: { code: string; problems: { code: string; field: string }[] };
+      };
+      expect(envelope.error.code).toBe("registry-invalid");
+      expect(
+        envelope.error.problems.some(
+          (problem) =>
+            problem.code === "rating-mismatch" &&
+            problem.field === '$["models"]["model-a"]["ratings"]["intelligence"]',
+        ),
+      ).toBe(true);
+      expect(readFileSync(path)).toEqual(bytesBefore);
+      expect(existsSync(`${path}.format-0.bak`)).toBe(false);
+      expect(readdirSync(dir).some((name) => name.endsWith(".tmp"))).toBe(false);
+    });
+  });
+
   test("runMigrate returns the validation error before any write", async () => {
     await withTempDir(async (dir) => {
       const path = writeJson(dir, "registry.json", { format: 0 });

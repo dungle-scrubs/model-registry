@@ -58,13 +58,14 @@ describe("registry.schema.json", () => {
 
   test("property tables match the TypeScript types", () => {
     expect(supportedProperties(schema.properties)).toEqual([
+      "calibration",
       "capabilities",
       "format",
       "meters",
       "models",
       "ratings",
     ]);
-    expect(deferredProperties(schema.properties)).toEqual(["calibration"]);
+    expect(deferredProperties(schema.properties)).toEqual([]);
     expect(supportedProperties(schema.$defs.model.properties)).toEqual([
       "family",
       "fixedEffort",
@@ -181,9 +182,18 @@ describe("registry.schema.json", () => {
     }
   });
 
-  test("rejects the deferred calibration section", () => {
-    expect(validate({ format: 1, models: {}, calibration: {} })).toBe(false);
-    expect(validate({ format: 1, models: {}, calibration: { handSet: ["taste"] } })).toBe(false);
+  test("rejects a calibration section with the wrong shape", () => {
+    expect(validate({ format: 1, models: {}, calibration: "not-an-object" })).toBe(false);
+    expect(validate({ format: 1, models: {}, calibration: { handSet: "not-an-array" } })).toBe(
+      false,
+    );
+    expect(
+      validate({
+        format: 1,
+        models: {},
+        calibration: { unknownField: true },
+      }),
+    ).toBe(false);
   });
 
   test("accepts the enabled owned fields with valid shapes", () => {

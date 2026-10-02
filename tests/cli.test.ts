@@ -137,6 +137,37 @@ describe("the built CLI", () => {
     });
   });
 
+  test("a null model or route exits 4 with registry-invalid, not internal-error", async () => {
+    await withTempDir(async (dir) => {
+      const nullModel = writeJson(dir, "null-model.json", {
+        format: 1,
+        models: { "model-a": null },
+      });
+      const nullModelResult = runBuiltCli(["check", "--registry", nullModel]);
+      expect(nullModelResult.exitCode).toBe(4);
+      const nullModelEnvelope = JSON.parse(nullModelResult.stderr) as {
+        error: { code: string };
+      };
+      expect(nullModelEnvelope.error.code).toBe("registry-invalid");
+
+      const nullRoute = writeJson(dir, "null-route.json", {
+        format: 1,
+        models: {
+          "model-a": {
+            family: "family-a",
+            routes: [null],
+          },
+        },
+      });
+      const nullRouteResult = runBuiltCli(["check", "--registry", nullRoute]);
+      expect(nullRouteResult.exitCode).toBe(4);
+      const nullRouteEnvelope = JSON.parse(nullRouteResult.stderr) as {
+        error: { code: string };
+      };
+      expect(nullRouteEnvelope.error.code).toBe("registry-invalid");
+    });
+  });
+
   test("check honors MODEL_REGISTRY_FILE without --registry", async () => {
     await withTempDir(async (dir) => {
       const path = writeJson(dir, "env-registry.json", validRegistry);

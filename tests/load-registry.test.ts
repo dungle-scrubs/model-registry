@@ -144,6 +144,16 @@ describe("curated problems", () => {
           },
         },
         {
+          name: "model is null",
+          value: registry(modelEntry(null)),
+          problem: {
+            code: "registry-invalid",
+            field: '$["models"]["model-a"]',
+            message: 'the model "model-a" must be a JSON object',
+            fix: "Replace the model with a JSON object.",
+          },
+        },
+        {
           name: "top-level ratings wrong type",
           value: registry(modelEntry(model()), { ratings: "x" }),
           problem: {
@@ -296,6 +306,16 @@ describe("curated problems", () => {
         {
           name: "route not an object",
           value: registry(modelEntry({ family: "family-a", routes: ["x"] })),
+          problem: {
+            code: "registry-invalid",
+            field: '$["models"]["model-a"]["routes"][0]',
+            message: "the route must be a JSON object",
+            fix: "Replace the route with a JSON object.",
+          },
+        },
+        {
+          name: "route is null",
+          value: registry(modelEntry({ family: "family-a", routes: [null] })),
           problem: {
             code: "registry-invalid",
             field: '$["models"]["model-a"]["routes"][0]',
@@ -816,21 +836,6 @@ describe("loadRegistry", () => {
     });
   });
 
-  test("the deferred calibration section is rejected with a later-slice fix", async () => {
-    await withTempDir(async (dir) => {
-      const path = writeJson(dir, "calibration.json", {
-        format: 1,
-        models: {},
-        calibration: { handSet: ["taste"] },
-      });
-      const error = catchRegistryError(() => loadRegistry({ path }));
-      expect(error.code).toBe("registry-invalid");
-      const problem = error.problems.find((candidate) => candidate.field === '$["calibration"]');
-      expect(problem).toBeDefined();
-      expect(problem?.fix).toContain("later format slice");
-    });
-  });
-
   test("every declared reference passes", async () => {
     await withTempDir(async (dir) => {
       const path = writeJson(dir, "declared.json", {
@@ -1009,9 +1014,12 @@ describe("loadRegistry", () => {
     );
     expect(result.stderr).toBe("");
     expect(result.status).toBe(0);
-    expect(result.stdout).toBe("EFFORT_LADDER,RegistryError,buildRouteLabel,loadRegistry");
+    expect(result.stdout).toBe(
+      "EFFORT_LADDER,ROUTE_RATING_NAME,RegistryError,buildRouteLabel,loadRegistry",
+    );
     expect(Object.keys(publicApi).sort()).toEqual([
       "EFFORT_LADDER",
+      "ROUTE_RATING_NAME",
       "RegistryError",
       "buildRouteLabel",
       "loadRegistry",

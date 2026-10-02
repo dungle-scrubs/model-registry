@@ -1,6 +1,7 @@
 import type { ErrorObject, ValidateFunction } from "ajv/dist/2020.js";
 import { Ajv2020 } from "ajv/dist/2020.js";
 import schema from "../registry.schema.json" with { type: "json" };
+import { collectRatingMismatchProblems } from "./calibration.js";
 import { buildRouteLabel } from "./label.js";
 import { EFFORT_LADDER } from "./ladder.js";
 import {
@@ -10,8 +11,10 @@ import {
   type MigrateStepEntry,
 } from "./migrate-steps.js";
 import type {
+  Calibration,
   IndexedRoute,
   JsonValue,
+  Meter,
   Model,
   RegistryErrorCode,
   RegistryFacts,
@@ -19,7 +22,7 @@ import type {
   Route,
   RouteLabel,
 } from "./types.js";
-import { DECLARATION_SECTIONS } from "./types.js";
+import { DECLARATION_SECTIONS, ROUTE_RATING_NAME } from "./types.js";
 
 export interface RegistryIndex {
   registry: RegistryFacts;
@@ -31,8 +34,6 @@ export type ValidationResult =
   | { index: RegistryIndex; ok: true }
   | { ok: false; problems: readonly [RegistryProblem, ...RegistryProblem[]] };
 
-const LATER_SLICE_FIX =
-  "Remove the field; support for it arrives in a later format slice of model-registry.";
 const EFFORT_LADDER_VALUES = EFFORT_LADDER.join(", ");
 
 export const AJV_OPTIONS = { allErrors: true, strictNumbers: true } as const;
@@ -85,6 +86,9 @@ const REFERENCE_TARGETS = {
   capability: { owner: "route", section: "capabilities" },
   meter: { owner: "route", section: "meters" },
   rating: { owner: "model", section: "ratings" },
+  benchmark: { owner: "calibration feeds", section: "benchmarks (under calibration)" },
+  model: { owner: "calibration overrides", section: "models" },
+  route: { owner: "calibration overrides", section: "routes (built from models)" },
 } as const;
 
 type ReferenceKind = keyof typeof REFERENCE_TARGETS;
@@ -145,7 +149,9 @@ function isDeclarationSection(name: string): boolean {
 
 function pointerIsOwned(pointer: string): boolean {
   const [head] = pointerSegments(pointer);
-  return head === undefined || head === "models" || isDeclarationSection(head);
+  return (
+    head === undefined || head === "models" || head === "calibration" || isDeclarationSection(head)
+  );
 }
 
 function genericProblem(field: string, message: string | undefined): RegistryProblem {
@@ -156,18 +162,10 @@ function genericProblem(field: string, message: string | undefined): RegistryPro
   );
 }
 
-function deferredProblem(path: string, field: string): RegistryProblem {
-  return invalidProblem(
-    path,
-    `the field "${field}" is not supported in this release of model-registry`,
-    LATER_SLICE_FIX,
-  );
-}
-
 function unknownFieldProblem(
   path: string,
   name: string,
-  owner: "model" | "route" | "meter",
+  owner: "calibration" | "model" | "route" | "meter" | "benchmark" | "band" | "figure" | "override",
 ): RegistryProblem {
   return invalidProblem(
     childPath(path, name),
@@ -186,6 +184,18 @@ function requiredStringProblem(parent: string, name: string): RegistryProblem {
 
 /** The format 1 construct an owned instance path points at, by section name and depth. */
 type OwnedPath =
+  | { kind: "calibration"; section: "root" }
+  | { kind: "calibrationBenchmark"; benchmark: string }
+  | { kind: "calibrationBenchmarkField"; benchmark: string; field: string }
+  | { kind: "calibrationBand"; benchmark: string; index: number }
+  | { kind: "calibrationBandField"; benchmark: string; index: number; field: string }
+  | { kind: "calibrationFeeds"; rating: string }
+  | { kind: "calibrationFeedsEntry"; rating: string; index: number }
+  | { kind: "calibrationFigureSubject"; benchmark: string }
+  | { kind: "calibrationFigureBenchmark"; subject: string; benchmark: string }
+  | { kind: "calibrationHandSetEntry"; index: number }
+  | { kind: "calibrationOverridesEntry"; index: number }
+  | { kind: "calibrationOverridesEntryField"; index: number; field: string }
   | { kind: "declaration"; name: string; section: "capabilities" | "ratings" }
   | { kind: "model"; modelKey: string }
   | { field: string; kind: "modelField"; modelKey: string }
@@ -197,60 +207,129 @@ type OwnedPath =
   | { kind: "route" }
   | { field: string; kind: "routeField" }
   | { kind: "routeCapabilityEntry" }
-  | { kind: "section"; section: "capabilities" | "meters" | "models" | "ratings" };
+  | { kind: "section"; section: "calibration" | "capabilities" | "meters" | "models" | "ratings" };
 
 function classifyPath(segments: readonly string[]): OwnedPath {
-  const [section, name, container, index, field] = segments;
-  const inModelsRoutes = section === "models" && container === "routes" && index !== undefined;
+  const [section_, head, container, index, field, leaf] = segments;
+  const inModelsRoutes = section_ === "models" && container === "routes" && index !== undefined;
   switch (segments.length) {
     case 0:
       return { kind: "root" };
     case 1:
-      switch (section) {
+      switch (section_) {
+        case "calibration":
+          return { kind: "calibration", section: "root" };
         case "capabilities":
         case "meters":
         case "models":
         case "ratings":
-          return { kind: "section", section };
+          return { kind: "section", section: section_ };
         default:
           return { kind: "other" };
       }
     case 2:
-      switch (section) {
+      switch (section_) {
         case "models":
-          return { kind: "model", modelKey: name ?? "" };
+          return { kind: "model", modelKey: head ?? "" };
         case "meters":
-          return { kind: "meter", meterName: name ?? "" };
+          return { kind: "meter", meterName: head ?? "" };
         case "capabilities":
         case "ratings":
-          return { kind: "declaration", name: name ?? "", section };
+          return { kind: "declaration", name: head ?? "", section: section_ };
         default:
           return { kind: "other" };
       }
     case 3:
-      if (section === "meters") {
-        return { field: container ?? "", kind: "meterField", meterName: name ?? "" };
+      if (section_ === "meters") {
+        return { field: container ?? "", kind: "meterField", meterName: head ?? "" };
       }
-      if (section === "models") {
-        return { field: container ?? "", kind: "modelField", modelKey: name ?? "" };
+      if (section_ === "models") {
+        return { field: container ?? "", kind: "modelField", modelKey: head ?? "" };
+      }
+      if (section_ === "calibration") {
+        if (head === "benchmarks" && container !== undefined) {
+          return { kind: "calibrationBenchmark", benchmark: container };
+        }
+        if (head === "feeds" && container !== undefined) {
+          return { kind: "calibrationFeeds", rating: container };
+        }
+        if (head === "figures" && container !== undefined) {
+          return { kind: "calibrationFigureSubject", benchmark: container };
+        }
+        if (head === "handSet" && container !== undefined) {
+          return { kind: "calibrationHandSetEntry", index: Number(container) };
+        }
+        if (head === "overrides" && container !== undefined) {
+          return { kind: "calibrationOverridesEntry", index: Number(container) };
+        }
       }
       return { kind: "other" };
     case 4:
-      if (section === "models" && container === "ratings") {
-        return { kind: "modelRating", modelKey: name ?? "", rating: index ?? "" };
+      if (section_ === "models" && container === "ratings") {
+        return { kind: "modelRating", modelKey: head ?? "", rating: index ?? "" };
       }
-      if (section === "models" && container === "routes") {
+      if (section_ === "models" && container === "routes") {
         return { kind: "route" };
+      }
+      if (section_ === "calibration") {
+        if (head === "benchmarks" && container !== undefined && index !== undefined) {
+          return {
+            kind: "calibrationBenchmarkField",
+            benchmark: container,
+            field: index,
+          };
+        }
+        if (head === "feeds" && container !== undefined && index !== undefined) {
+          return { kind: "calibrationFeedsEntry", rating: container, index: Number(index) };
+        }
+        if (head === "figures" && container !== undefined && index !== undefined) {
+          return {
+            kind: "calibrationFigureBenchmark",
+            subject: container,
+            benchmark: index,
+          };
+        }
+        if (head === "overrides" && container !== undefined && index !== undefined) {
+          return {
+            kind: "calibrationOverridesEntryField",
+            index: Number(container),
+            field: index,
+          };
+        }
       }
       return { kind: "other" };
     case 5:
       if (inModelsRoutes) {
         return { field: field ?? "", kind: "routeField" };
       }
+      if (
+        section_ === "calibration" &&
+        head === "benchmarks" &&
+        container !== undefined &&
+        index === "bands" &&
+        field !== undefined
+      ) {
+        return { kind: "calibrationBand", benchmark: container, index: Number(field) };
+      }
       return { kind: "other" };
     case 6:
       if (inModelsRoutes && field === "capabilities") {
         return { kind: "routeCapabilityEntry" };
+      }
+      if (
+        section_ === "calibration" &&
+        head === "benchmarks" &&
+        container !== undefined &&
+        index === "bands" &&
+        field !== undefined &&
+        leaf !== undefined
+      ) {
+        return {
+          kind: "calibrationBandField",
+          benchmark: container,
+          index: Number(field),
+          field: leaf,
+        };
       }
       return { kind: "other" };
     default:
@@ -283,6 +362,7 @@ function ownedProblem(root: unknown, error: ErrorObject): RegistryProblem {
     case "type":
     case "minimum":
     case "maximum":
+    case "minLength":
       return typeProblem(location, path) ?? genericProblem(path, error.message);
     default:
       return genericProblem(path, error.message);
@@ -331,8 +411,69 @@ function requiredProblem(location: OwnedPath, path: string, error: ErrorObject):
         );
       }
       break;
+    case "calibrationBenchmark":
+      return benchmarkRequiredProblem(path, missing);
+    case "calibrationBand":
+      return bandRequiredProblem(path, missing);
+    case "calibrationFigureBenchmark":
+      return figureRequiredProblem(path, missing);
+    case "calibrationOverridesEntry":
+      return overrideRequiredProblem(path, missing);
   }
   return genericProblem(path, error.message);
+}
+
+function benchmarkRequiredProblem(path: string, missing: string): RegistryProblem {
+  const fieldFixes: Record<string, string> = {
+    source: 'Add a "source" string naming the upstream.',
+    field: 'Add a "field" string naming the benchmark column.',
+    version: 'Add a "version" string for the table version.',
+    direction: 'Add a "direction" of "higher" or "lower".',
+    bands: 'Add a "bands" array of {at, score} bands.',
+  };
+  return invalidProblem(
+    childPath(path, missing),
+    `the benchmark is missing the required field "${missing}"`,
+    fieldFixes[missing] ?? `Add a "${missing}" entry.`,
+  );
+}
+
+function bandRequiredProblem(path: string, missing: string): RegistryProblem {
+  return invalidProblem(
+    childPath(path, missing),
+    `the band is missing the required field "${missing}"`,
+    missing === "at"
+      ? 'Add an "at" number for the figure value at this band.'
+      : 'Add a "score" integer from 1 to 10.',
+  );
+}
+
+function figureRequiredProblem(path: string, missing: string): RegistryProblem {
+  const fixes: Record<string, string> = {
+    value: 'Add a "value" number for the figure.',
+    read: 'Add a "read" string naming the date read.',
+    effort: 'Add an "effort" ladder level for the figure.',
+  };
+  return invalidProblem(
+    childPath(path, missing),
+    `the figure is missing the required field "${missing}"`,
+    fixes[missing] ?? `Add a "${missing}" entry.`,
+  );
+}
+
+function overrideRequiredProblem(path: string, missing: string): RegistryProblem {
+  const fixes: Record<string, string> = {
+    rating: 'Add a "rating" string naming the rating to override.',
+    model: 'Add a "model" key for the model whose rating is being overridden.',
+    route: 'Add a "route" label for the route whose cost is being overridden.',
+    value: 'Add a "value" integer from 1 to 10.',
+    reason: 'Add a non-empty "reason" string.',
+  };
+  return invalidProblem(
+    childPath(path, missing),
+    `the override is missing the required field "${missing}"`,
+    fixes[missing] ?? `Add a "${missing}" entry.`,
+  );
 }
 
 function additionalPropertyProblem(
@@ -351,6 +492,16 @@ function additionalPropertyProblem(
       return unknownFieldProblem(path, name, "model");
     case "route":
       return unknownFieldProblem(path, name, "route");
+    case "calibration":
+      return unknownFieldProblem(path, name, "calibration");
+    case "calibrationBenchmark":
+      return unknownFieldProblem(path, name, "benchmark");
+    case "calibrationBand":
+      return unknownFieldProblem(path, name, "band");
+    case "calibrationFigureBenchmark":
+      return unknownFieldProblem(path, name, "figure");
+    case "calibrationOverridesEntry":
+      return unknownFieldProblem(path, name, "override");
   }
   return genericProblem(path, error.message);
 }
@@ -364,6 +515,13 @@ function enumProblem(location: OwnedPath, path: string, error: ErrorObject): Reg
       path,
       `the field "${location.field}" must be one of ${EFFORT_LADDER_VALUES}`,
       `Set "${location.field}" to one of ${EFFORT_LADDER_VALUES}.`,
+    );
+  }
+  if (location.kind === "calibrationBenchmarkField" && location.field === "direction") {
+    return invalidProblem(
+      path,
+      `the benchmark direction must be "higher" or "lower"`,
+      `Set "direction" to "higher" or "lower".`,
     );
   }
   return genericProblem(path, error.message);
@@ -407,6 +565,12 @@ function typeProblem(location: OwnedPath, path: string): RegistryProblem | undef
             path,
             'the field "meters" must be a JSON object keyed by meter name',
             "Replace meters with a JSON object keyed by meter name.",
+          );
+        case "calibration":
+          return invalidProblem(
+            path,
+            'the field "calibration" must be a JSON object',
+            "Replace calibration with a JSON object.",
           );
       }
       return undefined;
@@ -541,27 +705,132 @@ function typeProblem(location: OwnedPath, path: string): RegistryProblem | undef
         "a route capability entry must be a string",
         "Set the entry to a capability name declared in the capabilities section, or remove the entry.",
       );
+    case "calibration":
+      return invalidProblem(
+        path,
+        "the calibration section must be a JSON object",
+        "Replace calibration with a JSON object.",
+      );
+    case "calibrationBenchmark":
+      return invalidProblem(
+        path,
+        `the benchmark "${location.benchmark}" must be a JSON object`,
+        "Replace the benchmark with a JSON object.",
+      );
+    case "calibrationBenchmarkField":
+      switch (location.field) {
+        case "source":
+        case "field":
+        case "version":
+          return invalidProblem(
+            path,
+            `the benchmark field "${location.field}" must be a string`,
+            `Set "${location.field}" to a string.`,
+          );
+        case "direction":
+          return invalidProblem(
+            path,
+            'the benchmark field "direction" must be "higher" or "lower"',
+            'Set "direction" to "higher" or "lower".',
+          );
+        case "bands":
+          return invalidProblem(
+            path,
+            "the benchmark bands field must be an array",
+            "Set bands to an array of {at, score} objects.",
+          );
+        case "notes":
+          return invalidProblem(
+            path,
+            'the benchmark field "notes" must be a string',
+            'Set "notes" to a string, or remove it.',
+          );
+      }
+      return undefined;
+    case "calibrationBand":
+      return invalidProblem(
+        path,
+        "a band must be a JSON object",
+        "Replace the band with a JSON object.",
+      );
+    case "calibrationBandField":
+      if (location.field === "at") {
+        return invalidProblem(
+          path,
+          'the band field "at" must be a number',
+          'Set "at" to a finite number.',
+        );
+      }
+      if (location.field === "score") {
+        return invalidProblem(
+          path,
+          'the band field "score" must be an integer from 1 to 10',
+          'Set "score" to an integer from 1 to 10.',
+        );
+      }
+      return undefined;
+    case "calibrationFeeds":
+      return invalidProblem(
+        path,
+        `the calibration feeds entry for "${location.rating}" must be an array of benchmark names`,
+        "Set the feeds entry to an array of benchmark names declared in calibration.benchmarks.",
+      );
+    case "calibrationFeedsEntry":
+      return invalidProblem(
+        path,
+        "a feeds benchmark entry must be a string",
+        "Set the entry to a benchmark name declared in calibration.benchmarks.",
+      );
+    case "calibrationFigureSubject":
+      return invalidProblem(
+        path,
+        `the figures entry for "${location.benchmark}" must be a JSON object`,
+        "Replace the figures entry with a JSON object keyed by benchmark name.",
+      );
+    case "calibrationFigureBenchmark":
+      return invalidProblem(
+        path,
+        `the figure for "${location.benchmark}" on "${location.subject}" must be a JSON object`,
+        "Replace the figure with a JSON object with value, read and effort.",
+      );
+    case "calibrationHandSetEntry":
+      return invalidProblem(
+        path,
+        "a handSet entry must be a string",
+        "Set the entry to a rating name.",
+      );
+    case "calibrationOverridesEntry":
+      return invalidProblem(
+        path,
+        "an override entry must be a JSON object",
+        "Replace the override with a JSON object.",
+      );
+    case "calibrationOverridesEntryField":
+      switch (location.field) {
+        case "rating":
+        case "model":
+        case "route":
+          return invalidProblem(
+            path,
+            `the override field "${location.field}" must be a string`,
+            `Set "${location.field}" to a string.`,
+          );
+        case "value":
+          return invalidProblem(
+            path,
+            'the override field "value" must be an integer from 1 to 10',
+            'Set "value" to an integer from 1 to 10.',
+          );
+        case "reason":
+          return invalidProblem(
+            path,
+            'the override field "reason" must be a non-empty string',
+            'Set "reason" to a non-empty string.',
+          );
+      }
+      return undefined;
     default:
       return undefined;
-  }
-}
-
-/**
- * Foreign sections are validated by the recursive jsonValue definition, and
- * Ajv reports the failing branch at every ancestor level, so only the deepest
- * anyOf error of each branch points at the offending value itself.
- */
-function deferredFieldProblems(
-  root: unknown,
-  errors: readonly ErrorObject[],
-  push: (problem: RegistryProblem) => void,
-): void {
-  for (const error of errors) {
-    if (error.keyword !== "false schema") {
-      continue;
-    }
-    const segments = pointerSegments(error.instancePath);
-    push(deferredProblem(walkSegments(root, segments).path, segments.at(-1) ?? ""));
   }
 }
 
@@ -575,8 +844,6 @@ function curateProblems(root: unknown, errors: readonly ErrorObject[]): Registry
       problems.push(problem);
     }
   };
-
-  deferredFieldProblems(root, errors, push);
 
   const foreignPointers = new Set<string>();
   for (const error of errors) {
@@ -625,11 +892,7 @@ function curateProblems(root: unknown, errors: readonly ErrorObject[]): Registry
   }
 
   for (const error of errors) {
-    if (
-      error.keyword === "anyOf" ||
-      error.keyword === "false schema" ||
-      !pointerIsOwned(error.instancePath)
-    ) {
+    if (error.keyword === "anyOf" || !pointerIsOwned(error.instancePath)) {
       continue;
     }
     push(ownedProblem(root, error));
@@ -714,11 +977,53 @@ function declaredNames(section: unknown): ReadonlySet<string> | undefined {
 }
 
 /**
- * Check every reference the models section makes: model ratings against
- * ratings, route capabilities against capabilities and route meters against
- * meters. The check runs on every load, including files whose shape already
- * failed, so it reads only what it can verify itself; one problem fires per
- * bad reference and the field is the JSONPath of the reference.
+ * The declared benchmark names from calibration.benchmarks. Returns undefined
+ * when the calibration section is absent or shaped wrongly (already a shape
+ * problem), and the empty set on a `calibration` object with no benchmarks.
+ */
+function declaredBenchmarks(calibration: unknown): ReadonlySet<string> | undefined {
+  if (calibration === undefined) {
+    return new Set<string>();
+  }
+  if (!isPlainObject(calibration)) {
+    return undefined;
+  }
+  const benchmarks = calibration.benchmarks;
+  if (benchmarks === undefined) {
+    return new Set<string>();
+  }
+  if (!isPlainObject(benchmarks)) {
+    return undefined;
+  }
+  return new Set(Object.keys(benchmarks));
+}
+
+/**
+ * The set of route labels the models section actually produces, including
+ * labels from routes whose other facts are invalid. The check uses this set
+ * to flag a figure or override that names a route the file never declared.
+ */
+function knownRouteLabels(root: Record<string, unknown>): ReadonlySet<string> {
+  const labels = new Set<string>();
+  forEachRoute(root, ({ modelKey, route }) => {
+    if (typeof route.harness !== "string") {
+      return;
+    }
+    if (Object.hasOwn(route, "provider") && typeof route.provider !== "string") {
+      return;
+    }
+    labels.add(buildRouteLabel(modelKey, route as Pick<Route, "harness" | "provider">));
+  });
+  return labels;
+}
+
+/**
+ * Check every reference the models and calibration sections carry. The check
+ * runs on every load, including files whose shape already failed, so it
+ * reads only what it can verify itself; one problem fires per bad
+ * reference and the field is the JSONPath of the reference. A malformed
+ * declaration section skips only the checks that read it, so a target
+ * problem is still collected beside the section's shape problem.
  */
 function collectReferenceProblems(
   root: Record<string, unknown>,
@@ -727,27 +1032,31 @@ function collectReferenceProblems(
   const declaredRatings = declaredNames(root.ratings);
   const declaredCapabilities = declaredNames(root.capabilities);
   const declaredMeters = declaredNames(root.meters);
+  const benchmarks = declaredBenchmarks(root.calibration);
 
   const models = root.models;
-  if (!isPlainObject(models)) {
-    return;
-  }
-  for (const [modelKey, modelValue] of Object.entries(models)) {
-    if (!isPlainObject(modelValue)) {
-      continue;
-    }
-    const modelPath = childPath("$", "models", modelKey);
+  // Model and route references are verified only when the models section is
+  // readable; the override target checks read nothing but their own entry.
+  const declaredModelKeys = isPlainObject(models) ? new Set(Object.keys(models)) : undefined;
+  const routeLabels = isPlainObject(models) ? knownRouteLabels(root) : undefined;
+  if (isPlainObject(models)) {
+    for (const [modelKey, modelValue] of Object.entries(models)) {
+      if (!isPlainObject(modelValue)) {
+        continue;
+      }
+      const modelPath = childPath("$", "models", modelKey);
 
-    if (declaredRatings !== undefined && isPlainObject(modelValue.ratings)) {
-      for (const rating of Object.keys(modelValue.ratings)) {
-        if (!declaredRatings.has(rating)) {
-          problems.push(
-            referenceUnknownProblem({
-              field: childPath(modelPath, "ratings", rating),
-              kind: "rating",
-              name: rating,
-            }),
-          );
+      if (declaredRatings !== undefined && isPlainObject(modelValue.ratings)) {
+        for (const rating of Object.keys(modelValue.ratings)) {
+          if (!declaredRatings.has(rating)) {
+            problems.push(
+              referenceUnknownProblem({
+                field: childPath(modelPath, "ratings", rating),
+                kind: "rating",
+                name: rating,
+              }),
+            );
+          }
         }
       }
     }
@@ -783,6 +1092,139 @@ function collectReferenceProblems(
       );
     }
   });
+
+  if (!isPlainObject(root.calibration)) {
+    return;
+  }
+  const calibration = root.calibration;
+
+  // The feeds check reads both declared ratings and declared benchmarks, so
+  // it skips when either section is unreadable; the checks below read less.
+  if (
+    declaredRatings !== undefined &&
+    benchmarks !== undefined &&
+    isPlainObject(calibration.feeds)
+  ) {
+    for (const [rating, feed] of Object.entries(calibration.feeds)) {
+      if (rating !== ROUTE_RATING_NAME && !declaredRatings.has(rating)) {
+        problems.push(
+          referenceUnknownProblem({
+            field: childPath("$", "calibration", "feeds", rating),
+            kind: "rating",
+            name: rating,
+          }),
+        );
+        continue;
+      }
+      if (!Array.isArray(feed)) {
+        continue;
+      }
+      feed.forEach((benchmarkName, benchmarkIndex) => {
+        if (typeof benchmarkName !== "string" || benchmarks.has(benchmarkName)) {
+          return;
+        }
+        problems.push(
+          referenceUnknownProblem({
+            field: childPath("$", "calibration", "feeds", rating, benchmarkIndex),
+            kind: "benchmark",
+            name: benchmarkName,
+          }),
+        );
+      });
+    }
+  }
+
+  if (declaredRatings !== undefined && Array.isArray(calibration.handSet)) {
+    calibration.handSet.forEach((rating, index) => {
+      if (typeof rating !== "string") {
+        return;
+      }
+      // "cost" in handSet targets route.cost; every other name must be
+      // declared in ratings.
+      if (rating !== ROUTE_RATING_NAME && !declaredRatings.has(rating)) {
+        problems.push(
+          referenceUnknownProblem({
+            field: childPath("$", "calibration", "handSet", index),
+            kind: "rating",
+            name: rating,
+          }),
+        );
+      }
+    });
+  }
+
+  if (Array.isArray(calibration.overrides)) {
+    calibration.overrides.forEach((overrideValue, index) => {
+      if (!isPlainObject(overrideValue)) {
+        return;
+      }
+      const entryPath = childPath("$", "calibration", "overrides", index);
+      if (declaredRatings !== undefined && typeof overrideValue.rating === "string") {
+        if (
+          overrideValue.rating !== ROUTE_RATING_NAME &&
+          !declaredRatings.has(overrideValue.rating)
+        ) {
+          problems.push(
+            referenceUnknownProblem({
+              field: childPath(entryPath, "rating"),
+              kind: "rating",
+              name: overrideValue.rating,
+            }),
+          );
+        }
+      }
+      if (declaredModelKeys !== undefined && typeof overrideValue.model === "string") {
+        if (!declaredModelKeys.has(overrideValue.model)) {
+          problems.push(
+            referenceUnknownProblem({
+              field: childPath(entryPath, "model"),
+              kind: "model",
+              name: overrideValue.model,
+            }),
+          );
+        }
+      }
+      if (routeLabels !== undefined && typeof overrideValue.route === "string") {
+        if (!routeLabels.has(overrideValue.route)) {
+          problems.push(
+            referenceUnknownProblem({
+              field: childPath(entryPath, "route"),
+              kind: "route",
+              name: overrideValue.route,
+            }),
+          );
+        }
+      }
+      // The target must match its rating: cost in overrides targets
+      // route.cost by route label, and every other rating is a model rating.
+      if (overrideValue.rating === ROUTE_RATING_NAME && typeof overrideValue.model === "string") {
+        problems.push(
+          invalidProblem(
+            childPath(entryPath, "model"),
+            `the rating "cost" is reserved for route costs, so its override must name a route, not the model "${overrideValue.model}"`,
+            'Remove the "model" field and set "route" to the label of the route whose cost is overridden.',
+          ),
+        );
+      }
+      if (
+        typeof overrideValue.rating === "string" &&
+        overrideValue.rating !== ROUTE_RATING_NAME &&
+        typeof overrideValue.route === "string"
+      ) {
+        problems.push(
+          invalidProblem(
+            childPath(entryPath, "route"),
+            `the rating "${overrideValue.rating}" is a model rating, so its override must name a model, not the route "${overrideValue.route}"`,
+            'Remove the "route" field and set "model" to the key of the model whose rating is overridden.',
+          ),
+        );
+      }
+    });
+  }
+
+  // Figures may name models or routes the file does not declare; the schema
+  // still checks their shape, and the rating check skips whatever subject it
+  // cannot key. No reference check runs on them.
 }
 
 function buildRoutes(
@@ -790,6 +1232,9 @@ function buildRoutes(
   routes: Record<RouteLabel, IndexedRoute>,
 ): void {
   for (const [modelKey, model] of Object.entries(models)) {
+    if (!Array.isArray(model.routes)) {
+      continue;
+    }
     for (const route of model.routes) {
       safeSet(routes, buildRouteLabel(modelKey, route), { model: modelKey, ...route });
     }
@@ -858,14 +1303,38 @@ export function validateRegistry(
   collectLabelProblems(root, problems);
   collectReferenceProblems(root, problems);
 
+  // Rating check: whenever the file states a calibration section. Each part
+  // guards locally, so a readable mismatch is reported beside unrelated
+  // problems, and a malformed band, figure or override skips only what
+  // depends on it.
+  if (Object.hasOwn(root, "calibration")) {
+    problems.push(
+      ...collectRatingMismatchProblems({
+        models: root.models,
+        calibration: root.calibration,
+      }),
+    );
+  }
+
+  // The collected problems are returned before the typed index is built, so
+  // index construction never dereferences a value the schema rejected.
   const [firstProblem, ...moreProblems] = problems;
   if (firstProblem !== undefined) {
     return { ok: false, problems: [firstProblem, ...moreProblems] };
   }
 
+  // Build the typed index: sections stays foreign-only, calibration joins the
+  // registry result after meters (RFC section order).
   const index: RegistryIndex = { registry: { models: {} }, routes: {}, sections: {} };
   for (const [key, value] of Object.entries(root)) {
-    if (key === "format" || key === "models" || isDeclarationSection(key)) {
+    if (
+      key === "format" ||
+      key === "models" ||
+      key === "ratings" ||
+      key === "capabilities" ||
+      key === "meters" ||
+      key === "calibration"
+    ) {
       continue;
     }
     safeSet(index.sections, key, value as JsonValue);
@@ -874,12 +1343,24 @@ export function validateRegistry(
   // section already has its declared shape.
   const models = root.models as Record<string, Model>;
   const registry: RegistryFacts = { models };
-  for (const section of DECLARATION_SECTIONS) {
-    if (Object.hasOwn(root, section)) {
-      safeSet(registry, section, root[section]);
-    }
+  if (Object.hasOwn(root, "ratings")) {
+    safeSet(registry, "ratings", root.ratings as Readonly<Record<string, string>>);
+  }
+  if (Object.hasOwn(root, "capabilities")) {
+    safeSet(registry, "capabilities", root.capabilities as Readonly<Record<string, string>>);
+  }
+  if (Object.hasOwn(root, "meters")) {
+    safeSet(registry, "meters", root.meters as Readonly<Record<string, Meter>>);
+  }
+  if (Object.hasOwn(root, "calibration")) {
+    // The schema validated the section whenever this index is returned, so
+    // the raw JSON satisfies Calibration's shape.
+    safeSet(registry, "calibration", root.calibration as Calibration);
   }
   index.registry = registry;
-  buildRoutes(models, index.routes);
+  if (isPlainObject(root.models)) {
+    buildRoutes(models, index.routes);
+  }
+
   return { ok: true, index };
 }
