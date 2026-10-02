@@ -79,16 +79,20 @@ function computedRating(
   subject: string,
   rating: string,
 ): RatingValue | undefined {
-  const feed = calibration.feeds?.[rating];
+  const feed = ownedFeed(calibration, rating);
   if (feed === undefined) {
     return undefined;
   }
   const scores: RatingValue[] = [];
   for (const benchmarkName of feed) {
-    // The reference check already failed any feeds entry naming an
-    // undeclared benchmark, so the lookup always hits.
-    const benchmark = calibration.benchmarks?.[benchmarkName] as Benchmark;
-    const figure = calibration.figures?.[subject]?.[benchmarkName];
+    const benchmark = ownedBenchmark(calibration, benchmarkName);
+    if (benchmark === undefined) {
+      // The reference check failed any feeds entry naming a benchmark the
+      // file does not declare; the lookup must miss it, including a name
+      // that hits an inherited property.
+      continue;
+    }
+    const figure = ownedFigure(calibration, subject, benchmarkName);
     if (figure === undefined) {
       continue;
     }
@@ -98,6 +102,37 @@ function computedRating(
     }
   }
   return combineScores(scores);
+}
+
+/** The feed one rating owns. An inherited key such as toString is not a feed. */
+function ownedFeed(calibration: Calibration, rating: string): readonly string[] | undefined {
+  const feeds = calibration.feeds;
+  if (feeds === undefined || !Object.hasOwn(feeds, rating)) {
+    return undefined;
+  }
+  return feeds[rating];
+}
+
+/** One declared benchmark. An inherited key is not a benchmark. */
+function ownedBenchmark(calibration: Calibration, name: string): Benchmark | undefined {
+  const benchmarks = calibration.benchmarks;
+  if (benchmarks === undefined || !Object.hasOwn(benchmarks, name)) {
+    return undefined;
+  }
+  return benchmarks[name];
+}
+
+/** One figure a subject owns for one benchmark. Inherited keys are not figures. */
+function ownedFigure(calibration: Calibration, subject: string, name: string): Figure | undefined {
+  const figures = calibration.figures;
+  if (figures === undefined || !Object.hasOwn(figures, subject)) {
+    return undefined;
+  }
+  const byBenchmark = figures[subject];
+  if (byBenchmark === undefined || !Object.hasOwn(byBenchmark, name)) {
+    return undefined;
+  }
+  return byBenchmark[name];
 }
 
 function tableText(computed: RatingValue | undefined): string {
@@ -184,7 +219,7 @@ export function collectRatingMismatchProblems(input: RatingCheckInput): Registry
     for (const [rating, written] of Object.entries(model.ratings ?? {})) {
       // Only ratings in feeds are checked; a rating the file does not feed
       // states no computed basis, so its written value is never compared.
-      if (calibration.feeds?.[rating] === undefined) {
+      if (ownedFeed(calibration, rating) === undefined) {
         continue;
       }
       // handSet ratings are written by hand and need no table and no override.
@@ -201,7 +236,7 @@ export function collectRatingMismatchProblems(input: RatingCheckInput): Registry
   // Route cost. handSet naming the reserved rating exempts every written
   // cost; otherwise each written cost must be computed or overridden, and the
   // cost is compared only when a feed claims it.
-  if (calibration.feeds?.[ROUTE_RATING_NAME] !== undefined && !handSet.has(ROUTE_RATING_NAME)) {
+  if (ownedFeed(calibration, ROUTE_RATING_NAME) !== undefined && !handSet.has(ROUTE_RATING_NAME)) {
     for (const [modelKey, model] of Object.entries(models)) {
       model.routes.forEach((route, routeIndex) => {
         const written = route.cost;

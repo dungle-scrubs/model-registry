@@ -1321,6 +1321,51 @@ describe("calibration rating check", () => {
     });
   });
 
+  test("a rating named toString with empty feeds does not throw", async () => {
+    await withTempDir(async (dir) => {
+      // An inherited property such as Object.prototype.toString must not read
+      // as a feed: the rating is unfed and never compared.
+      const path = writeJson(dir, "prototype-feed.json", {
+        format: 1,
+        ratings: { toString: "Subjective fit." },
+        models: {
+          "model-a": {
+            family: "family-a",
+            ratings: { toString: 9 },
+            routes: [{ harness: "harness-x", modelId: "model-id-a", hosted: false }],
+          },
+        },
+        calibration: {
+          benchmarks: { "index-a": indexA },
+          feeds: {},
+          figures: { "model-a": { "index-a": figure(42) } },
+        },
+      });
+      expect(() => loadRegistry({ path })).not.toThrow();
+    });
+  });
+
+  test("a feeds entry naming an inherited property does not throw", async () => {
+    await withTempDir(async (dir) => {
+      // The benchmark lookup must miss an inherited key rather than score
+      // against it; the entry is also an unknown benchmark reference.
+      const path = writeJson(
+        dir,
+        "prototype-benchmark.json",
+        withIntelligenceRegistry(
+          {
+            benchmarks: { "index-a": indexA },
+            feeds: { intelligence: ["toString"] },
+            figures: { "model-a": { "index-a": figure(52.1) } },
+          },
+          9,
+        ),
+      );
+      const error = catchRegistryError(() => loadRegistry({ path }));
+      expect(error.code).toBe("reference-unknown");
+    });
+  });
+
   test("a file with other problems reports them without the rating check on top", async () => {
     await withTempDir(async (dir) => {
       const path = writeJson(
