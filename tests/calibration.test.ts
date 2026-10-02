@@ -1200,6 +1200,72 @@ describe("calibration rating check", () => {
     });
   });
 
+  test("an override the schema would reject does not excuse a readable mismatch", async () => {
+    await withTempDir(async (dir) => {
+      // The empty feed gives the table no value, so the written 7 stands
+      // only by override; an override with an empty reason is not a usable
+      // one, so the mismatch is reported beside the shape problem.
+      const emptyReason = writeJson(
+        dir,
+        "override-empty-reason.json",
+        withIntelligenceRegistry(
+          {
+            benchmarks: { "index-a": indexA },
+            feeds: { intelligence: [] },
+            overrides: [{ rating: "intelligence", model: "model-a", value: 7, reason: "" }],
+          },
+          7,
+        ),
+      );
+      const emptyReasonError = catchRegistryError(() => loadRegistry({ path: emptyReason }));
+      expect(
+        emptyReasonError.problems.some(
+          (problem) =>
+            problem.code === "registry-invalid" &&
+            problem.field === '$["calibration"]["overrides"][0]["reason"]',
+        ),
+      ).toBe(true);
+      expect(
+        emptyReasonError.problems.some(
+          (problem) =>
+            problem.code === "rating-mismatch" &&
+            problem.field === '$["models"]["model-a"]["ratings"]["intelligence"]',
+        ),
+      ).toBe(true);
+
+      // An override naming both a model and a route is equally unusable.
+      const bothTargets = writeJson(
+        dir,
+        "override-both-targets.json",
+        withIntelligenceRegistry(
+          {
+            benchmarks: { "index-a": indexA },
+            feeds: { intelligence: [] },
+            overrides: [
+              {
+                rating: "intelligence",
+                model: "model-a",
+                route: "model-a@harness-x",
+                value: 7,
+                reason: "both",
+              },
+            ],
+          },
+          7,
+        ),
+      );
+      const bothError = catchRegistryError(() => loadRegistry({ path: bothTargets }));
+      expect(bothError.code).toBe("registry-invalid");
+      expect(
+        bothError.problems.some(
+          (problem) =>
+            problem.code === "rating-mismatch" &&
+            problem.field === '$["models"]["model-a"]["ratings"]["intelligence"]',
+        ),
+      ).toBe(true);
+    });
+  });
+
   test("a rating fed by several benchmarks is the floor of the mean of their scores", async () => {
     await withTempDir(async (dir) => {
       const calibration = {

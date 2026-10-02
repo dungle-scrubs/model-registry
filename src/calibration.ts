@@ -62,9 +62,13 @@ export function combineScores(scores: readonly RatingValue[]): RatingValue | und
 
 /**
  * Whether any override for one rating on one model or route carries exactly
- * the written value. Any matching override allows it: duplicates have no
- * order rule, and an override whose value differs never fails a value the
- * table computes. A malformed override entry matches nothing.
+ * the written value. Only a well-formed override counts, with the schema's
+ * shape: a non-empty reason, exactly one target, and the target the rating
+ * names (a route for the reserved cost rating, a model otherwise). A
+ * malformed override matches nothing, so the readable mismatch is reported
+ * beside its shape problem. Any matching override allows the value:
+ * duplicates have no order rule, and an override whose value differs never
+ * fails a value the table computes.
  */
 function allowsValue(
   overrides: readonly unknown[],
@@ -79,13 +83,18 @@ function allowsValue(
     if (candidate.rating !== rating || candidate.value !== written) {
       return false;
     }
-    if (typeof candidate.model === "string") {
-      return "model" in target && candidate.model === target.model;
+    if (typeof candidate.reason !== "string" || candidate.reason.length === 0) {
+      return false;
     }
-    if (typeof candidate.route === "string") {
-      return !("model" in target) && candidate.route === target.route;
+    const hasModel = typeof candidate.model === "string";
+    const hasRoute = typeof candidate.route === "string";
+    if (hasModel === hasRoute) {
+      return false;
     }
-    return false;
+    if (rating === ROUTE_RATING_NAME) {
+      return hasRoute && "route" in target && candidate.route === target.route;
+    }
+    return hasModel && "model" in target && candidate.model === target.model;
   });
 }
 
