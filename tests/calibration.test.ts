@@ -232,11 +232,12 @@ describe("calibration shape", () => {
       });
       const error = catchRegistryError(() => loadRegistry({ path }));
       expect(error.code).toBe("registry-invalid");
-      expect(
-        error.problems.some(
-          (problem) => problem.field === '$["calibration"]["benchmarks"]["index-a"]["direction"]',
-        ),
-      ).toBe(true);
+      const problem = error.problems.find(
+        (candidate) => candidate.field === '$["calibration"]["benchmarks"]["index-a"]["direction"]',
+      );
+      expect(problem).toBeDefined();
+      expect(problem?.message).toContain('the benchmark direction must be "higher" or "lower"');
+      expect(problem?.fix).toContain('Set "direction" to "higher" or "lower".');
     });
   });
 
@@ -313,12 +314,14 @@ describe("calibration shape", () => {
       fault: (calibration: MutableCalibration) => void;
       field: string;
       message: string;
+      fix: string;
     }> = [
       {
         name: "calibration is not an object",
         fault: () => undefined,
         field: '$["calibration"]',
         message: "the calibration section must be a JSON object",
+        fix: "Replace calibration with a JSON object.",
       },
       {
         name: "benchmark is not an object",
@@ -327,6 +330,7 @@ describe("calibration shape", () => {
         },
         field: '$["calibration"]["benchmarks"]["index-a"]',
         message: 'the benchmark "index-a" must be a JSON object',
+        fix: "Replace the benchmark with a JSON object.",
       },
       {
         name: "benchmark misses source",
@@ -337,6 +341,7 @@ describe("calibration shape", () => {
         },
         field: '$["calibration"]["benchmarks"]["index-a"]["source"]',
         message: 'the benchmark is missing the required field "source"',
+        fix: 'Add a "source" string naming the upstream.',
       },
       {
         name: "benchmark field is not a string",
@@ -347,6 +352,7 @@ describe("calibration shape", () => {
         },
         field: '$["calibration"]["benchmarks"]["index-a"]["version"]',
         message: 'the benchmark field "version" must be a string',
+        fix: 'Set "version" to a string.',
       },
       {
         name: "benchmark bands is not an array",
@@ -357,6 +363,7 @@ describe("calibration shape", () => {
         },
         field: '$["calibration"]["benchmarks"]["index-a"]["bands"]',
         message: "the benchmark bands field must be a non-empty array",
+        fix: "Set bands to a non-empty array of {at, score} objects.",
       },
       {
         name: "benchmark notes is not a string",
@@ -367,6 +374,7 @@ describe("calibration shape", () => {
         },
         field: '$["calibration"]["benchmarks"]["index-a"]["notes"]',
         message: 'the benchmark field "notes" must be a string',
+        fix: 'Set "notes" to a string, or remove it.',
       },
       {
         name: "band is not an object",
@@ -377,6 +385,7 @@ describe("calibration shape", () => {
         },
         field: '$["calibration"]["benchmarks"]["index-a"]["bands"][0]',
         message: "a band must be a JSON object",
+        fix: "Replace the band with a JSON object.",
       },
       {
         name: "band misses at",
@@ -387,6 +396,7 @@ describe("calibration shape", () => {
         },
         field: '$["calibration"]["benchmarks"]["index-a"]["bands"][0]["at"]',
         message: 'the band is missing the required field "at"',
+        fix: 'Add an "at" number for the figure value at this band.',
       },
       {
         name: "band score is out of range",
@@ -397,6 +407,7 @@ describe("calibration shape", () => {
         },
         field: '$["calibration"]["benchmarks"]["index-a"]["bands"][0]["score"]',
         message: 'the band field "score" must be an integer from 1 to 10',
+        fix: 'Set "score" to an integer from 1 to 10.',
       },
       {
         name: "feeds entry is not an array",
@@ -405,6 +416,7 @@ describe("calibration shape", () => {
         },
         field: '$["calibration"]["feeds"]["intelligence"]',
         message: 'the calibration feeds entry for "intelligence" must be a non-empty array',
+        fix: "Set the feeds entry to a non-empty array of benchmark names declared in calibration.benchmarks.",
       },
       {
         name: "feeds entry item is not a string",
@@ -413,6 +425,7 @@ describe("calibration shape", () => {
         },
         field: '$["calibration"]["feeds"]["intelligence"][0]',
         message: "a feeds benchmark entry must be a string",
+        fix: "Set the entry to a benchmark name declared in calibration.benchmarks.",
       },
       {
         name: "figures subject is not an object",
@@ -421,6 +434,7 @@ describe("calibration shape", () => {
         },
         field: '$["calibration"]["figures"]["model-a"]',
         message: 'the figures entry for "model-a" must be a JSON object',
+        fix: "Replace the figures entry with a JSON object keyed by benchmark name.",
       },
       {
         name: "figure is not an object",
@@ -429,6 +443,7 @@ describe("calibration shape", () => {
         },
         field: '$["calibration"]["figures"]["model-a"]["index-a"]',
         message: 'the figure for "index-a" on "model-a" must be a JSON object',
+        fix: "Replace the figure with a JSON object with value, read and effort.",
       },
       {
         name: "figure misses value",
@@ -437,6 +452,7 @@ describe("calibration shape", () => {
         },
         field: '$["calibration"]["figures"]["model-a"]["index-a"]["value"]',
         message: 'the figure is missing the required field "value"',
+        fix: 'Add a "value" number for the figure.',
       },
       {
         name: "handSet entry is not a string",
@@ -445,6 +461,7 @@ describe("calibration shape", () => {
         },
         field: '$["calibration"]["handSet"][0]',
         message: "a handSet entry must be a string",
+        fix: "Set the entry to a rating name.",
       },
       {
         name: "override entry is not an object",
@@ -453,6 +470,7 @@ describe("calibration shape", () => {
         },
         field: '$["calibration"]["overrides"][0]',
         message: "an override entry must be a JSON object",
+        fix: "Replace the override with a JSON object.",
       },
       {
         name: "override misses reason",
@@ -461,6 +479,7 @@ describe("calibration shape", () => {
         },
         field: '$["calibration"]["overrides"][0]["reason"]',
         message: 'the override is missing the required field "reason"',
+        fix: 'Add a non-empty "reason" string.',
       },
       {
         name: "override route is not a string",
@@ -469,6 +488,91 @@ describe("calibration shape", () => {
         },
         field: '$["calibration"]["overrides"][0]["route"]',
         message: 'the override field "route" must be a string',
+        fix: 'Set "route" to a string.',
+      },
+      {
+        name: "benchmark misses direction",
+        fault: (c) => {
+          const b = { ...(c.benchmarks["index-a"] as Record<string, unknown>) };
+          delete b.direction;
+          c.benchmarks = { "index-a": b };
+        },
+        field: '$["calibration"]["benchmarks"]["index-a"]["direction"]',
+        message: 'the benchmark is missing the required field "direction"',
+        fix: 'Add a "direction" of "higher" or "lower".',
+      },
+      {
+        name: "benchmark misses bands",
+        fault: (c) => {
+          const b = { ...(c.benchmarks["index-a"] as Record<string, unknown>) };
+          delete b.bands;
+          c.benchmarks = { "index-a": b };
+        },
+        field: '$["calibration"]["benchmarks"]["index-a"]["bands"]',
+        message: 'the benchmark is missing the required field "bands"',
+        fix: "Add a bands array with at least one band.",
+      },
+      {
+        name: "band misses score",
+        fault: (c) => {
+          const b = { ...(c.benchmarks["index-a"] as Record<string, unknown>) };
+          b.bands = [{ at: 50 }];
+          c.benchmarks = { "index-a": b };
+        },
+        field: '$["calibration"]["benchmarks"]["index-a"]["bands"][0]["score"]',
+        message: 'the band is missing the required field "score"',
+        fix: 'Add a "score" integer from 1 to 10.',
+      },
+      {
+        name: "band at is not a number",
+        fault: (c) => {
+          const b = { ...(c.benchmarks["index-a"] as Record<string, unknown>) };
+          b.bands = [{ at: "50", score: 9 }];
+          c.benchmarks = { "index-a": b };
+        },
+        field: '$["calibration"]["benchmarks"]["index-a"]["bands"][0]["at"]',
+        message: 'the band field "at" must be a number',
+        fix: 'Set "at" to a finite number.',
+      },
+      {
+        name: "figure misses read",
+        fault: (c) => {
+          c.figures = { "model-a": { "index-a": { value: 52.1, effort: "high" } } };
+        },
+        field: '$["calibration"]["figures"]["model-a"]["index-a"]["read"]',
+        message: 'the figure is missing the required field "read"',
+        fix: 'Add a "read" string naming the date read.',
+      },
+      {
+        name: "override reason is empty",
+        fault: (c) => {
+          c.overrides = [
+            { rating: "cost", route: "model-a@harness-y/provider-1", value: 9, reason: "" },
+          ];
+        },
+        field: '$["calibration"]["overrides"][0]["reason"]',
+        message: 'the override field "reason" must be a non-empty string',
+        fix: 'Set "reason" to a non-empty string.',
+      },
+      {
+        name: "override misses rating",
+        fault: (c) => {
+          c.overrides = [{ route: "model-a@harness-y/provider-1", value: 9, reason: "x" }];
+        },
+        field: '$["calibration"]["overrides"][0]["rating"]',
+        message: 'the override is missing the required field "rating"',
+        fix: 'Add a "rating" string naming the rating to override.',
+      },
+      {
+        name: "override rating is not a string",
+        fault: (c) => {
+          c.overrides = [
+            { rating: 5, route: "model-a@harness-y/provider-1", value: 9, reason: "x" },
+          ];
+        },
+        field: '$["calibration"]["overrides"][0]["rating"]',
+        message: 'the override field "rating" must be a string',
+        fix: 'Set "rating" to a string.',
       },
       {
         name: "override value is not an integer in range",
@@ -479,6 +583,7 @@ describe("calibration shape", () => {
         },
         field: '$["calibration"]["overrides"][0]["value"]',
         message: 'the override field "value" must be an integer from 1 to 10',
+        fix: 'Set "value" to an integer from 1 to 10.',
       },
     ];
     await withTempDir(async (dir) => {
@@ -499,6 +604,7 @@ describe("calibration shape", () => {
         const problem = error.problems.find((candidate) => candidate.field === testCase.field);
         expect(problem, `${testCase.name}: field ${testCase.field}`).toBeDefined();
         expect(problem?.message, testCase.name).toContain(testCase.message);
+        expect(problem?.fix, testCase.name).toContain(testCase.fix);
       }
     });
   });
@@ -509,6 +615,7 @@ describe("calibration shape", () => {
       registry: Record<string, unknown>;
       field: string;
       message: string;
+      fix: string;
     }> = [
       {
         name: "route hosted is not a boolean",
@@ -523,6 +630,7 @@ describe("calibration shape", () => {
         },
         field: '$["models"]["model-a"]["routes"][0]["hosted"]',
         message: 'the field "hosted" must be a boolean',
+        fix: 'Set "hosted" to true or false.',
       },
       {
         name: "route cost is not an integer in range",
@@ -537,6 +645,7 @@ describe("calibration shape", () => {
         },
         field: '$["models"]["model-a"]["routes"][0]["cost"]',
         message: 'the field "cost" must be an integer from 1 to 10',
+        fix: 'Set "cost" to an integer from 1 (expensive) to 10 (cheap).',
       },
       {
         name: "model maxEffort is off the ladder",
@@ -552,6 +661,7 @@ describe("calibration shape", () => {
         },
         field: '$["models"]["model-a"]["maxEffort"]',
         message: 'the field "maxEffort" must be one of low, medium, high, xhigh, max',
+        fix: 'Set "maxEffort" to one of low, medium, high, xhigh, max.',
       },
       {
         name: "meter spendToZero is not the literal true",
@@ -561,6 +671,7 @@ describe("calibration shape", () => {
         },
         field: '$["meters"]["plan-a"]["spendToZero"]',
         message: "accepts only the literal true",
+        fix: 'Set "spendToZero" to true, or remove it.',
       },
       {
         name: "meter notes is not a string",
@@ -570,6 +681,7 @@ describe("calibration shape", () => {
         },
         field: '$["meters"]["plan-a"]["notes"]',
         message: 'field "notes" must be a string',
+        fix: 'Set the meter "plan-a" notes to a string, or remove it.',
       },
     ];
     await withTempDir(async (dir) => {
@@ -580,6 +692,7 @@ describe("calibration shape", () => {
         const problem = error.problems.find((candidate) => candidate.field === testCase.field);
         expect(problem, `${testCase.name}: field ${testCase.field}`).toBeDefined();
         expect(problem?.message, testCase.name).toContain(testCase.message);
+        expect(problem?.fix, testCase.name).toContain(testCase.fix);
       }
     });
   });
