@@ -1275,6 +1275,25 @@ export function validateRegistry(
   collectLabelProblems(root, problems);
   collectReferenceProblems(root, problems);
 
+  // Rating check: only on a file whose shape, labels and references already
+  // hold, so a mismatch is never buried under the problems that made the
+  // table unreadable, and only when the file states a basis at all.
+  if (problems.length === 0 && Object.hasOwn(root, "calibration")) {
+    problems.push(
+      ...collectRatingMismatchProblems({
+        models: root.models as Record<string, Model>,
+        calibration: root.calibration as Calibration,
+      }),
+    );
+  }
+
+  // The collected problems are returned before the typed index is built, so
+  // index construction never dereferences a value the schema rejected.
+  const [firstProblem, ...moreProblems] = problems;
+  if (firstProblem !== undefined) {
+    return { ok: false, problems: [firstProblem, ...moreProblems] };
+  }
+
   // Build the typed index: sections stays foreign-only, calibration joins the
   // registry result after meters (RFC section order).
   const index: RegistryIndex = { registry: { models: {} }, routes: {}, sections: {} };
@@ -1314,21 +1333,5 @@ export function validateRegistry(
     buildRoutes(models, index.routes);
   }
 
-  // Rating check: only on a file whose shape, labels and references already
-  // hold, so a mismatch is never buried under the problems that made the
-  // table unreadable, and only when the file states a basis at all.
-  if (problems.length === 0 && Object.hasOwn(root, "calibration")) {
-    problems.push(
-      ...collectRatingMismatchProblems({
-        models,
-        calibration: root.calibration as Calibration,
-      }),
-    );
-  }
-
-  const [firstProblem, ...moreProblems] = problems;
-  if (firstProblem !== undefined) {
-    return { ok: false, problems: [firstProblem, ...moreProblems] };
-  }
   return { ok: true, index };
 }

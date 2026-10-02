@@ -144,6 +144,16 @@ describe("curated problems", () => {
           },
         },
         {
+          name: "model is null",
+          value: registry(modelEntry(null)),
+          problem: {
+            code: "registry-invalid",
+            field: '$["models"]["model-a"]',
+            message: 'the model "model-a" must be a JSON object',
+            fix: "Replace the model with a JSON object.",
+          },
+        },
+        {
           name: "top-level ratings wrong type",
           value: registry(modelEntry(model()), { ratings: "x" }),
           problem: {
@@ -296,6 +306,16 @@ describe("curated problems", () => {
         {
           name: "route not an object",
           value: registry(modelEntry({ family: "family-a", routes: ["x"] })),
+          problem: {
+            code: "registry-invalid",
+            field: '$["models"]["model-a"]["routes"][0]',
+            message: "the route must be a JSON object",
+            fix: "Replace the route with a JSON object.",
+          },
+        },
+        {
+          name: "route is null",
+          value: registry(modelEntry({ family: "family-a", routes: [null] })),
           problem: {
             code: "registry-invalid",
             field: '$["models"]["model-a"]["routes"][0]',
