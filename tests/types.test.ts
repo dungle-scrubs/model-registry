@@ -115,6 +115,7 @@ describe("public types", () => {
       | "label-duplicate"
       | "reference-unknown"
       | "rating-mismatch"
+      | "backup-exists"
     >();
   });
 

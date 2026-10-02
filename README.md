@@ -15,13 +15,20 @@ $ model-registry check --registry examples/registry.json
 
 `check` loads a registry file, validates it, and prints `format`, `digest` and `path` as one JSON line. The digest is the SHA-256 of the file bytes exactly as read, reproducible with any standard checksum tool.
 
+```console
+$ model-registry migrate --registry examples/registry.json
+nothing to do
+```
+
+`migrate` brings a registry file forward to the current format. On a file that is already current it prints `nothing to do` and exits 0, with or without `--dry-run`. To upgrade, it reads the file, applies each migration step in turn, validates the result with the same checks as `check`, then writes the backup `<registry>.format-<original-format>.bak` beside the file and replaces the file. `--dry-run` prints the migrated file on stdout (2-space indented JSON followed by a newline) and writes nothing. The replacement and the backup keep the file's mode; a symlinked registry is migrated through the link, which stays in place, and the backup is written beside its target. If the backup write itself fails partway, the partial backup is removed so the next run is not refused; the command then fails with `internal-error`. If the replacement fails, the temporary file is removed and the backup stays in place, so the original file is never lost; the command then fails with `internal-error`, and the next run refuses with `backup-exists` until the backup is moved aside. Each migration step is added in the release that introduces the format it leads to; format 1 is the first major, so no step ships yet.
+
 Exit codes:
 
 | Exit | Meaning |
 |---|---|
-| 0 | the check succeeded |
-| 2 | invalid usage (`usage-invalid` on stderr) |
-| 4 | the loader failed; one `{"error": ...}` envelope on stderr lists every problem |
+| 0 | the command succeeded; for `migrate`, `nothing to do` or a one-line `{"format","digest","path","backup"}` JSON record on success |
+| 2 | invalid usage (`usage-invalid` on stderr), or a `migrate` refusal because the backup already exists (`backup-exists` on stderr) |
+| 4 | the loader or the migrated result failed; one `{"error": ...}` envelope on stderr lists every problem |
 | 1 | an internal fault (`internal-error` on stderr) |
 
 Errors print as one JSON line on stderr: `{"error":{"code":"...","message":"...","fix":"...","path":"...","problems":[]}}`.
@@ -109,10 +116,11 @@ const effort: EffortLevel = "high";
 | `registry-missing` | no file at the resolved path |
 | `registry-unreadable` | the file cannot be read or parsed |
 | `format-missing` | no `format` field: not a version 1 registry |
-| `format-unsupported` | a newer or older format major |
+| `format-unsupported` | a newer or older format major; the fix names upgrading model-registry for a newer format, and names `migrate` for an older format only when this release ships a step from it, otherwise it says to recreate the file as format 1 |
 | `registry-invalid` | a shape error, an unknown field, or `null` |
 | `label-duplicate` | two routes with the same label |
 | `reference-unknown` | a model rating, route capability or route meter that is not declared in its matching top-level section |
+| `backup-exists` | `migrate` refused because a backup already sits beside the registry |
 
 `rating-mismatch` belongs to a later ticket and is not emitted yet.
 

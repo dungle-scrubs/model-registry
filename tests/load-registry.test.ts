@@ -1,5 +1,5 @@
 import { spawnSync } from "node:child_process";
-import { readFileSync, symlinkSync, writeFileSync } from "node:fs";
+import { chmodSync, readFileSync, symlinkSync, writeFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import { describe, expect, test } from "vitest";
@@ -110,7 +110,7 @@ describe("curated problems", () => {
             code: "format-unsupported",
             field: '$["format"]',
             message: "format 0 is older than format 1",
-            fix: "Recreate the file as a format 1 registry; no migration into format 1 ships.",
+            fix: "Recreate the file as a format 1 registry; no migration step from format 0 ships in this release.",
           },
         },
         {
@@ -606,13 +606,13 @@ describe("loadRegistry", () => {
           name: "lower",
           content: '{"format":0,"models":{}}',
           code: "format-unsupported",
-          fixPart: "no migration into format 1",
+          fixPart: "no migration step from format 0",
         },
         {
           name: "negative",
           content: '{"format":-1,"models":{}}',
           code: "format-unsupported",
-          fixPart: "no migration into format 1",
+          fixPart: "no migration step from format -1",
         },
         { name: "string", content: '{"format":"1","models":{}}', code: "registry-invalid" },
         { name: "fractional", content: '{"format":1.5,"models":{}}', code: "registry-invalid" },
@@ -631,6 +631,31 @@ describe("loadRegistry", () => {
           expect(error.fix, testCase.name).toContain(testCase.fixPart);
         }
       }
+    });
+  });
+
+  test("a single problem passes its own message and fix through", async () => {
+    await withTempDir(async (dir) => {
+      const path = writeJson(dir, "registry.json", { format: 0, models: {} });
+      const error = catchRegistryError(() => loadRegistry({ path }));
+      expect(error.code).toBe("format-unsupported");
+      expect(error.message).toBe("format 0 is older than format 1");
+      expect(error.fix).toBe(
+        "Recreate the file as a format 1 registry; no migration step from format 0 ships in this release.",
+      );
+    });
+  });
+
+  test("several problems roll up into one error naming check", async () => {
+    await withTempDir(async (dir) => {
+      const path = writeJson(dir, "registry.json", { format: 1, models: { "model-a": {} } });
+      const error = catchRegistryError(() => loadRegistry({ path }));
+      expect(error.code).toBe("registry-invalid");
+      expect(error.problems).toHaveLength(2);
+      expect(error.message).toBe(`the registry file at "${path}" has 2 problems`);
+      expect(error.fix).toBe(
+        "Fix each problem listed in problems, then run model-registry check again.",
+      );
     });
   });
 
@@ -654,6 +679,40 @@ describe("loadRegistry", () => {
     const error = catchRegistryError(() => loadRegistry({ path: "" }));
     expect(error.code).toBe("registry-missing");
     expect(error.path).toBe("");
+    expect(error.name).toBe("RegistryError");
+    expect(error.message).toBe("no registry file was given, because the path is empty");
+    expect(error.fix).toContain("Give a registry path");
+  });
+
+  test.skipIf(process.platform === "win32")(
+    "an unreadable file names the unreadable file",
+    async () => {
+      await withTempDir(async (dir) => {
+        const path = writeJson(dir, "registry.json", validRegistry);
+        chmodSync(path, 0o000);
+        try {
+          const error = catchRegistryError(() => loadRegistry({ path }));
+          expect(error.code).toBe("registry-unreadable");
+          expect(error.message).toBe(`the registry file at "${path}" cannot be read`);
+          expect(error.fix).toBe(
+            "Make the file a readable file, then run model-registry check again.",
+          );
+        } finally {
+          chmodSync(path, 0o600);
+        }
+      });
+    },
+  );
+
+  test("a file that is not JSON names the syntax fault", async () => {
+    await withTempDir(async (dir) => {
+      const path = join(dir, "broken.json");
+      writeFileSync(path, "{not json");
+      const error = catchRegistryError(() => loadRegistry({ path }));
+      expect(error.code).toBe("registry-unreadable");
+      expect(error.message).toBe(`the registry file at "${path}" is not valid JSON`);
+      expect(error.fix).toBe("Fix the JSON syntax, then run model-registry check again.");
+    });
   });
 
   test("relative paths resolve against the working directory", async () => {

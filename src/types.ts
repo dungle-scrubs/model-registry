@@ -19,7 +19,8 @@ export type RegistryErrorCode =
   | "registry-invalid"
   | "label-duplicate"
   | "reference-unknown"
-  | "rating-mismatch";
+  | "rating-mismatch"
+  | "backup-exists";
 
 export type RatingValue = 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10;
 

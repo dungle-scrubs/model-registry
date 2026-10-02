@@ -3,6 +3,12 @@ import { Ajv2020 } from "ajv/dist/2020.js";
 import schema from "../registry.schema.json" with { type: "json" };
 import { buildRouteLabel } from "./label.js";
 import { EFFORT_LADDER } from "./ladder.js";
+import {
+  CURRENT_FORMAT,
+  canMigrateFrom,
+  MIGRATE_STEPS,
+  type MigrateStepEntry,
+} from "./migrate-steps.js";
 import type {
   IndexedRoute,
   JsonValue,
@@ -62,6 +68,13 @@ function childPath(parent: string, ...parts: Array<string | number>): string {
     path += typeof part === "number" ? `[${part}]` : `[${JSON.stringify(part)}]`;
   }
   return path;
+}
+
+function olderFormatFix(format: number, steps: readonly MigrateStepEntry[]): string {
+  if (canMigrateFrom(format, steps)) {
+    return `Run model-registry migrate to upgrade the file from format ${format} to format ${CURRENT_FORMAT}.`;
+  }
+  return `Recreate the file as a format ${CURRENT_FORMAT} registry; no migration step from format ${format} ships in this release.`;
 }
 
 function invalidProblem(field: string, message: string, fix: string): RegistryProblem {
@@ -787,7 +800,10 @@ function failure(problem: RegistryProblem): ValidationResult {
   return { ok: false, problems: [problem] };
 }
 
-export function validateRegistry(root: unknown): ValidationResult {
+export function validateRegistry(
+  root: unknown,
+  steps: readonly MigrateStepEntry[] = MIGRATE_STEPS,
+): ValidationResult {
   if (!isPlainObject(root)) {
     return failure(
       invalidProblem(
@@ -817,20 +833,20 @@ export function validateRegistry(root: unknown): ValidationResult {
       ),
     );
   }
-  if (format > 1) {
+  if (format > CURRENT_FORMAT) {
     return failure({
       code: "format-unsupported",
       field: childPath("$", "format"),
       fix: `Upgrade model-registry to a release that supports format ${format}.`,
-      message: `format ${format} is newer than the format 1 this model-registry supports`,
+      message: `format ${format} is newer than the format ${CURRENT_FORMAT} this model-registry supports`,
     });
   }
-  if (format < 1) {
+  if (format < CURRENT_FORMAT) {
     return failure({
       code: "format-unsupported",
       field: childPath("$", "format"),
-      fix: "Recreate the file as a format 1 registry; no migration into format 1 ships.",
-      message: `format ${format} is older than format 1`,
+      fix: olderFormatFix(format, steps),
+      message: `format ${format} is older than format ${CURRENT_FORMAT}`,
     });
   }
 

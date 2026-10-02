@@ -1,19 +1,28 @@
-import { Command, CommanderError } from "commander";
+import { Command, CommanderError, Option } from "commander";
 import { RegistryError } from "./error.js";
-import { loadRegistry } from "./load-registry.js";
+import { digestOf, loadRegistry } from "./load-registry.js";
+import { runMigrate } from "./migrate.js";
+import type { MigrateStepEntry } from "./migrate-steps.js";
 import type { RegistryErrorDetails } from "./types.js";
 
 const VERSION = process.env.MODEL_REGISTRY_VERSION ?? "0.0.0-dev";
 
 const EXIT_SUCCESS = 0;
 const EXIT_INTERNAL_FAULT = 1;
-const EXIT_USAGE_INVALID = 2;
+const EXIT_USAGE_OR_REFUSED = 2;
 const EXIT_LOADER_FAILURE = 4;
 
 const USAGE_FIX = "Run model-registry --help for the available commands and options.";
 const NO_COMMAND_FIX =
   "Run model-registry check, or model-registry --help for the available commands.";
 const INTERNAL_FIX = "Report this failure together with the command you ran.";
+
+const EXIT_CODES_HELP = `Exit codes:
+  0  the command succeeded
+  1  an internal fault (internal-error on stderr)
+  2  invalid usage (usage-invalid on stderr), or a migrate refusal because the backup
+     already exists (backup-exists on stderr)
+  4  the registry file failed to load or validate (one error envelope on stderr)`;
 
 class UsageError extends Error {
   readonly fix: string;
@@ -34,6 +43,10 @@ export interface CliIo {
   stderr: CliSink;
 }
 
+export interface RunCliOptions {
+  readonly steps?: readonly MigrateStepEntry[];
+}
+
 type CliErrorEnvelope =
   | RegistryErrorDetails
   | { code: "usage-invalid"; fix: string; message: string }
@@ -43,13 +56,46 @@ function writeErrorEnvelope(io: CliIo, envelope: CliErrorEnvelope): void {
   io.stderr.write(`${JSON.stringify({ error: envelope })}\n`);
 }
 
-function buildProgram(io: CliIo): Command {
+interface RegistryOptionState {
+  values: string[];
+}
+
+function addRegistryOption(command: Command): RegistryOptionState {
+  const state: RegistryOptionState = { values: [] };
+  command.addOption(
+    new Option("--registry <path>", "path to the registry file").argParser((value: string) => {
+      state.values.push(value);
+      return value;
+    }),
+  );
+  return state;
+}
+
+function consumeRegistryPath(state: RegistryOptionState, commandName: string): string | undefined {
+  if (state.values.length > 1) {
+    throw new UsageError(
+      "the --registry option was given more than once.",
+      `Give model-registry ${commandName} exactly one --registry path.`,
+    );
+  }
+  const explicit = state.values[0];
+  if (explicit === "") {
+    throw new UsageError(
+      "the --registry option was given an empty path.",
+      "Give --registry a non-empty path to a registry file.",
+    );
+  }
+  return explicit;
+}
+
+function buildProgram(io: CliIo, steps: readonly MigrateStepEntry[] | undefined): Command {
   const program = new Command();
   program
     .name("model-registry")
     .description("Load and validate a versioned model registry.")
     .version(VERSION)
-    .exitOverride();
+    .exitOverride()
+    .addHelpText("after", `\n\n${EXIT_CODES_HELP}`);
   program.configureOutput({
     writeOut: (text) => {
       io.stdout.write(text);
@@ -68,28 +114,54 @@ function buildProgram(io: CliIo): Command {
     },
     writeErr: () => {},
   });
-
-  const registryValues: string[] = [];
-  check.option("--registry <path>", "path to the registry file", (value: string) => {
-    registryValues.push(value);
-  });
+  const checkRegistry = addRegistryOption(check);
   check.action(() => {
-    if (registryValues.length > 1) {
-      throw new UsageError(
-        "the --registry option was given more than once.",
-        "Give model-registry check exactly one --registry path.",
-      );
-    }
-    const explicit = registryValues[0];
-    if (explicit === "") {
-      throw new UsageError(
-        "the --registry option was given an empty path.",
-        "Give --registry a non-empty path to a registry file.",
-      );
-    }
+    const explicit = consumeRegistryPath(checkRegistry, "check");
     const result = loadRegistry(explicit === undefined ? {} : { path: explicit });
     io.stdout.write(
       `${JSON.stringify({ format: result.format, digest: result.digest, path: result.path })}\n`,
+    );
+  });
+
+  const migrate = program
+    .command("migrate")
+    .description("Migrate a registry file to the current format, with a backup written beside it.")
+    .allowExcessArguments(false)
+    .exitOverride();
+  migrate.configureOutput({
+    writeOut: (text) => {
+      io.stdout.write(text);
+    },
+    writeErr: () => {},
+  });
+  const migrateRegistry = addRegistryOption(migrate);
+  migrate.option("--dry-run", "print the migrated file on stdout and write nothing");
+  migrate.action(() => {
+    const explicit = consumeRegistryPath(migrateRegistry, "migrate");
+    const outcome = runMigrate({
+      ...(explicit === undefined ? {} : { path: explicit }),
+      dryRun: migrate.opts<{ dryRun?: boolean }>().dryRun === true,
+      steps,
+    });
+    if (outcome.kind === "error") {
+      throw outcome.error;
+    }
+    if (outcome.kind === "nothing-to-do") {
+      io.stdout.write("nothing to do\n");
+      return;
+    }
+    if (outcome.kind === "dry-run") {
+      io.stdout.write(outcome.bytes);
+      return;
+    }
+    const digest = digestOf(outcome.bytes);
+    io.stdout.write(
+      `${JSON.stringify({
+        format: outcome.format,
+        digest,
+        path: outcome.path,
+        backup: outcome.backupPath,
+      })}\n`,
     );
   });
 
@@ -100,14 +172,18 @@ function commanderMessage(error: CommanderError): string {
   return error.message.replace(/^error:\s*/, "");
 }
 
-export function runCli(argv: string[], io: CliIo): number {
+function exitCodeFor(error: RegistryError): number {
+  return error.code === "backup-exists" ? EXIT_USAGE_OR_REFUSED : EXIT_LOADER_FAILURE;
+}
+
+export function runCli(argv: string[], io: CliIo, options: RunCliOptions = {}): number {
   try {
-    buildProgram(io).parse(argv, { from: "user" });
+    buildProgram(io, options.steps).parse(argv, { from: "user" });
     return EXIT_SUCCESS;
   } catch (error) {
     if (error instanceof UsageError) {
       writeErrorEnvelope(io, { code: "usage-invalid", fix: error.fix, message: error.message });
-      return EXIT_USAGE_INVALID;
+      return EXIT_USAGE_OR_REFUSED;
     }
     if (error instanceof CommanderError) {
       if (
@@ -123,18 +199,18 @@ export function runCli(argv: string[], io: CliIo): number {
           fix: NO_COMMAND_FIX,
           message: "no command was given.",
         });
-        return EXIT_USAGE_INVALID;
+        return EXIT_USAGE_OR_REFUSED;
       }
       writeErrorEnvelope(io, {
         code: "usage-invalid",
         fix: USAGE_FIX,
         message: commanderMessage(error),
       });
-      return EXIT_USAGE_INVALID;
+      return EXIT_USAGE_OR_REFUSED;
     }
     if (error instanceof RegistryError) {
       writeErrorEnvelope(io, error.toJSON());
-      return EXIT_LOADER_FAILURE;
+      return exitCodeFor(error);
     }
     writeErrorEnvelope(io, {
       code: "internal-error",
