@@ -2,6 +2,7 @@
   "name": "@dungle-scrubs/model-registry",
   "version": "0.0.0",
   "description": "Load and validate a versioned model registry.",
+  "license": "MIT",
   "type": "module",
   "packageManager": "pnpm@11.28.2",
   "engines": {
@@ -28,7 +29,8 @@
     "registry.schema.json",
     "examples/registry.json",
     "prompts",
-    "README.md"
+    "README.md",
+    "LICENSE"
   ],
   "publishConfig": {
     "access": "public"
