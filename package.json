@@ -1,12 +1,16 @@
 {
   "name": "@dungle-scrubs/model-registry",
-  "version": "0.1.0",
+  "version": "0.0.0",
   "description": "Load and validate a versioned model registry.",
+  "license": "MIT",
   "type": "module",
-  "private": true,
   "packageManager": "pnpm@11.28.2",
   "engines": {
     "node": ">=22.14.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/dungle-scrubs/model-registry.git"
   },
   "bin": {
     "model-registry": "./dist/cli.js"
@@ -25,7 +29,8 @@
     "registry.schema.json",
     "examples/registry.json",
     "prompts",
-    "README.md"
+    "README.md",
+    "LICENSE"
   ],
   "publishConfig": {
     "access": "public"
