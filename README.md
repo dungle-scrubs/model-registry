@@ -4,7 +4,7 @@ The shared model registry: one versioned source of truth that ranks model routes
 
 Consumers state what the work needs as ratings and capabilities. The registry is the only place that qualifies models. Current consumers are the `choose-model` and `delegate` skills and graybox.
 
-This package loads and validates the registry file. Design: [`docs/rfc/01_shared-model-registry-and-router.rfc.md`](docs/rfc/01_shared-model-registry-and-router.rfc.md). Development release: the package is private and unpublished.
+This package loads and validates the registry file. Design: [`docs/rfc/01_shared-model-registry-and-router.rfc.md`](docs/rfc/01_shared-model-registry-and-router.rfc.md). Development release: the package is unpublished.
 
 ## CLI
 
