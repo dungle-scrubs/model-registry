@@ -44,6 +44,22 @@
           "cost": 8
         }
       ]
+    },
+    "model-c": {
+      "family": "family-c",
+      "ratings": {
+        "coding": 8
+      },
+      "maxEffort": "high",
+      "routes": [
+        {
+          "harness": "harness-z",
+          "modelId": "model-id-c",
+          "provider": "aggregator-a",
+          "hosted": true,
+          "cost": 9
+        }
+      ]
     }
   },
   "calibration": {
@@ -200,6 +216,20 @@
           "read": "2026-10-06",
           "effort": "high"
         }
+      },
+      "model-c": {
+        "engines": {
+          "value": 46,
+          "read": "2026-10-06",
+          "effort": "high"
+        }
+      },
+      "model-c@harness-z/aggregator-a": {
+        "cost-per-task": {
+          "value": 0.35,
+          "read": "2026-10-06",
+          "effort": "high"
+        }
       }
     },
     "overrides": [
@@ -214,7 +244,11 @@
   "profiles": {
     "builder-pool": {
       "description": "Platform-a first, then the catalog-confirmed platform-b route.",
-      "routes": ["model-a@harness-x", "model-b@harness-y/provider-2"],
+      "routes": [
+        "model-a@harness-x",
+        "model-c@harness-z/aggregator-a",
+        "model-b@harness-y/provider-2"
+      ],
       "gaps": [
         {
           "rating": "coding",
