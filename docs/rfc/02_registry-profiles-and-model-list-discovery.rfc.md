@@ -777,6 +777,15 @@ Kevin, 2026-10-01, RFC-02 review.
 
 ## Versioning
 
+**Amendment, 2026-10-04 (Kevin).** 1.0.0 is deferred until the packages
+have been used in practice, so profiles no longer wait for it. Every
+"after 1.0.0" and "a minor after 1.0.0" in this RFC now reads "a 0.x
+minor": profiles, gaps and the loader result addition ship in
+`model-registry` 0.2.0, and the router changes in the matching
+`model-router` 0.x minor. The release categories are unchanged; only the
+starting version moves. The compatibility check that compared answers
+with 1.0.0 compares them with the last release before profiles (0.1.x).
+
 ### model-registry
 
 RFC-01 ships first, through 1.0.0. Profiles, gaps and the loader result
