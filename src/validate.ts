@@ -16,6 +16,9 @@ import type {
   JsonValue,
   Meter,
   Model,
+  Profile,
+  ProfileDeclaration,
+  ProfileProvenance,
   RegistryErrorCode,
   RegistryFacts,
   RegistryProblem,
@@ -25,6 +28,8 @@ import type {
 import { DECLARATION_SECTIONS, ROUTE_RATING_NAME } from "./types.js";
 
 export interface RegistryIndex {
+  profiles: Record<string, Profile>;
+  profileProvenance: Record<string, ProfileProvenance>;
   registry: RegistryFacts;
   routes: Record<RouteLabel, IndexedRoute>;
   sections: Record<string, JsonValue>;
@@ -150,7 +155,11 @@ function isDeclarationSection(name: string): boolean {
 function pointerIsOwned(pointer: string): boolean {
   const [head] = pointerSegments(pointer);
   return (
-    head === undefined || head === "models" || head === "calibration" || isDeclarationSection(head)
+    head === undefined ||
+    head === "models" ||
+    head === "calibration" ||
+    head === "profiles" ||
+    isDeclarationSection(head)
   );
 }
 
@@ -202,12 +211,18 @@ type OwnedPath =
   | { kind: "modelRating"; modelKey: string; rating: string }
   | { kind: "meter"; meterName: string }
   | { field: string; kind: "meterField"; meterName: string }
+  | { kind: "profile"; name: string }
+  | { kind: "profileField"; field: string }
+  | { kind: "profileRouteEntry" }
   | { kind: "other" }
   | { kind: "root" }
   | { kind: "route" }
   | { field: string; kind: "routeField" }
   | { kind: "routeCapabilityEntry" }
-  | { kind: "section"; section: "calibration" | "capabilities" | "meters" | "models" | "ratings" };
+  | {
+      kind: "section";
+      section: "calibration" | "capabilities" | "meters" | "models" | "ratings" | "profiles";
+    };
 
 function classifyPath(segments: readonly string[]): OwnedPath {
   const [section_, head, container, index, field, leaf] = segments;
@@ -223,12 +238,15 @@ function classifyPath(segments: readonly string[]): OwnedPath {
         case "meters":
         case "models":
         case "ratings":
+        case "profiles":
           return { kind: "section", section: section_ };
         default:
           return { kind: "other" };
       }
     case 2:
       switch (section_) {
+        case "profiles":
+          return { kind: "profile", name: head ?? "" };
         case "models":
           return { kind: "model", modelKey: head ?? "" };
         case "meters":
@@ -240,6 +258,9 @@ function classifyPath(segments: readonly string[]): OwnedPath {
           return { kind: "other" };
       }
     case 3:
+      if (section_ === "profiles") {
+        return { kind: "profileField", field: container ?? "" };
+      }
       if (section_ === "meters") {
         return { field: container ?? "", kind: "meterField", meterName: head ?? "" };
       }
@@ -265,6 +286,9 @@ function classifyPath(segments: readonly string[]): OwnedPath {
       }
       return { kind: "other" };
     case 4:
+      if (section_ === "profiles" && container === "routes") {
+        return { kind: "profileRouteEntry" };
+      }
       if (section_ === "models" && container === "ratings") {
         return { kind: "modelRating", modelKey: head ?? "", rating: index ?? "" };
       }
@@ -350,6 +374,31 @@ function ownedProblem(root: unknown, error: ErrorObject): RegistryProblem {
   const path = walkSegments(root, segments).path;
   const location = classifyPath(segments);
 
+  if (
+    location.kind === "section" &&
+    location.section === "profiles" &&
+    error.keyword === "minLength"
+  ) {
+    return invalidProblem(
+      childPath(path, error.propertyName ?? ""),
+      "a profile name must not be empty",
+      "Give the profile a non-empty name.",
+    );
+  }
+  if (
+    location.kind === "profileField" &&
+    location.field === "routes" &&
+    error.keyword === "uniqueItems"
+  ) {
+    const value = walkSegments(root, segments).value as string[];
+    const label = value[error.params.i];
+    return invalidProblem(
+      path,
+      `the profile routes contain the label "${label}" more than once`,
+      `Remove the duplicate label "${label}" from the profile routes.`,
+    );
+  }
+
   switch (error.keyword) {
     case "required":
       return requiredProblem(location, path, error);
@@ -381,6 +430,18 @@ function requiredProblem(location: OwnedPath, path: string, error: ErrorObject):
           childPath(path, "models"),
           'the required field "models" is missing',
           "Add a models object with one entry per model.",
+        );
+      }
+      break;
+    case "profile":
+      if (missing === "description") {
+        return requiredStringProblem(path, "description");
+      }
+      if (missing === "routes") {
+        return invalidProblem(
+          childPath(path, "routes"),
+          `the profile "${location.name}" is missing the required field "routes"`,
+          "Add a routes array of route labels; an empty array is valid.",
         );
       }
       break;
@@ -486,6 +547,12 @@ function additionalPropertyProblem(
     return genericProblem(path, error.message);
   }
   switch (location.kind) {
+    case "profile":
+      return invalidProblem(
+        childPath(path, name),
+        `the field "${name}" is not part of a format 1 profile`,
+        "Remove the field; a profile accepts only description and routes.",
+      );
     case "meter":
       return unknownFieldProblem(path, name, "meter");
     case "model":
@@ -542,6 +609,12 @@ function typeProblem(location: OwnedPath, path: string): RegistryProblem | undef
   switch (location.kind) {
     case "section":
       switch (location.section) {
+        case "profiles":
+          return invalidProblem(
+            path,
+            'the field "profiles" must be a JSON object keyed by profile name',
+            "Replace profiles with a JSON object keyed by profile name.",
+          );
         case "models":
           return invalidProblem(
             path,
@@ -574,6 +647,34 @@ function typeProblem(location: OwnedPath, path: string): RegistryProblem | undef
           );
       }
       return undefined;
+    case "profile":
+      return invalidProblem(
+        path,
+        `the profile "${location.name}" must be a JSON object`,
+        "Replace the profile with a JSON object with description and routes.",
+      );
+    case "profileField":
+      if (location.field === "description") {
+        return invalidProblem(
+          path,
+          'the profile field "description" must be a string',
+          'Set "description" to a string; one line is the convention.',
+        );
+      }
+      if (location.field === "routes") {
+        return invalidProblem(
+          path,
+          "the profile routes field must be an array of strings",
+          "Set routes to an array of explicit route labels.",
+        );
+      }
+      return undefined;
+    case "profileRouteEntry":
+      return invalidProblem(
+        path,
+        "a profile route entry must be a string",
+        "Set the entry to a route label built from models, or remove the entry.",
+      );
     case "declaration":
       if (location.section === "ratings") {
         return invalidProblem(
@@ -895,6 +996,9 @@ function curateProblems(root: unknown, errors: readonly ErrorObject[]): Registry
     if (error.keyword === "anyOf" || !pointerIsOwned(error.instancePath)) {
       continue;
     }
+    if (error.keyword === "propertyNames" && error.instancePath === "/profiles") {
+      continue;
+    }
     push(ownedProblem(root, error));
   }
 
@@ -1092,6 +1196,25 @@ function collectReferenceProblems(
       );
     }
   });
+
+  if (routeLabels !== undefined && isPlainObject(root.profiles)) {
+    for (const [name, profile] of Object.entries(root.profiles)) {
+      if (!isPlainObject(profile) || !Array.isArray(profile.routes)) {
+        continue;
+      }
+      profile.routes.forEach((label, index) => {
+        if (typeof label !== "string" || routeLabels.has(label)) {
+          return;
+        }
+        problems.push({
+          code: "reference-unknown",
+          field: childPath("$", "profiles", name, "routes", index),
+          message: `the profile route "${label}" is not declared in the routes built from models`,
+          fix: `Add a route producing "${label}" to models, or remove the label from the profile.`,
+        });
+      });
+    }
+  }
 
   if (!isPlainObject(root.calibration)) {
     return;
@@ -1325,7 +1448,13 @@ export function validateRegistry(
 
   // Build the typed index: sections stays foreign-only, calibration joins the
   // registry result after meters (RFC section order).
-  const index: RegistryIndex = { registry: { models: {} }, routes: {}, sections: {} };
+  const index: RegistryIndex = {
+    registry: { models: {} },
+    routes: {},
+    sections: {},
+    profiles: {},
+    profileProvenance: {},
+  };
   for (const [key, value] of Object.entries(root)) {
     if (
       key === "format" ||
@@ -1333,7 +1462,8 @@ export function validateRegistry(
       key === "ratings" ||
       key === "capabilities" ||
       key === "meters" ||
-      key === "calibration"
+      key === "calibration" ||
+      key === "profiles"
     ) {
       continue;
     }
@@ -1360,6 +1490,16 @@ export function validateRegistry(
   index.registry = registry;
   if (isPlainObject(root.models)) {
     buildRoutes(models, index.routes);
+  }
+
+  const declarations = (root.profiles ?? {}) as Record<string, ProfileDeclaration>;
+  if (!Object.hasOwn(declarations, "default")) {
+    safeSet(index.profiles, "default", { routes: Object.keys(index.routes) });
+    safeSet(index.profileProvenance, "default", "implicit");
+  }
+  for (const [name, profile] of Object.entries(declarations)) {
+    safeSet(index.profiles, name, { description: profile.description, routes: profile.routes });
+    safeSet(index.profileProvenance, name, "declared");
   }
 
   return { ok: true, index };

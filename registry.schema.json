@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://dungle-scrubs.github.io/model-registry/registry.schema.json",
   "title": "Model registry, format 1",
-  "description": "The format 1 slice supported by this release of model-registry: format, ratings, capabilities, meters, models, calibration and the router's foreign sections.",
+  "description": "The format 1 slice supported by this release of model-registry: format, ratings, capabilities, meters, models, calibration, profiles and the router's foreign sections.",
   "type": "object",
   "properties": {
     "format": {
@@ -22,6 +22,9 @@
     },
     "calibration": {
       "$ref": "#/$defs/calibration"
+    },
+    "profiles": {
+      "$ref": "#/$defs/profiles"
     }
   },
   "required": ["format", "models"],
@@ -329,6 +332,35 @@
           "required": ["route"]
         }
       ]
+    },
+    "profiles": {
+      "description": "Named profiles with explicit route membership. When default is absent, the loader supplies every route without changing the file.",
+      "type": "object",
+      "propertyNames": {
+        "minLength": 1
+      },
+      "additionalProperties": {
+        "$ref": "#/$defs/profile"
+      }
+    },
+    "profile": {
+      "type": "object",
+      "properties": {
+        "description": {
+          "description": "A description string; one line is the convention, not a rule.",
+          "type": "string"
+        },
+        "routes": {
+          "description": "Explicit route labels built from models, in written order. Every label must exist. Empty membership is valid.",
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "uniqueItems": true
+        }
+      },
+      "required": ["description", "routes"],
+      "additionalProperties": false
     }
   }
 }

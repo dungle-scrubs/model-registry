@@ -131,9 +131,22 @@ type DeclarationMembers = {
   ratings: Record<string, string>;
 };
 
+export type ProfileDeclaration = {
+  description: string;
+  routes: RouteLabel[];
+};
+
+export type Profile = {
+  readonly description?: string;
+  readonly routes: readonly RouteLabel[];
+};
+
+export type ProfileProvenance = "implicit" | "declared";
+
 export type RegistryFile = {
   format: 1;
   models: Record<string, Model>;
+  profiles?: Record<string, ProfileDeclaration>;
 } & {
   [Section in DeclarationSection]?: DeclarationMembers[Section];
 } & ForeignSections;
@@ -141,6 +154,8 @@ export type RegistryFile = {
 export type IndexedRoute = Route & { model: string };
 
 export interface LoadedRegistry {
+  readonly profiles: Readonly<Record<string, Profile>>;
+  readonly profileProvenance: Readonly<Record<string, ProfileProvenance>>;
   readonly digest: RegistryDigest;
   readonly format: 1;
   readonly path: string;

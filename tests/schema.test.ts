@@ -63,6 +63,7 @@ describe("registry.schema.json", () => {
       "format",
       "meters",
       "models",
+      "profiles",
       "ratings",
     ]);
     expect(deferredProperties(schema.properties)).toEqual([]);

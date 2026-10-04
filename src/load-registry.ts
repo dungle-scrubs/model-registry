@@ -132,5 +132,7 @@ export function loadRegistry(options: LoadRegistryOptions = {}): LoadedRegistry 
     registry: checked.index.registry,
     routes: checked.index.routes,
     sections: checked.index.sections,
+    profiles: checked.index.profiles,
+    profileProvenance: checked.index.profileProvenance,
   };
 }

@@ -1,4 +1,5 @@
 import { describe, expectTypeOf, test } from "vitest";
+import type { Profile, ProfileDeclaration, ProfileProvenance } from "../src/index.js";
 import type { EffortLevel } from "../src/ladder.js";
 import type {
   IndexedRoute,
@@ -32,6 +33,37 @@ const route: Route = {
 const model: Model = { family: "family-a", notes: "placeholder", routes: [route] };
 
 describe("public types", () => {
+  test("profiles expose separate file and normalized public types", () => {
+    expectTypeOf<Profile>().toEqualTypeOf<{
+      readonly description?: string;
+      readonly routes: readonly RouteLabel[];
+    }>();
+    expectTypeOf<ProfileDeclaration>().toEqualTypeOf<{
+      description: string;
+      routes: RouteLabel[];
+    }>();
+    expectTypeOf<ProfileProvenance>().toEqualTypeOf<"implicit" | "declared">();
+    expectTypeOf<LoadedRegistry["profiles"]>().toEqualTypeOf<Readonly<Record<string, Profile>>>();
+    expectTypeOf<LoadedRegistry["profileProvenance"]>().toEqualTypeOf<
+      Readonly<Record<string, ProfileProvenance>>
+    >();
+    expectTypeOf<RegistryFile["profiles"]>().toEqualTypeOf<
+      Record<string, ProfileDeclaration> | undefined
+    >();
+    expectTypeOf<Extract<keyof RegistryFacts, "profiles">>().toEqualTypeOf<never>();
+    const implicit: Profile = { routes: [] };
+    const declared: ProfileDeclaration = { description: "Subset.", routes: ["model-a@harness-x"] };
+    const file: RegistryFile = { format: 1, models: {}, profiles: { budget: declared } };
+    expectTypeOf(implicit).toEqualTypeOf<Profile>();
+    expectTypeOf(file).toEqualTypeOf<RegistryFile>();
+    // @ts-expect-error a declaration requires a description
+    const missingDescription: ProfileDeclaration = { routes: [] };
+    // @ts-expect-error route entries must be strings
+    const invalidEntry: ProfileDeclaration = { description: "Subset.", routes: [1] };
+    // @ts-expect-error gaps is not supported by this slice
+    const extraField: ProfileDeclaration = { description: "Subset.", routes: [], gaps: [] };
+    expectTypeOf({ missingDescription, invalidEntry, extraField }).toBeObject();
+  });
   test("the loader result carries the RFC shape", () => {
     expectTypeOf<LoadRegistryOptions>().toMatchTypeOf<{ path?: string }>();
     expectTypeOf<LoadedRegistry["format"]>().toEqualTypeOf<1>();
