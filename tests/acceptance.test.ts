@@ -793,4 +793,76 @@ describe("acceptance", () => {
     const parsed = JSON.parse(result.stdout) as Record<string, unknown>;
     expect(parsed.format).toBe(1);
   });
+
+  test("DW3 the example declares one budget profile beside the implicit default, with one gap of each form", () => {
+    const example = JSON.parse(exampleBytes.toString("utf8")) as {
+      profiles?: Record<
+        string,
+        {
+          description?: string;
+          routes?: string[];
+          gaps?: Array<{
+            rating?: string;
+            accepts?: number;
+            capability?: string;
+            reason?: string;
+          }>;
+        }
+      >;
+    };
+    expect(Object.keys(example.profiles ?? {})).toEqual(["budget"]);
+    const budget = example.profiles?.budget;
+    expect(typeof budget?.description).toBe("string");
+    expect(budget?.description).not.toBe("");
+    expect(budget?.routes).toEqual(["model-a@harness-y/provider-1"]);
+    const gaps = budget?.gaps ?? [];
+    expect(gaps).toHaveLength(2);
+    const ratingGaps = gaps.filter((gap) => gap?.rating !== undefined);
+    expect(ratingGaps).toHaveLength(1);
+    expect(ratingGaps[0]?.rating).toBe("coding");
+    expect(ratingGaps[0]?.accepts).toBe(7);
+    const capabilityGaps = gaps.filter((gap) => gap?.capability !== undefined);
+    expect(capabilityGaps).toHaveLength(1);
+    expect(capabilityGaps[0]?.capability).toBe("browser");
+    for (const gap of gaps) {
+      expect(typeof gap?.reason).toBe("string");
+      expect(gap?.reason).not.toBe("");
+    }
+  });
+
+  test("DW4 the example loads with the budget profile beside the implicit default, and its gaps are not stale against its members", () => {
+    const loaded = loadRegistry({ path: examplePath });
+    expect(Object.keys(loaded.profiles)).toEqual(["default", "budget"]);
+    expect(loaded.profileProvenance).toEqual({ default: "implicit", budget: "declared" });
+    expect(loaded.profiles.default?.routes).toEqual(Object.keys(loaded.routes));
+    expect(Object.keys(loaded.profiles.default ?? {})).toEqual(["routes"]);
+    const example = JSON.parse(exampleBytes.toString("utf8")) as {
+      profiles?: Record<string, unknown>;
+    };
+    const budget = loaded.profiles.budget;
+    expect(budget?.description).toBe(
+      (example.profiles?.budget as { description?: string } | undefined)?.description,
+    );
+    expect(budget?.routes).toEqual(["model-a@harness-y/provider-1"]);
+    const gaps = budget?.gaps ?? [];
+    expect(gaps).toHaveLength(2);
+    const members = (budget?.routes ?? []).map((label) => loaded.routes[label]);
+    expect(members).toHaveLength(1);
+    for (const gap of gaps) {
+      if ("capability" in gap) {
+        expect(
+          members.some((route) => route?.capabilities?.includes(gap.capability) ?? false),
+          `no member carries the waived capability ${gap.capability}`,
+        ).toBe(false);
+      }
+      if ("rating" in gap) {
+        for (const route of members) {
+          const rating = route
+            ? loaded.registry.models[route.model]?.ratings?.[gap.rating]
+            : undefined;
+          expect(rating ?? 0).toBeLessThanOrEqual(gap.accepts);
+        }
+      }
+    }
+  });
 });

@@ -275,7 +275,17 @@ describe("calibration shape", () => {
           ],
         },
       });
-      expect(catchRegistryError(() => loadRegistry({ path: both })).code).toBe("registry-invalid");
+      const bothError = catchRegistryError(() => loadRegistry({ path: both }));
+      expect(bothError.code).toBe("registry-invalid");
+      expect(
+        bothError.problems.some(
+          (problem) =>
+            problem.code === "registry-invalid" &&
+            problem.field === '$["calibration"]["overrides"][0]' &&
+            problem.message === "must NOT be valid",
+        ),
+        JSON.stringify(bothError.problems),
+      ).toBe(true);
 
       const neither = writeJson(dir, "neither.json", {
         ...rfcExampleRegistry(),

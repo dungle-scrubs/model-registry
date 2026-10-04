@@ -1,5 +1,12 @@
 import { describe, expectTypeOf, test } from "vitest";
-import type { Profile, ProfileDeclaration, ProfileProvenance } from "../src/index.js";
+import type {
+  CapabilityGap,
+  Profile,
+  ProfileDeclaration,
+  ProfileGap,
+  ProfileProvenance,
+  RatingGap,
+} from "../src/index.js";
 import type { EffortLevel } from "../src/ladder.js";
 import type {
   IndexedRoute,
@@ -8,6 +15,7 @@ import type {
   LoadRegistryOptions,
   Meter,
   Model,
+  RatingValue,
   RegistryDigest,
   RegistryErrorCode,
   RegistryErrorDetails,
@@ -33,15 +41,27 @@ const route: Route = {
 const model: Model = { family: "family-a", notes: "placeholder", routes: [route] };
 
 describe("public types", () => {
-  test("profiles expose separate file and normalized public types", () => {
+  test("profiles and gap records expose separate file and normalized public types", () => {
     expectTypeOf<Profile>().toEqualTypeOf<{
       readonly description?: string;
       readonly routes: readonly RouteLabel[];
+      readonly gaps?: readonly Readonly<ProfileGap>[];
     }>();
     expectTypeOf<ProfileDeclaration>().toEqualTypeOf<{
       description: string;
       routes: RouteLabel[];
+      gaps?: ProfileGap[];
     }>();
+    expectTypeOf<RatingGap>().toEqualTypeOf<{
+      readonly rating: string;
+      readonly accepts: RatingValue;
+      readonly reason: string;
+    }>();
+    expectTypeOf<CapabilityGap>().toEqualTypeOf<{
+      readonly capability: string;
+      readonly reason: string;
+    }>();
+    expectTypeOf<ProfileGap>().toEqualTypeOf<RatingGap | CapabilityGap>();
     expectTypeOf<ProfileProvenance>().toEqualTypeOf<"implicit" | "declared">();
     expectTypeOf<LoadedRegistry["profiles"]>().toEqualTypeOf<Readonly<Record<string, Profile>>>();
     expectTypeOf<LoadedRegistry["profileProvenance"]>().toEqualTypeOf<
@@ -52,17 +72,38 @@ describe("public types", () => {
     >();
     expectTypeOf<Extract<keyof RegistryFacts, "profiles">>().toEqualTypeOf<never>();
     const implicit: Profile = { routes: [] };
-    const declared: ProfileDeclaration = { description: "Subset.", routes: ["model-a@harness-x"] };
+    const ratingGap: RatingGap = { rating: "coding", accepts: 7, reason: "Placeholder." };
+    const capabilityGap: CapabilityGap = { capability: "browser", reason: "Placeholder." };
+    const declared: ProfileDeclaration = {
+      description: "Subset.",
+      routes: ["model-a@harness-x"],
+      gaps: [ratingGap, capabilityGap],
+    };
     const file: RegistryFile = { format: 1, models: {}, profiles: { budget: declared } };
+    const loaded: Profile = { description: "Subset.", routes: [], gaps: [ratingGap] };
     expectTypeOf(implicit).toEqualTypeOf<Profile>();
     expectTypeOf(file).toEqualTypeOf<RegistryFile>();
+    expectTypeOf(loaded).toEqualTypeOf<Profile>();
     // @ts-expect-error a declaration requires a description
     const missingDescription: ProfileDeclaration = { routes: [] };
     // @ts-expect-error route entries must be strings
     const invalidEntry: ProfileDeclaration = { description: "Subset.", routes: [1] };
-    // @ts-expect-error gaps is not supported by this slice
-    const extraField: ProfileDeclaration = { description: "Subset.", routes: [], gaps: [] };
-    expectTypeOf({ missingDescription, invalidEntry, extraField }).toBeObject();
+    // @ts-expect-error a rating gap requires an accepts ceiling
+    const ratingGapWithoutAccepts: ProfileGap = { rating: "coding", reason: "Placeholder." };
+    // @ts-expect-error accepts stays within 1 to 10
+    const acceptsZero: RatingGap = { rating: "coding", accepts: 0, reason: "Placeholder." };
+    // @ts-expect-error a gap reason is a string
+    const reasonNumber: RatingGap = { rating: "coding", accepts: 7, reason: 5 };
+    // @ts-expect-error a gap reason is required
+    const missingReason: ProfileGap = { rating: "coding", accepts: 7 };
+    expectTypeOf({
+      missingDescription,
+      invalidEntry,
+      ratingGapWithoutAccepts,
+      acceptsZero,
+      reasonNumber,
+      missingReason,
+    }).toBeObject();
   });
   test("the loader result carries the RFC shape", () => {
     expectTypeOf<LoadRegistryOptions>().toMatchTypeOf<{ path?: string }>();

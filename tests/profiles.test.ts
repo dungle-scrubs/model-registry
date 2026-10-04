@@ -334,14 +334,7 @@ describe("profiles", () => {
       profiles: { budget: { ...budget, surprise: true } },
       field: '$["profiles"]["budget"]["surprise"]',
       message: 'the field "surprise" is not part of a format 1 profile',
-      fix: "Remove the field; a profile accepts only description and routes.",
-    },
-    {
-      name: "gaps is not supported yet",
-      profiles: { budget: { ...budget, gaps: [] } },
-      field: '$["profiles"]["budget"]["gaps"]',
-      message: 'the field "gaps" is not part of a format 1 profile',
-      fix: "Remove the field; a profile accepts only description and routes.",
+      fix: "Remove the field; a profile accepts only description, routes and gaps.",
     },
   ];
   test.each(invalidProfiles)(

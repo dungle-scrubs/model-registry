@@ -357,10 +357,70 @@
             "type": "string"
           },
           "uniqueItems": true
+        },
+        "gaps": {
+          "description": "Accepted gap records in written order. Each names exactly one rating ceiling or one waived capability, and the loader copies them to the normalized profile. Empty is valid; duplicates for the same target are rejected by the loader.",
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/gap"
+          }
         }
       },
       "required": ["description", "routes"],
       "additionalProperties": false
+    },
+    "gap": {
+      "description": "One accepted gap: exactly one of a rating ceiling (rating with accepts, an integer 1 to 10) or a waived capability, always with a non-empty reason.",
+      "type": "object",
+      "properties": {
+        "rating": {
+          "description": "The rating whose floors the profile accepts, capped at accepts. Must be declared in ratings; the reserved route rating cost is not exempt.",
+          "type": "string"
+        },
+        "capability": {
+          "description": "The capability the profile accepts as missing. Must be declared in capabilities.",
+          "type": "string"
+        },
+        "accepts": {
+          "description": "The rating ceiling the profile accepts.",
+          "$ref": "#/$defs/ratingValue"
+        },
+        "reason": {
+          "description": "Why the operator accepts this limitation; one line is the convention, not a rule.",
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "required": ["reason"],
+      "additionalProperties": false,
+      "dependentSchemas": {
+        "rating": {
+          "required": ["accepts"],
+          "not": {
+            "anyOf": [
+              {
+                "required": ["capability"]
+              }
+            ]
+          }
+        },
+        "capability": {
+          "not": {
+            "required": ["rating", "accepts"]
+          }
+        },
+        "accepts": {
+          "required": ["rating"]
+        }
+      },
+      "anyOf": [
+        {
+          "required": ["rating"]
+        },
+        {
+          "required": ["capability"]
+        }
+      ]
     }
   }
 }

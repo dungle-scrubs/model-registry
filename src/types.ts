@@ -134,11 +134,29 @@ type DeclarationMembers = {
 export type ProfileDeclaration = {
   description: string;
   routes: RouteLabel[];
+  gaps?: ProfileGap[];
 };
+
+/** One accepted rating gap: a ceiling the profile accepts, with its reason. */
+export type RatingGap = {
+  readonly rating: string;
+  readonly accepts: RatingValue;
+  readonly reason: string;
+};
+
+/** One accepted capability gap: a waived capability, with its reason. */
+export type CapabilityGap = {
+  readonly capability: string;
+  readonly reason: string;
+};
+
+/** One accepted gap record: exactly one of a rating ceiling or a waived capability. */
+export type ProfileGap = RatingGap | CapabilityGap;
 
 export type Profile = {
   readonly description?: string;
   readonly routes: readonly RouteLabel[];
+  readonly gaps?: readonly Readonly<ProfileGap>[];
 };
 
 export type ProfileProvenance = "implicit" | "declared";

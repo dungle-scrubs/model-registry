@@ -18,6 +18,7 @@ import type {
   Model,
   Profile,
   ProfileDeclaration,
+  ProfileGap,
   ProfileProvenance,
   RegistryErrorCode,
   RegistryFacts,
@@ -214,6 +215,8 @@ type OwnedPath =
   | { kind: "profile"; name: string }
   | { kind: "profileField"; field: string }
   | { kind: "profileRouteEntry" }
+  | { kind: "profileGap" }
+  | { kind: "profileGapField"; field: string }
   | { kind: "other" }
   | { kind: "root" }
   | { kind: "route" }
@@ -289,6 +292,9 @@ function classifyPath(segments: readonly string[]): OwnedPath {
       if (section_ === "profiles" && container === "routes") {
         return { kind: "profileRouteEntry" };
       }
+      if (section_ === "profiles" && container === "gaps") {
+        return { kind: "profileGap" };
+      }
       if (section_ === "models" && container === "ratings") {
         return { kind: "modelRating", modelKey: head ?? "", rating: index ?? "" };
       }
@@ -323,6 +329,9 @@ function classifyPath(segments: readonly string[]): OwnedPath {
       }
       return { kind: "other" };
     case 5:
+      if (section_ === "profiles" && container === "gaps") {
+        return { kind: "profileGapField", field: field ?? "" };
+      }
       if (inModelsRoutes) {
         return { field: field ?? "", kind: "routeField" };
       }
@@ -398,6 +407,34 @@ function ownedProblem(root: unknown, error: ErrorObject): RegistryProblem {
       `Remove the duplicate label "${label}" from the profile routes.`,
     );
   }
+  // A gap that names both variants fails Ajv's dependentSchemas "not" checks; the
+  // same message covers the two identical errors so the dedupe keeps one problem.
+  if (location.kind === "profileGap" && error.keyword === "not") {
+    return invalidProblem(
+      path,
+      'a profile gap must name exactly one of "rating" or "capability"',
+      'Keep either "rating" with "accepts" or "capability", and remove the other fields.',
+    );
+  }
+  if (
+    location.kind === "profileGap" &&
+    error.keyword === "required" &&
+    (error.params.missingProperty === "rating" || error.params.missingProperty === "capability")
+  ) {
+    const value = walkSegments(root, segments).value;
+    if (isPlainObject(value) && Object.hasOwn(value, "accepts")) {
+      return invalidProblem(
+        childPath(path, "accepts"),
+        'the field "accepts" is only valid beside a "rating" gap',
+        'Remove "accepts", or give the gap a "rating" to cap.',
+      );
+    }
+    return invalidProblem(
+      path,
+      'a profile gap must name exactly one of "rating" or "capability"',
+      'Give the gap either a "rating" with "accepts" or a "capability".',
+    );
+  }
 
   switch (error.keyword) {
     case "required":
@@ -442,6 +479,22 @@ function requiredProblem(location: OwnedPath, path: string, error: ErrorObject):
           childPath(path, "routes"),
           `the profile "${location.name}" is missing the required field "routes"`,
           "Add a routes array of route labels; an empty array is valid.",
+        );
+      }
+      break;
+    case "profileGap":
+      if (missing === "reason") {
+        return invalidProblem(
+          childPath(path, "reason"),
+          'the gap is missing the required field "reason"',
+          'Add a non-empty "reason" string.',
+        );
+      }
+      if (missing === "accepts") {
+        return invalidProblem(
+          childPath(path, "accepts"),
+          'a rating gap is missing the required field "accepts"',
+          'Add an "accepts" integer from 1 to 10 naming the accepted ceiling.',
         );
       }
       break;
@@ -551,7 +604,13 @@ function additionalPropertyProblem(
       return invalidProblem(
         childPath(path, name),
         `the field "${name}" is not part of a format 1 profile`,
-        "Remove the field; a profile accepts only description and routes.",
+        "Remove the field; a profile accepts only description, routes and gaps.",
+      );
+    case "profileGap":
+      return invalidProblem(
+        childPath(path, name),
+        `the field "${name}" is not part of a format 1 profile gap`,
+        "Remove the field; a gap accepts only rating, accepts, capability and reason.",
       );
     case "meter":
       return unknownFieldProblem(path, name, "meter");
@@ -668,6 +727,13 @@ function typeProblem(location: OwnedPath, path: string): RegistryProblem | undef
           "Set routes to an array of explicit route labels.",
         );
       }
+      if (location.field === "gaps") {
+        return invalidProblem(
+          path,
+          "the profile gaps field must be an array of gap records",
+          "Set gaps to an array of accepted gap records.",
+        );
+      }
       return undefined;
     case "profileRouteEntry":
       return invalidProblem(
@@ -675,6 +741,40 @@ function typeProblem(location: OwnedPath, path: string): RegistryProblem | undef
         "a profile route entry must be a string",
         "Set the entry to a route label built from models, or remove the entry.",
       );
+    case "profileGap":
+      return invalidProblem(
+        path,
+        "a profile gap must be a JSON object",
+        "Replace the gap with a JSON object naming a rating or a capability and a reason.",
+      );
+    case "profileGapField":
+      switch (location.field) {
+        case "rating":
+          return invalidProblem(
+            path,
+            'the gap field "rating" must be a string',
+            'Set "rating" to a rating name declared in the ratings section.',
+          );
+        case "capability":
+          return invalidProblem(
+            path,
+            'the gap field "capability" must be a string',
+            'Set "capability" to a capability name declared in the capabilities section.',
+          );
+        case "accepts":
+          return invalidProblem(
+            path,
+            'the gap field "accepts" must be an integer from 1 to 10',
+            'Set "accepts" to an integer from 1 to 10 naming the accepted ceiling.',
+          );
+        case "reason":
+          return invalidProblem(
+            path,
+            'the gap field "reason" must be a non-empty string',
+            'Set "reason" to a non-empty string.',
+          );
+      }
+      return undefined;
     case "declaration":
       if (location.section === "ratings") {
         return invalidProblem(
@@ -1122,6 +1222,62 @@ function knownRouteLabels(root: Record<string, unknown>): ReadonlySet<string> {
 }
 
 /**
+ * Check one profile's gap records: every rating and capability name must be
+ * declared, and one profile must not record two gaps for the same target. A
+ * rating and a capability that share a name are different targets. Like the
+ * other reference checks this runs on every load and reads only what it can
+ * verify: an unreadable declaration section skips its own check, and a gap
+ * without a readable string target takes part in no rule that needs one.
+ */
+function collectProfileGapProblems(
+  name: string,
+  gaps: readonly unknown[],
+  declaredRatings: ReadonlySet<string> | undefined,
+  declaredCapabilities: ReadonlySet<string> | undefined,
+  problems: RegistryProblem[],
+): void {
+  const targets = {
+    rating: { declared: declaredRatings, section: "ratings" },
+    capability: { declared: declaredCapabilities, section: "capabilities" },
+  } as const;
+  const firstSeen = new Map<string, number>();
+  gaps.forEach((gap, index) => {
+    if (!isPlainObject(gap)) {
+      return;
+    }
+    const gapPath = childPath("$", "profiles", name, "gaps", index);
+    for (const kind of ["rating", "capability"] as const) {
+      const target = gap[kind];
+      if (typeof target !== "string") {
+        continue;
+      }
+      const { declared, section } = targets[kind];
+      if (declared !== undefined && !declared.has(target)) {
+        problems.push({
+          code: "reference-unknown",
+          field: childPath(gapPath, kind),
+          message: `the profile gap ${kind} "${target}" is not declared in the ${section} section`,
+          fix: `Add "${target}" to the ${section} section, or remove the gap from the profile.`,
+        });
+      }
+      const key = JSON.stringify([kind, target]);
+      const earlier = firstSeen.get(key);
+      if (earlier === undefined) {
+        firstSeen.set(key, index);
+        continue;
+      }
+      problems.push(
+        invalidProblem(
+          childPath(gapPath, kind),
+          `the profile "${name}" records the ${kind} "${target}" as an accepted gap twice; the earlier gap is at index ${earlier}`,
+          `Remove the duplicate gap, or keep a single record for the ${kind} "${target}".`,
+        ),
+      );
+    }
+  });
+}
+
+/**
  * Check every reference the models and calibration sections carry. The check
  * runs on every load, including files whose shape already failed, so it
  * reads only what it can verify itself; one problem fires per bad
@@ -1197,22 +1353,33 @@ function collectReferenceProblems(
     }
   });
 
-  if (routeLabels !== undefined && isPlainObject(root.profiles)) {
+  if (isPlainObject(root.profiles)) {
     for (const [name, profile] of Object.entries(root.profiles)) {
-      if (!isPlainObject(profile) || !Array.isArray(profile.routes)) {
+      if (!isPlainObject(profile)) {
         continue;
       }
-      profile.routes.forEach((label, index) => {
-        if (typeof label !== "string" || routeLabels.has(label)) {
-          return;
-        }
-        problems.push({
-          code: "reference-unknown",
-          field: childPath("$", "profiles", name, "routes", index),
-          message: `the profile route "${label}" is not declared in the routes built from models`,
-          fix: `Add a route producing "${label}" to models, or remove the label from the profile.`,
+      if (routeLabels !== undefined && Array.isArray(profile.routes)) {
+        profile.routes.forEach((label, index) => {
+          if (typeof label !== "string" || routeLabels.has(label)) {
+            return;
+          }
+          problems.push({
+            code: "reference-unknown",
+            field: childPath("$", "profiles", name, "routes", index),
+            message: `the profile route "${label}" is not declared in the routes built from models`,
+            fix: `Add a route producing "${label}" to models, or remove the label from the profile.`,
+          });
         });
-      });
+      }
+      if (Array.isArray(profile.gaps)) {
+        collectProfileGapProblems(
+          name,
+          profile.gaps,
+          declaredRatings,
+          declaredCapabilities,
+          problems,
+        );
+      }
     }
   }
 
@@ -1498,7 +1665,21 @@ export function validateRegistry(
     safeSet(index.profileProvenance, "default", "implicit");
   }
   for (const [name, profile] of Object.entries(declarations)) {
-    safeSet(index.profiles, name, { description: profile.description, routes: profile.routes });
+    const normalized: { description: string; routes: RouteLabel[]; gaps?: ProfileGap[] } = {
+      description: profile.description,
+      routes: profile.routes,
+    };
+    if (Object.hasOwn(profile, "gaps")) {
+      // The schema already guarantees each record matches exactly one variant,
+      // so "rating" in narrows the union; the copies keep the written order.
+      normalized.gaps = (profile.gaps ?? []).map(
+        (gap): ProfileGap =>
+          "rating" in gap
+            ? { rating: gap.rating, accepts: gap.accepts, reason: gap.reason }
+            : { capability: gap.capability, reason: gap.reason },
+      );
+    }
+    safeSet(index.profiles, name, normalized);
     safeSet(index.profileProvenance, name, "declared");
   }
 

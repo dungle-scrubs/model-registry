@@ -1,9 +1,16 @@
 import { readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { Ajv2020 } from "ajv/dist/2020.js";
-import { describe, expect, test } from "vitest";
+import { describe, expect, expectTypeOf, test } from "vitest";
 import { loadRegistry } from "../src/load-registry.js";
-import type { Model, RegistryFile, Route } from "../src/types.js";
+import type {
+  CapabilityGap,
+  Model,
+  ProfileDeclaration,
+  RatingGap,
+  RegistryFile,
+  Route,
+} from "../src/types.js";
 import { AJV_OPTIONS } from "../src/validate.js";
 import {
   catchRegistryError,
@@ -20,8 +27,10 @@ const schema = JSON.parse(readFileSync(schemaPath, "utf8")) as {
   properties: Record<string, unknown>;
   additionalProperties: unknown;
   $defs: {
-    model: { properties: Record<string, unknown> };
-    route: { properties: Record<string, unknown> };
+    model: { properties: Record<string, unknown>; required: string[] };
+    route: { properties: Record<string, unknown>; required: string[] };
+    profile: { properties: Record<string, unknown>; required: string[] };
+    gap: { properties: Record<string, unknown>; required: string[] };
   };
 };
 
@@ -75,6 +84,7 @@ describe("registry.schema.json", () => {
       "ratings",
       "routes",
     ]);
+    expect(schema.$defs.model.required).toEqual(["family", "routes"]);
     expect(deferredProperties(schema.$defs.model.properties)).toEqual([]);
     expect(supportedProperties(schema.$defs.route.properties)).toEqual([
       "capabilities",
@@ -89,7 +99,34 @@ describe("registry.schema.json", () => {
       "rateLimitRpm",
       "responseSeconds",
     ]);
+    expect(schema.$defs.route.required).toEqual(["harness", "modelId", "hosted"]);
     expect(deferredProperties(schema.$defs.route.properties)).toEqual([]);
+    expect(supportedProperties(schema.$defs.profile.properties)).toEqual([
+      "description",
+      "gaps",
+      "routes",
+    ]);
+    expect(deferredProperties(schema.$defs.profile.properties)).toEqual([]);
+    expect(schema.$defs.profile.required).toEqual(["description", "routes"]);
+    const profileKeys = ["description", "gaps", "routes"] as const;
+    expectTypeOf<(typeof profileKeys)[number]>().toEqualTypeOf<keyof ProfileDeclaration>();
+    type NonOptionalKeys<T> = keyof {
+      [K in keyof T as Extract<T[K], undefined> extends never ? K : never]: never;
+    };
+    expectTypeOf<NonOptionalKeys<ProfileDeclaration>>().toEqualTypeOf<"description" | "routes">();
+    expect(supportedProperties(schema.$defs.gap.properties)).toEqual([
+      "accepts",
+      "capability",
+      "rating",
+      "reason",
+    ]);
+    expect(deferredProperties(schema.$defs.gap.properties)).toEqual([]);
+    expect(schema.$defs.gap.required).toEqual(["reason"]);
+    const ratingGapKeys = ["accepts", "rating", "reason"] as const;
+    expectTypeOf<(typeof ratingGapKeys)[number]>().toEqualTypeOf<keyof RatingGap>();
+    const capabilityGapKeys = ["capability", "reason"] as const;
+    expectTypeOf<(typeof capabilityGapKeys)[number]>().toEqualTypeOf<keyof CapabilityGap>();
+    expectTypeOf<keyof RatingGap & keyof CapabilityGap>().toEqualTypeOf<"reason">();
   });
 
   test("cost range mirrors the rating union", () => {
