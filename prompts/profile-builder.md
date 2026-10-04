@@ -134,9 +134,9 @@ route has an endpoint or harness confirmation behind it.
 
 ### Snapshots
 
-Save every read the build uses as one JSON snapshot per source, in `lists/`
-beside the target registry file. Name each file after the public platform
-and method, for example `platform-a-harness.json`. Filenames use
+Save every model list read the build uses as one JSON snapshot per source,
+in `lists/` beside the target registry file. Name each file after the public
+platform and method, for example `platform-a-harness.json`. Filenames use
 lowercase letters, digits and hyphens, and end in `.json`. A filename never
 carries a credential, an account id, an email or a path.
 
@@ -158,8 +158,8 @@ The build works from snapshots, so the same snapshot replays the same list.
 Replacing a snapshot never changes the registry digest; only the registry
 file's bytes do.
 
-Done when each source the build used has one snapshot, and the aggregator's
-snapshot records its narrowing.
+Done when each model list source the build used has one snapshot, and the
+aggregator's snapshot records its narrowing.
 
 ### Rebuilds and diffs
 
@@ -184,8 +184,8 @@ longer lists it. A removal that also takes the route or its model out of the
 shared registry is a shared fact change: show it in a revised proposal the
 user approves before another write.
 
-Done when every source is re-read, each differing snapshot is replaced behind
-an approved diff, and each departed model's route is flagged.
+Done when every model list source is re-read, each differing snapshot is
+replaced behind an approved diff, and each departed model's route is flagged.
 
 ### Rating handoff
 

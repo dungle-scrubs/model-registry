@@ -105,6 +105,15 @@ describe("the profile builder prompt", () => {
     expect(rebuilds).toContain("Benchmark reads in `reads/` are not re-read on a rebuild");
   });
 
+  test("L-B the snapshot and rebuild gates cover model list sources only", () => {
+    const snapshots = flat(subsection("Snapshots"));
+    expect(snapshots).toContain("every model list read the build uses");
+    expect(snapshots).toContain("each model list source the build used");
+    const rebuilds = flat(subsection("Rebuilds and diffs"));
+    expect(rebuilds).toContain("every model list source is re-read");
+    expect(rebuilds).not.toContain("every source is re-read");
+  });
+
   test("L-e snapshots and reads sit beside the target registry file, whatever its name", () => {
     const rating = readFileSync(join(repoRoot, "prompts", "rating.md"), "utf8");
     for (const text of [prompt, rating]) {
