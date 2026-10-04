@@ -118,7 +118,10 @@ Every label must be produced by a route in `models`; an unknown label is
 Without a declared `default`, the loader supplies it with every label in the
 order of `routes`, no description, and provenance `"implicit"`. It is the first
 key, followed by declared profiles in file order. A declared `default` keeps its
-file position and written membership. Every declared profile retains its
+file position and written membership. Profile names that are canonical array
+indices, such as `"1"` or `"42"`, come before all other names in ascending numeric
+order, as in any JavaScript object; `"01"` is not an index and keeps its file
+position. Every declared profile retains its
 `description` and written label order, with provenance `"declared"`. Nothing is
 written to the file, and the digest still hashes only the original bytes.
 `RegistryFile.profiles` is optional `Record<string, ProfileDeclaration>`, where
