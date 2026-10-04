@@ -68,11 +68,27 @@ buildRouteLabel("model-a", { harness: "harness-y", provider: "provider-1" }); //
 
 ## Supported slice of format 1
 
-Accepted and validated in this release: top-level `format`, `ratings`, `capabilities`, `meters`, `models`, `calibration`; model `family`, `notes`, `routes`, `ratings`, `maxEffort`, `fixedEffort`; route `harness`, `modelId`, `provider`, `hosted`, `privacyEligible`, `cost`, `rateLimitRpm`, `responseSeconds`, `notes`, `capabilities`, `meter`; calibration `notes`, `benchmarks`, `feeds`, `handSet`, `figures`, `overrides`. A model rating and the `value` of an override are integers 1 to 10; the `cost` of a route is the same range, with higher meaning cheaper. `rateLimitRpm` and `responseSeconds` are finite numbers of 0 or more. `null` is invalid anywhere, including inside foreign sections. Any other top-level section passes through untouched.
+Accepted and validated in this release: top-level `format`, `ratings`, `capabilities`, `meters`, `models`, `calibration`, `profiles`; model `family`, `notes`, `routes`, `ratings`, `maxEffort`, `fixedEffort`; route `harness`, `modelId`, `provider`, `hosted`, `privacyEligible`, `cost`, `rateLimitRpm`, `responseSeconds`, `notes`, `capabilities`, `meter`; calibration `notes`, `benchmarks`, `feeds`, `handSet`, `figures`, `overrides`. A model rating and the `value` of an override are integers 1 to 10; the `cost` of a route is the same range, with higher meaning cheaper. `rateLimitRpm` and `responseSeconds` are finite numbers of 0 or more. `null` is invalid anywhere, including inside foreign sections. Any other top-level section passes through untouched.
 
 A model `ratings` name, a route `capabilities` entry and a route `meter` name must be declared in the matching top-level section; an undeclared reference fails with `reference-unknown` and the field is the JSONPath of the reference. An absent section declares nothing, so every reference then fails.
 
 `calibration` records how the ratings were produced. `cost` is the reserved route-level rating: in `feeds`, `handSet` and `overrides` it targets `route.cost` by route label and needs no `ratings` entry; every other rating named in those places must be declared in `ratings`. An override naming `cost` must carry a `route` label, and an override for any other rating must carry a `model` key. Every benchmark name in `calibration.feeds` must exist in `calibration.benchmarks`. A rating must not appear in both `handSet` and `feeds`. Figures may name a model or route the file does not declare; they are shape-checked and skipped by the rating check. Only ratings named in `feeds` are checked: every written value of such a rating must equal the value its table computes or match a `calibration.overrides` entry for that rating and target (`rating`, exactly one of `model` or `route`, `value` equal to the written value, a non-empty `reason`); any matching override allows the written value, duplicates in any order, and an override whose value differs never fails a value the table computes. A written route `cost` is checked the same way, only when `cost` is in `feeds`. A rating in `handSet` is never compared, and a rating no feed names, or a `calibration` with no `feeds`, checks nothing. A failed check fails the load with `rating-mismatch`, one problem per written value, and the `fix` names the computed value, or that the table gives none, and the override that would allow the written one.
+
+`profiles` is optional and maps non-empty names to closed objects with a required
+`description` string (one line is the convention, not a rule) and a required
+`routes` array of explicit route labels. An empty array is valid; duplicate labels
+and unknown fields, including `gaps` in this slice, are `registry-invalid`.
+Every label must be produced by a route in `models`; an unknown label is
+`reference-unknown`. No filters or profile selection are implemented here.
+
+```json
+"profiles": {
+  "budget": {
+    "description": "Only a subset of routes.",
+    "routes": ["model-a@harness-x/provider-a"]
+  }
+}
+```
 
 ## Loader result
 
@@ -92,8 +108,26 @@ A model `ratings` name, a route `capabilities` entry and a route `meter` name mu
   },
   routes: Readonly<Record<RouteLabel, IndexedRoute>>, // by label
   sections: Readonly<Record<string, JsonValue>>,      // foreign sections only
+  profiles: Readonly<Record<string, Profile>>,        // always includes default
+  profileProvenance: Readonly<Record<string, ProfileProvenance>>,
 }
 ```
+
+`Profile` is `{ readonly description?: string; readonly routes: readonly RouteLabel[] }`.
+`ProfileProvenance` is `"implicit" | "declared"`. Both maps are always present.
+Without a declared `default`, the loader supplies it with every label in the
+order of `routes`, no description, and provenance `"implicit"`. It is the first
+key, followed by declared profiles in file order. A declared `default` keeps its
+file position and written membership. Profile names that are canonical array
+indices, such as `"1"` or `"42"`, come before all other names in ascending numeric
+order, as in any JavaScript object; `"01"` is not an index and keeps its file
+position. Every declared profile retains its
+`description` and written label order, with provenance `"declared"`. Nothing is
+written to the file, and the digest still hashes only the original bytes.
+`RegistryFile.profiles` is optional `Record<string, ProfileDeclaration>`, where
+`ProfileDeclaration` is `{ description: string; routes: RouteLabel[] }`. These
+three profile types are exported by the package. Profiles do not live under
+`registry` or `sections`; `RegistryFacts` is unchanged.
 
 `ratings`, `capabilities`, `meters` and `calibration` are typed sections of the format and live under `registry`; foreign sections such as `router`, `tasks` and `policy` live under `sections`. The runtime shape is published as `registry.schema.json` (JSON Schema 2020-12), and `examples/registry.json` holds a complete placeholder example.
 
@@ -123,7 +157,7 @@ The package ships no code that produces ratings and no default bands. It ships o
 | `format-unsupported` | a newer or older format major; the fix names upgrading model-registry for a newer format, and names `migrate` for an older format only when this release ships a step from it, otherwise it says to recreate the file as format 1 |
 | `registry-invalid` | a shape error, an unknown field, `null`, or an override whose target does not match its rating (`cost` must target a route, any other rating a model) |
 | `label-duplicate` | two routes with the same label |
-| `reference-unknown` | an undeclared rating, capability, meter, benchmark, model or route label in the format's own sections: a model rating name, a route capability or meter, a calibration `feeds` or `handSet` rating name, a `feeds` benchmark name, or an `overrides` rating, model or route |
+| `reference-unknown` | an undeclared rating, capability, meter, benchmark, model or route label in the format's own sections: a model rating name, a route capability or meter, a calibration `feeds` or `handSet` rating name, a `feeds` benchmark name, or an `overrides` rating, model or route, or a profile route label |
 | `rating-mismatch` | a written rating that the stored table does not give and no override allows; the `fix` names the computed value (or that the table gives none) and the override that would allow the written value |
 | `backup-exists` | `migrate` refused because a backup already sits beside the registry |
 
