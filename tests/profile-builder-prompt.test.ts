@@ -17,6 +17,31 @@ function section(title: string): string {
   return next < 0 ? rest : rest.slice(0, next);
 }
 
+/**
+ * The text of one `###` subsection, from its heading to the next `###` or
+ * `##` heading.
+ */
+function subsection(title: string): string {
+  const start = prompt.indexOf(`### ${title}`);
+  if (start < 0) {
+    return "";
+  }
+  const rest = prompt.slice(start);
+  const nextSub = rest.indexOf("\n### ", 1);
+  const nextSec = rest.indexOf("\n## ", 1);
+  const next = [nextSub, nextSec].filter((index) => index >= 0).sort((a, b) => a - b)[0];
+  return next === undefined ? rest : rest.slice(0, next);
+}
+
+/** The opening, before the first `##` heading. */
+const lead = prompt.split("\n## ")[0] ?? "";
+
+/** Text with runs of whitespace collapsed to single spaces, so assertions
+ * survive the prompt's line wrapping. */
+function flat(text: string): string {
+  return text.replace(/\s+/g, " ");
+}
+
 describe("the profile builder prompt", () => {
   test("DW1 the interview runs the RFC's six steps in order, one question at a time", () => {
     const steps = [...prompt.matchAll(/^## Step (\d) - (.+)$/gm)];
@@ -33,8 +58,9 @@ describe("the profile builder prompt", () => {
   });
 
   test("DW1 steps whose facts the opening request already gave are skipped, and the prompt says so", () => {
-    expect(prompt).toContain("opening request");
-    expect(prompt).toContain("skip");
+    const interview = section("The interview");
+    expect(interview).toContain("opening request");
+    expect(interview).toContain("skip");
   });
 
   test("DW1 aggregator narrowing runs only when an aggregator is among the platforms", () => {
@@ -61,9 +87,10 @@ describe("the profile builder prompt", () => {
   });
 
   test("DW2 a rebuild shows a diff the user approves, with evidence-backed renames and flagged departures", () => {
-    expect(prompt).toContain("approve the diff");
-    expect(prompt).toContain("flagged for removal");
-    expect(prompt).toContain("rename");
+    const rebuilds = flat(subsection("Rebuilds and diffs"));
+    expect(rebuilds).toContain("approve the diff");
+    expect(rebuilds).toContain("flagged for removal");
+    expect(rebuilds).toContain("rename");
   });
 
   test("DW3 the pinned catalog suggests at a recorded revision; a route needs an endpoint or harness read", () => {
@@ -111,5 +138,132 @@ describe("the profile builder prompt", () => {
       "./prompts/profile-builder.md",
     );
     expect(packageJson.files).toContain("prompts");
+  });
+
+  test("F1 the opening hands rating over without following the rating prompt as written", () => {
+    const opening = flat(lead);
+    expect(opening).toContain("hand every rating decision to the rating prompt");
+    expect(opening).not.toContain("as written");
+  });
+
+  test("F1 the rating handoff runs Steps 1 to 3 and computes Step 4 without writing", () => {
+    const handoff = flat(subsection("Rating handoff"));
+    expect(handoff).not.toBe("");
+    expect(handoff).toContain("run its Steps 1 to 3");
+    expect(handoff).toContain("without writing anything");
+    expect(handoff).toContain("already answered by interview Step 4");
+    expect(handoff).toContain("carry those answers over");
+    expect(handoff).toContain("ask only what is still open");
+    expect(handoff).toContain("Its Step 4 write and its Step 5 check happen in Finishing");
+    expect(handoff).toContain("are computed, unwritten, for every rated model and route");
+  });
+
+  test("F1 Finishing writes the shared facts, the profile and the rating values together", () => {
+    const finishing = flat(section("Finishing"));
+    expect(finishing).toContain("the rating prompt's Step 4 values");
+  });
+
+  test("F2 check warnings get a user decision before the build finishes", () => {
+    const finishing = flat(section("Finishing"));
+    expect(finishing).toContain("profile-gap-unrecorded");
+    expect(finishing).toContain("profile-gap-stale");
+    expect(finishing).toContain("leave `default` implicit");
+    expect(finishing).toContain("the build finishes when every warning has the user's decision");
+    expect(finishing).toContain("approved before another write");
+  });
+
+  test("F4 aggregator narrowing is required before an aggregator read", () => {
+    const step3 = flat(section("Step 3 - Aggregator narrowing"));
+    expect(step3).toContain("must give a price ceiling, a provider subset, or both");
+    expect(step3).not.toContain("needs none");
+    expect(step3).toContain("the aggregator is not read and adds no candidates");
+    expect(step3).toContain("or the aggregator is left out");
+  });
+
+  test("F5 a catalog-suggested platform is asked about before it joins", () => {
+    const discovery = flat(subsection("Discovery reads"));
+    expect(discovery).not.toBe("");
+    expect(discovery).toContain(
+      "When the catalog suggests a platform the user did not list, ask about it as one question",
+    );
+    expect(discovery).toContain("Only on the user's yes");
+    expect(discovery).toContain("at the position the user gives");
+    expect(discovery).toContain("Without a yes it is not read and supplies no route");
+  });
+
+  test("F6 platform order sets each model's routes array, and labels carry no ranking", () => {
+    const step1 = flat(section("Step 1 - Platforms and plans"));
+    expect(step1).toContain("each model's `routes` array");
+    const proposal = flat(section("The proposal"));
+    expect(proposal).toContain("each model's `routes`");
+    expect(proposal).toContain("the label list carries no ranking");
+    expect(proposal).toContain("breaks ties on equal cost");
+    expect(proposal).toContain("approves a global reorder");
+  });
+
+  test("F7 the target registry file is settled before Step 1 and confirmed in Finishing", () => {
+    const target = flat(section("The target file"));
+    expect(target).not.toBe("");
+    expect(prompt.indexOf("## The target file")).toBeLessThan(prompt.indexOf("## Step 1"));
+    expect(target).toContain("the path the opening request names");
+    expect(target).toContain("resolved default");
+    expect(target).toContain("`path`");
+    expect(target).toContain("`lists/` and `reads/`");
+
+    const finishing = flat(section("Finishing"));
+    expect(finishing).toContain("--registry <path>");
+    expect(finishing).toContain("`path` from `model-registry check`");
+    expect(finishing).toContain("`registryPath` from `model-router check`");
+    expect(finishing).toContain("equals the written file");
+  });
+
+  test("F8 shared task floors are asked from the user, as suggestions at most", () => {
+    const floors = flat(subsection("Shared task floors"));
+    expect(floors).not.toBe("");
+    expect(floors).toContain("floors per stakes level");
+    expect(floors).toContain("one task per question");
+    expect(floors).toContain("marked as suggestions");
+
+    const proposal = flat(section("The proposal"));
+    expect(proposal).toContain("`tasks`");
+    expect(proposal).toContain("apply to every profile, including the implicit `default`");
+  });
+
+  test("F10 a failed read or rejected diff offers retry, old snapshot or stop; a rejected flag keeps the route", () => {
+    const rebuilds = flat(subsection("Rebuilds and diffs"));
+    expect(rebuilds).toContain("pauses");
+    expect(rebuilds).toContain("old snapshot stays");
+    expect(rebuilds).toContain("retry the read");
+    expect(rebuilds).toContain("continue on the old snapshot with the user's explicit approval");
+    expect(rebuilds).toContain("or stop");
+    expect(rebuilds).toContain("keeps the route");
+    expect(rebuilds).toContain("kept on a platform whose latest read no longer lists it");
+  });
+
+  test("F11 each new route's hosted flag is written from evidence the user confirms", () => {
+    const proposal = flat(section("The proposal"));
+    expect(proposal).toContain("`hosted`");
+    expect(proposal).toContain("from evidence the user confirms");
+    expect(proposal).toContain("a local runtime on the user's machine is not hosted");
+    expect(proposal).toContain("a provider, subscription service or aggregator is");
+  });
+
+  test("F15 prose lines outside tables and code blocks stay within 80 columns", () => {
+    const lines = prompt.split("\n");
+    let inCode = false;
+    const long: string[] = [];
+    for (const line of lines) {
+      if (line.startsWith("```")) {
+        inCode = !inCode;
+        continue;
+      }
+      if (inCode || line.startsWith("|")) {
+        continue;
+      }
+      if (line.length > 80) {
+        long.push(line);
+      }
+    }
+    expect(long).toEqual([]);
   });
 });
