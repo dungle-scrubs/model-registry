@@ -229,25 +229,28 @@ The builder shows the whole proposal in one place:
    and `maxEffort` high. Each route's `hosted` from evidence: platform-a's
    subscription service, aggregator-a, and platform-b's pay-as-you-go API
    through provider-2 are all hosted, so every route is `hosted: true`;
-   ratings coding and taste; capability browser; meter plan-a, no fields;
-   calibration with the four benchmark keys; the router section with
+   capability browser; meter plan-a, no fields; the router section with
    `router.rank` coding then taste; the implement task with floors low
    coding 6 taste 4, normal coding 7 taste 4, high coding 8 taste 5, rank
    coding then taste, effort high. Tasks and floors apply to every profile,
    including the implicit `default`.
-3. The ratings and bands above, shown for approval; record-only evidence
-   (the above-cap figure and the taste rows) apart from the feeding
-   figures.
+3. The rating declarations coding and taste, `calibration.feeds`
+   (`engines` feeding `coding`, `cost-per-task` feeding `cost`), the four
+   benchmark keys with the bands above, the figures and ratings above, and
+   the cost-9 override with its reason, shown for approval; record-only
+   evidence (the above-cap figure and the taste rows) apart from the
+   feeding figures.
 4. The accepted coding-7 gap with its reason.
 
 **User:** Approved. Write it.
 
 ## The checks
 
-The builder writes the shared facts, the profile, and everything the rating
-prompt's Steps 2 to 4 produced, then runs both checks. The registry as
-first approved is kept beside this README as `registry-before-rebuild.json`,
-and the lines below are the checks' output for that file:
+The builder writes the shared facts, the profile, the rating prompt's Step
+1 declarations and feeds, and everything its Steps 2 to 4 produced, then
+runs both checks. The registry as first approved is kept beside this
+README as `registry-before-rebuild.json`, and the lines below are the
+checks' output for that file:
 
 ```console
 $ model-registry check --registry registry-before-rebuild.json

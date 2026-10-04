@@ -187,9 +187,10 @@ an approved diff, and each departed model's route is flagged.
 Hand rating to the rating prompt at `prompts/rating.md`, with the pool the
 approved snapshots define, and run the rating prompt's Steps 1 to 3 there
 and compute its Step 4 values. Inside a build, everything those steps
-record - the benchmarks with their bands and notes, the figures, the
-ratings, the overrides and the `handSet` entries - goes into the proposal,
-not the file: nothing is written to the registry file during the handoff.
+record - the `ratings` declarations and `calibration.feeds`, the
+benchmarks with their bands and notes, the figures, the ratings, the
+overrides and the `handSet` entries - goes into the proposal, not the
+file: nothing is written to the registry file during the handoff.
 Each pinned benchmark read is saved in `reads/` when taken, as each model
 list read is saved in `lists/`. Its Step 1 questions are already answered
 by interview Step 4 above: carry those answers over and ask only what is
@@ -252,8 +253,9 @@ Show the user, in one place:
    Note that tasks and floors apply to every profile, including the
    implicit `default`. Name every other declared profile in the target
    that these shared changes reach.
-3. The ratings, bands, figures and overrides the rating prompt computed,
-   shown for approval.
+3. The `ratings` declarations and `calibration.feeds` from the rating
+   prompt's Step 1, and the ratings, bands, figures and overrides it
+   computed, shown for approval.
 4. The accepted gaps with their reasons, and each uncovered item beside its
    decision.
 
@@ -266,10 +268,11 @@ Done when the user has approved the whole proposal in one message.
 ## Finishing
 
 After approval, write the registry in one write: the shared facts, the
-profile, and everything the rating prompt's Steps 2 to 4 produced - the
-`calibration` benchmarks with their bands and notes, the figures, the
-ratings, the overrides and the `handSet` entries. Then run both checks, in
-this order:
+profile, the rating prompt's Step 1 output - the `ratings` declarations
+and `calibration.feeds` - and everything the rating prompt's Steps 2 to 4
+produced - the `calibration` benchmarks with their bands and notes, the
+figures, the ratings, the overrides and the `handSet` entries. Then run
+both checks, in this order:
 
 ```sh
 model-registry check

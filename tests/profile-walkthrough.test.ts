@@ -313,13 +313,31 @@ describe("the profile walkthrough", () => {
     const flattened = flat(readReadme());
     const item2 = flattened.slice(
       flattened.indexOf("2. Shared fact changes:"),
-      flattened.indexOf("3. The ratings and bands above"),
+      flattened.indexOf("3. The rating declarations"),
     );
     expect(item2).not.toBe("");
     expect(item2).toContain("harness-x documentation");
     expect(item2).toContain("`maxEffort` high");
     expect(item2).toContain("provider-2");
     expect(item2).toContain("platform-b");
+  });
+
+  test("M-2 the walkthrough proposal names the Step 1 declarations and feeds", () => {
+    const flattened = flat(readReadme());
+    const item3 = flattened.slice(
+      flattened.indexOf("3. The rating declarations"),
+      flattened.indexOf("4. The accepted"),
+    );
+    expect(item3).not.toBe("");
+    expect(item3).toContain("`calibration.feeds`");
+    expect(item3).toContain("cost-9 override");
+    expect(item3).toContain("figures");
+    const item2 = flattened.slice(
+      flattened.indexOf("2. Shared fact changes:"),
+      flattened.indexOf("3. The rating declarations"),
+    );
+    expect(item2).not.toContain("ratings coding and taste");
+    expect(flattened).toContain("Step 1 declarations and feeds");
   });
 
   test("L-b the walkthrough Step 4 asks only for the open facts", () => {

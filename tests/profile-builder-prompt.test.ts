@@ -199,6 +199,18 @@ describe("the profile builder prompt", () => {
     expect(handoff).not.toContain("nothing is written during the handoff");
   });
 
+  test("M-2 the write list and proposal include the rating prompt's Step 1 output", () => {
+    const handoff = flat(subsection("Rating handoff"));
+    expect(handoff).toContain("`calibration.feeds`");
+
+    const proposal = flat(section("The proposal"));
+    expect(proposal).toContain("3. The `ratings` declarations and `calibration.feeds`");
+
+    const finishing = flat(section("Finishing"));
+    expect(finishing).toContain("the `ratings` declarations and `calibration.feeds`");
+    expect(finishing).toContain("everything the rating prompt's Steps 2 to 4 produced");
+  });
+
   test("N1 Finishing writes everything the rating prompt produced, in one approved write", () => {
     const finishing = flat(section("Finishing"));
     expect(finishing).toContain("write the registry in one write");
