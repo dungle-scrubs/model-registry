@@ -167,7 +167,7 @@ const effort: EffortLevel = "high";
 
 ## Rating method
 
-The package ships no code that produces ratings and no default bands. It ships one agent prompt at `prompts/rating.md` (also published as `@dungle-scrubs/model-registry/prompts/rating.md`). The prompt follows the RFC's five steps: ask which ratings, benchmarks and models matter; propose bands and wait for approval; read and record figures with `value`, `read` and `effort`; write ratings, overrides and handSet entries; run `model-registry check`.
+The package ships no code that produces ratings and no default bands. It ships the rating prompt at `prompts/rating.md` (also published as `@dungle-scrubs/model-registry/prompts/rating.md`). The prompt follows the RFC's five steps: ask which ratings, benchmarks and models matter; propose bands and wait for approval; read and record figures with `value`, `read` and `effort`; write ratings, overrides and handSet entries; run `model-registry check`.
 
 The prompt offers suggested benchmarks, each offered and never adopted without the user's approval: the Artificial Analysis Intelligence and Coding indices for `intelligence` and `coding` (the user fetches every figure with their own key), Artificial Analysis cost per task for route `cost` when the measured provider and effort match the route, and Arena WebDev `overall` as evidence for a hand-set `taste` (a suggested band, never a feed). Suggested bands come from a fixed decile method over the user's own pinned read, with the read identity recorded in the benchmark's `version` and the method in its `notes`; the package ships no band numbers. Figures measured above a model's `maxEffort` are stored under a separate benchmark key that no feed lists, with their measured effort, and never feed a rating.
 
