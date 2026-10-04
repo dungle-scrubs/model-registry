@@ -72,7 +72,7 @@ describe("the profile builder prompt", () => {
   test("DW2 model lists are read as local commands and saved as lists/ snapshots with the contract fields", () => {
     expect(prompt).toContain("local command");
     expect(prompt).toContain("`lists/`");
-    expect(prompt).toContain("beside `registry.json`");
+    expect(flat(prompt)).toContain("beside the target registry file");
     for (const field of ["`source`", "`method`", "`read`", "`scope`", "`modelIds`", "`revision`"]) {
       expect(prompt).toContain(field);
     }
@@ -91,6 +91,15 @@ describe("the profile builder prompt", () => {
     expect(rebuilds).toContain("approve the diff");
     expect(rebuilds).toContain("flagged for removal");
     expect(rebuilds).toContain("rename");
+  });
+
+  test("L-e snapshots and reads sit beside the target registry file, whatever its name", () => {
+    const rating = readFileSync(join(repoRoot, "prompts", "rating.md"), "utf8");
+    for (const text of [prompt, rating]) {
+      expect(flat(text)).not.toContain("beside `registry.json`");
+    }
+    expect(flat(prompt)).toContain("in `lists/` beside the target registry file");
+    expect(flat(rating)).toContain("in `reads/` beside the registry file");
   });
 
   test("DW3 the pinned catalog suggests at a recorded revision; a route needs an endpoint or harness read", () => {

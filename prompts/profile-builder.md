@@ -130,10 +130,10 @@ route has an endpoint or harness confirmation behind it.
 ### Snapshots
 
 Save every read the build uses as one JSON snapshot per source, in `lists/`
-beside `registry.json`. Name each file after the public platform and method,
-for example `platform-a-harness.json`: lowercase letters, digits and hyphens,
-ending in `.json`. A filename never carries a credential, an account id, an
-email or a path.
+beside the target registry file. Name each file after the public platform
+and method, for example `platform-a-harness.json`. Filenames use
+lowercase letters, digits and hyphens, and end in `.json`. A filename never
+carries a credential, an account id, an email or a path.
 
 Each snapshot holds exactly these fields:
 
