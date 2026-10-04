@@ -196,6 +196,14 @@ and taste evidence - apart from the figures that feed ratings.
 Done when the rating prompt's Steps 1 to 3 have run and its Step 4 values
 are computed, unwritten, for every rated model and route in the pool.
 
+### Shared task floors
+
+Gap decisions are measured against the global floors in `tasks`. When the
+target registry has no task for the work the profile serves, or the task has
+no floors, ask the user for the floors per stakes level, one task per
+question; you may offer suggested values, marked as suggestions. Every new
+or changed shared value the answers produce is listed in The proposal.
+
 ### Gap decisions
 
 For each task the profile should cover and does not, name the uncovered work
@@ -218,8 +226,14 @@ Show the user, in one place:
    equal cost. Keep an existing model's `routes` order unless the user
    approves a global reorder, and before that approval show which other
    profiles the reorder affects.
-2. The shared fact changes: new models, routes and declarations the build
-   adds to the registry's shared sections.
+2. The shared fact changes: every new or changed shared value the build adds
+   to the registry's shared sections - new models and routes; tasks with
+   their floors, `rank` and `effort`; `router`; meters and their fields.
+   Each new route's `hosted` (and `privacyEligible` when set) is written
+   from evidence the user confirms: a local runtime on the user's machine is
+   not hosted; a provider, subscription service or aggregator is. Note that
+   tasks and floors apply to every profile, including the implicit
+   `default`.
 3. The ratings and bands the rating prompt computed, shown for approval.
 4. The accepted gaps with their reasons, and each uncovered item beside its
    decision.
