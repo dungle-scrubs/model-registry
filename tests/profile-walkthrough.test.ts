@@ -16,6 +16,7 @@ interface Benchmark {
   direction: "higher" | "lower";
   version: string;
   bands: Band[];
+  notes?: string;
 }
 
 interface Figure {
@@ -66,6 +67,17 @@ function readReadme(): string {
  * survive the README's line wrapping. */
 function flat(text: string): string {
   return text.replace(/\s+/g, " ");
+}
+
+/** The transcript's turns, in README order: every block that opens with an
+ * Agent or User marker. */
+function turns(readme: string): Array<{ role: "Agent" | "User"; text: string }> {
+  return readme.split(/\n\n+/).flatMap((block) => {
+    const match = block.match(/^\*\*(Agent|User):\*\* ([\s\S]*)$/);
+    return match === null
+      ? []
+      : [{ role: match[1] as "Agent" | "User", text: flat(match[2] ?? "") }];
+  });
 }
 
 /**
@@ -325,6 +337,147 @@ describe("the profile walkthrough", () => {
     const flattened = flat(readReadme());
     expect(flattened).toContain("not stored as a figure");
     expect(flattened).not.toContain("not stored as evidence");
+  });
+
+  test("N3 every figure in both registries comes from the pinned read its benchmark names", () => {
+    interface PinnedRead {
+      source: string;
+      version: string;
+      read: string;
+      rows: Array<{ id: string; value: number; effort?: string }>;
+    }
+    const reads = readdirSync(join(root, "reads")).map((name) => ({
+      name,
+      data: JSON.parse(readFileSync(join(root, "reads", name), "utf8")) as PinnedRead,
+    }));
+    expect(reads.length).toBeGreaterThan(0);
+    for (const file of ["registry.json", "registry-before-rebuild.json"]) {
+      const registry = readRegistryFile(file);
+      let checked = 0;
+      for (const [subject, benchmarks] of Object.entries(registry.calibration.figures)) {
+        const model = registry.models[subject];
+        for (const [benchmarkName, figure] of Object.entries(benchmarks)) {
+          checked += 1;
+          const benchmark = registry.calibration.benchmarks[benchmarkName];
+          if (benchmark === undefined) {
+            throw new Error(`${file} has a figure under an undeclared benchmark ${benchmarkName}`);
+          }
+          const read = reads.find(
+            (entry) =>
+              entry.data.source === benchmark.source && entry.data.version === benchmark.version,
+          );
+          if (read === undefined) {
+            throw new Error(
+              `${file} ${subject}/${benchmarkName}: no pinned read for ${benchmark.source} at ${benchmark.version}`,
+            );
+          }
+          // The row id: the route label for a route figure, else the model's
+          // modelId or a source row name the benchmark's notes map to it.
+          const ids =
+            model === undefined
+              ? [subject]
+              : [
+                  ...(model.routes ?? []).map((route) => String(route.modelId)),
+                  ...[...(benchmark.notes ?? "").matchAll(/row '([^']+)' maps to (\S+)/g)]
+                    .filter(([, , target]) => target === subject)
+                    .map(([, rowName]) => rowName as string),
+                ];
+          const row = read.data.rows.find(
+            (candidate) =>
+              ids.includes(candidate.id) &&
+              candidate.value === figure.value &&
+              (candidate.effort === undefined || candidate.effort === figure.effort),
+          );
+          if (row === undefined) {
+            throw new Error(
+              `${file} ${subject}/${benchmarkName}: no row ${ids.join(" or ")} in ${read.name} carries ${figure.value}`,
+            );
+          }
+          expect(figure.read, `${file} ${subject}/${benchmarkName} read date`).toBe(read.data.read);
+        }
+      }
+      expect(checked, `${file} figure count`).toBeGreaterThan(0);
+    }
+  });
+
+  test("the check commands name the file their output reports", () => {
+    const readme = readReadme();
+    const lines = readme.split("\n");
+    let seen = 0;
+    for (let index = 0; index + 1 < lines.length; index += 1) {
+      const line = lines[index] ?? "";
+      const match = line.match(/^\$ (model-registry|model-router) check --registry (\S+)$/);
+      if (match === null) {
+        continue;
+      }
+      seen += 1;
+      const record = JSON.parse(lines[index + 1] ?? "") as {
+        path?: string;
+        registryPath?: string;
+      };
+      const reported = record.path ?? record.registryPath;
+      expect(reported, line).toBeDefined();
+      expect(reported?.endsWith(`/${match[2]}`), line).toBe(true);
+    }
+    expect(seen).toBe(4);
+  });
+
+  test("the walkthrough pins its five decision turns, each answered, in README order", () => {
+    const readme = readReadme();
+    const list = turns(readme);
+    // One agent turn matching every phrase, answered by the next turn.
+    const ask = (...phrases: string[]) => {
+      const hits = list
+        .map((turn, index) => ({ turn, index }))
+        .filter(({ turn }) => turn.role === "Agent" && phrases.every((p) => turn.text.includes(p)));
+      expect(hits.length, `agent turn asking ${phrases.join(" + ")}`).toBe(1);
+      const { index } = hits[0] as {
+        turn: { role: "Agent" | "User"; text: string };
+        index: number;
+      };
+      return index;
+    };
+    const answered = (agentIndex: number, phrase: string) => {
+      const answer = list[agentIndex + 1];
+      expect(answer?.role, `turn after ${agentIndex}`).toBe("User");
+      expect(answer?.text, `turn after ${agentIndex}`).toContain(phrase);
+    };
+    // 1. The taste ask for model-c, and the user leaving its taste unset.
+    const taste = ask("And model-c?", "set a taste");
+    answered(taste, "leave its taste unset");
+    // 2. The high-stakes gap offer: three ways out, with a recommendation.
+    const gap = ask(
+      "hand-set model-c's taste at 5 or above",
+      "look for another model",
+      "coding ceiling of 7",
+      "My recommendation:",
+    );
+    answered(gap, "Accept coding 7");
+    // 3. The first checks' warning turn: the three repair choices, answered
+    // before the rebuild.
+    const warning = ask(
+      "add a filling route",
+      "gap record",
+      "leave `default` implicit",
+      "My recommendation:",
+    );
+    answered(warning, "Leave `default` implicit.");
+    // 4. The rebuild's revised proposal, approved before the route leaves.
+    const revised = ask("Approve the revised proposal before I write?");
+    answered(revised, "Approved. Write it.");
+    // 5. The final implicit-default ask and its answer.
+    const finalAsk = ask("Keep `default` implicit?");
+    answered(finalAsk, "Yes, keep it implicit.");
+    expect(taste).toBeLessThan(gap);
+    expect(gap).toBeLessThan(warning);
+    expect(warning).toBeLessThan(revised);
+    expect(revised).toBeLessThan(finalAsk);
+    const rebuildAt = readme.indexOf("## The rebuild");
+    expect(readme.indexOf("You can add a filling route")).toBeLessThan(rebuildAt);
+    expect(readme.indexOf("**User:** Leave `default` implicit.")).toBeLessThan(rebuildAt);
+    const leavesAt = readme.indexOf("The route leaves the profile and the registry");
+    expect(readme.indexOf("Approve the revised proposal before I write?")).toBeLessThan(leavesAt);
+    expect(readme.indexOf("**User:** Approved. Write it.")).toBeLessThan(leavesAt);
   });
 
   test("F8 shared values come from the user, and the proposal shows them", () => {
