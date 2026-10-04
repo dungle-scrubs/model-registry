@@ -318,8 +318,10 @@ describe("the profile walkthrough", () => {
     expect(item2).not.toBe("");
     expect(item2).toContain("harness-x documentation");
     expect(item2).toContain("`maxEffort` high");
-    expect(item2).toContain("provider-2");
-    expect(item2).toContain("platform-b");
+    const hostedAt = item2.indexOf("Each route's `hosted`");
+    const hosted = item2.slice(hostedAt, item2.indexOf("; ", hostedAt));
+    expect(hosted).toContain("platform-b");
+    expect(hosted).toContain("provider-2");
   });
 
   test("M-2 the walkthrough proposal names the Step 1 declarations and feeds", () => {
@@ -508,8 +510,11 @@ describe("the profile walkthrough", () => {
     expect(readme.indexOf("You can add a filling route")).toBeLessThan(rebuildAt);
     expect(readme.indexOf("**User:** Leave `default` implicit.")).toBeLessThan(rebuildAt);
     const leavesAt = readme.indexOf("The route leaves the profile and the registry");
-    expect(readme.indexOf("Approve the revised proposal before I write?")).toBeLessThan(leavesAt);
-    expect(readme.indexOf("**User:** Approved. Write it.")).toBeLessThan(leavesAt);
+    const revisedAt = readme.indexOf("Approve the revised proposal before I write?");
+    expect(revisedAt).toBeLessThan(leavesAt);
+    const approvedAt = readme.indexOf("**User:** Approved. Write it.", revisedAt);
+    expect(approvedAt).toBeGreaterThan(revisedAt);
+    expect(approvedAt).toBeLessThan(leavesAt);
   });
 
   test("F8 shared values come from the user, and the proposal shows them", () => {
