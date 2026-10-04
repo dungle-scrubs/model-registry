@@ -164,8 +164,8 @@ model-registry check
 ```
 
 The check loads the registry through the loader's path order, validates
-the schema and every reference, and compares each written rating with
-the table the file itself stores. A `rating-mismatch` problem names the
+the schema and every reference, and compares each written rating with the
+table the file itself stores. A `rating-mismatch` problem names the
 written rating's field, the value the table gives (or that it gives none),
 and the override that would allow the written value. Fix what it names and
 re-run until the check exits 0.
