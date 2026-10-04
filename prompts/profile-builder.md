@@ -210,6 +210,15 @@ model-registry check
 model-router check
 ```
 
-An explicit registry path uses `--registry` on both. A failed declared-profile
-coverage check leaves the build unfinished: return to the proposal, close the
-gap or record its acceptance, and run the checks again.
+Show the user every warning either check reports, and get the user's
+decision on each; the build finishes when every warning has the user's
+decision. For a `profile-gap-unrecorded` warning on the implicit `default`,
+offer the repair choices: add a filling route, declare `default` with a gap
+record, or leave `default` implicit (the check passes), with your
+recommendation. For a `profile-gap-stale` warning on the built profile,
+offer to update or remove the record. A choice that changes the registry is
+a revised proposal, approved before another write.
+
+A failed declared-profile coverage check leaves the build unfinished: return
+to the proposal, close the gap or record its acceptance, and run the checks
+again.
