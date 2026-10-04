@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.2.0](https://github.com/dungle-scrubs/model-registry/compare/v0.1.0...v0.2.0) (2026-10-04)
+
+
+### Features
+
+* validate and load accepted gap records on declared profiles ([#63](https://github.com/dungle-scrubs/model-registry/issues/63)) ([#81](https://github.com/dungle-scrubs/model-registry/issues/81)) ([e0507a4](https://github.com/dungle-scrubs/model-registry/commit/e0507a4a3340591ecf6dcab7360fb5b1537b1f26))
+* validate and load registry profiles with an implicit default ([#62](https://github.com/dungle-scrubs/model-registry/issues/62)) ([#79](https://github.com/dungle-scrubs/model-registry/issues/79)) ([06d5daa](https://github.com/dungle-scrubs/model-registry/commit/06d5daa159800dd8c99c6d91b2a6413a9ac6e7fe))
+
 ## 0.1.0 (2026-10-03)
 
 
