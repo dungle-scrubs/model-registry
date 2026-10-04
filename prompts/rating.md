@@ -40,30 +40,35 @@ runs as a local command on the user's machine, so no key ever reaches you.
 
 ## Step 2 - propose bands, show the ratings they give, wait for approval
 
-For each benchmark, read its table from the source and record:
+For each benchmark, record:
 
-- `source`: where the table came from, as a URL.
+- `source`: where the benchmark's figures come from, as a URL.
 - `field`: the column the figures are read from.
-- `version`: the version of the table the bands belong to.
+- `version`: the identity of the pinned read the bands and figures come
+  from: its revision, or its read date when the source has no revision.
+  Bands the user edits or supplies belong to that same read.
 - `direction`: `higher` when a larger figure is better, `lower` when a
   smaller figure is better.
 - `bands`: an ordered list of `{ "at": <number>, "score": 1-10 }`. With
   `higher`, a figure at or above `at` takes `score`; with `lower`, at or
   below. The first band that matches wins.
 
-When a benchmark has no table, or a new pinned read is taken whose
-identity differs from the `version` the table records, propose bands
-computed with the decile method below, show the user the ratings those bands
-would give for each model, and write nothing until the user approves. There
-are no default bands: the package ships none, and the table is the user's
-own choice.
+Propose bands, computed with the decile method below, when a benchmark that
+a feed lists has no bands, or when the user takes a new pinned read whose
+identity differs from the benchmark's `version`; show the ratings those
+bands would give for each model and write nothing until the user approves.
+Take a new pinned read only when the user asks for one or approves your
+offer of one. A record-only key that no feed lists keeps `bands: []` and
+gets no proposal. There are no default bands: the package ships none, and
+the table is the user's own choice.
 
 Compute every proposed band from the user's own pinned read of that
 benchmark: a read the user made with their own key, at a recorded revision
-or date, kept as one JSON file per read in `reads/` beside `registry.json`,
-named like a model list snapshot (lowercase letters, digits and hyphens),
-holding the source, the read identity (its revision or date) and every row
-read. The package ships no band numbers; this method is all it ships.
+or date, kept as one JSON file per read in `reads/` beside the registry
+file, named like a model list snapshot (lowercase letters, digits and
+hyphens), holding the source, the read identity (its revision or date) and
+every row read. The package ships no band numbers; this method is all it
+ships.
 
 The distribution is every row with a figure in that pinned read, not only
 the models being rated. Sort the n figures worst to best by the benchmark's
@@ -97,15 +102,17 @@ its `notes`. The user approves every band before the registry is written.
 
 Every benchmark read runs as a local command on the user's machine: the
 key stays in the local environment, you see the command shape and its
-output, and you never ask for or receive a key.
+output, and you never ask for or receive a key. The pinned read itself is
+that local command.
 
 For each benchmark in each feed, read the figure for every rated model
-and, for `cost`, every route that carries one. Record each figure under
-`calibration.figures`, keyed by model key (or by route label for `cost`),
-then by benchmark name, with:
+and, for `cost`, every route that carries one, from the pinned read in
+`reads/` that the benchmark's `version` names, not from a fresh fetch.
+Record each figure under `calibration.figures`, keyed by model key (or by
+route label for `cost`), then by benchmark name, with:
 
 - `value`: the figure as a finite number.
-- `read`: the date you read it.
+- `read`: the read date of that pinned read.
 - `effort`: the effort level the figure was measured at, one of
   `low < medium < high < xhigh < max`.
 

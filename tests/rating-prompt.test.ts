@@ -133,8 +133,28 @@ describe("the rating prompt's suggested benchmarks and bands", () => {
     const reflate = flat(step2);
     expect(reflate).not.toBe("");
     expect(reflate).not.toContain("published version");
-    expect(reflate).toContain("a new pinned read is taken whose");
-    expect(reflate).toContain("identity differs from the `version` the table records");
+    expect(reflate).toContain("takes a new pinned read whose");
+    expect(reflate).toContain("identity differs from the benchmark's `version`");
+  });
+
+  test("N3 a benchmark's version is the identity of its pinned read", () => {
+    const flattened = flat(step2);
+    expect(flattened).not.toBe("");
+    expect(flattened).not.toContain("the version of the table");
+    expect(flattened).toContain("the identity of the pinned read the bands and figures come from");
+  });
+
+  test("N3 bands are proposed for fed keys without bands; record-only keys keep empty bands", () => {
+    const flattened = flat(step2);
+    expect(flattened).toContain("a benchmark that a feed lists has no bands");
+    expect(flattened).toContain("only when the user asks for one or approves");
+    expect(flattened).toContain("keeps `bands: []`");
+  });
+
+  test("N3 Step 3 figures come from the pinned read, not a fresh fetch", () => {
+    const flattened = flat(step3);
+    expect(flattened).toContain("from the pinned read in `reads/`");
+    expect(flattened).toContain("not from a fresh fetch");
   });
 
   test("F12 benchmark reads run as local commands with no key in the conversation", () => {
