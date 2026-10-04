@@ -32,15 +32,40 @@ interface Calibration {
   overrides: Array<Record<string, unknown>>;
 }
 
+interface Route {
+  hosted?: boolean;
+  [key: string]: unknown;
+}
+
 interface WalkthroughRegistry {
   calibration: Calibration;
-  models: Record<string, { ratings?: Record<string, number>; maxEffort?: string }>;
+  models: Record<
+    string,
+    { ratings?: Record<string, number>; maxEffort?: string; routes?: Route[] }
+  >;
+  meters: Record<string, Record<string, unknown>>;
+  profiles: Record<string, { routes: string[] }>;
+  tasks: Record<string, unknown>;
 }
 
 const EFFORT_ORDER = ["low", "medium", "high", "xhigh", "max"] as const;
 
 function readRegistry(): WalkthroughRegistry {
   return JSON.parse(readFileSync(join(root, "registry.json"), "utf8")) as WalkthroughRegistry;
+}
+
+function readRegistryFile(name: string): WalkthroughRegistry {
+  return JSON.parse(readFileSync(join(root, name), "utf8")) as WalkthroughRegistry;
+}
+
+function readReadme(): string {
+  return readFileSync(join(root, "README.md"), "utf8");
+}
+
+/** Text with runs of whitespace collapsed to single spaces, so assertions
+ * survive the README's line wrapping. */
+function flat(text: string): string {
+  return text.replace(/\s+/g, " ");
 }
 
 /**
@@ -115,7 +140,7 @@ describe("the profile walkthrough", () => {
   });
 
   test("DW8 the rebuild diff the README shows equals the before and after snapshot difference", () => {
-    const readme = readFileSync(join(root, "README.md"), "utf8");
+    const readme = readReadme();
     const before = JSON.parse(
       readFileSync(join(root, "lists-before-rebuild", "aggregator-a.json"), "utf8"),
     ) as { modelIds: string[] };
@@ -210,8 +235,9 @@ describe("the profile walkthrough", () => {
 
   test("DW8 the walkthrough stays placeholder-only and unshipped", () => {
     const texts = [
-      readFileSync(join(root, "README.md"), "utf8"),
+      readReadme(),
       readFileSync(join(root, "registry.json"), "utf8"),
+      readFileSync(join(root, "registry-before-rebuild.json"), "utf8"),
     ];
     for (const dirName of ["lists", "lists-before-rebuild", "reads"]) {
       for (const name of readdirSync(join(root, dirName))) {
@@ -234,5 +260,146 @@ describe("the profile walkthrough", () => {
     expect(
       Object.keys(packageJson.exports).some((key) => key.includes("profile-walkthrough")),
     ).toBe(false);
+  });
+
+  test("F5 the builder asks about the catalog-suggested platform before reading it", () => {
+    const readme = readReadme();
+    const ask = readme.match(/^\*\*Agent:\*\*.*platform-b.*$/m);
+    expect(ask).not.toBeNull();
+    const askIndex = readme.indexOf(ask?.[0] ?? "");
+    // The ask comes before the harness-y read that confirms platform-b's models.
+    expect(readme.indexOf("lists/platform-b-harness.json")).toBeGreaterThan(askIndex);
+    expect(readme).toContain("put it after aggregator-a");
+    expect(flat(readme)).toContain("at the position the user gave");
+    expect(readme).not.toContain("joined at discovery");
+  });
+
+  test("F6 the walkthrough states each model has one route and labels carry no ranking", () => {
+    const readme = flat(readReadme());
+    expect(readme).toContain("Each model here has one route");
+    expect(readme).toContain("no route order to write");
+    expect(readme).toContain("carries no ranking");
+  });
+
+  test("F7 the walkthrough checks confirm the reported path matches the written file", () => {
+    expect(readReadme()).toContain("match the written file");
+  });
+
+  test("F8 shared values come from the user, and the proposal shows them", () => {
+    const readme = readReadme();
+    const registry = readRegistry();
+    // The meter carries no field the transcript never supported.
+    expect(registry.meters["plan-a"]).toEqual({});
+    expect(registry.meters["plan-a"]).not.toHaveProperty("spendToZero");
+    // Every floor level appears in the proposal's shared fact list.
+    const flattened = flat(readme);
+    for (const level of [
+      "low coding 6 taste 4",
+      "normal coding 7 taste 4",
+      "high coding 8 taste 5",
+    ]) {
+      expect(flattened).toContain(level);
+    }
+    // The subscription route's cost 9 is given by the user, not invented.
+    expect(readme).toMatch(/\*\*User:\*\*.*Cost 9/);
+  });
+
+  test("F9 the registry as first approved passes check and holds the departed route", () => {
+    const beforePath = join(root, "registry-before-rebuild.json");
+    const result = runBuiltCli(["check", "--registry", beforePath]);
+    expect(result.stderr).toBe("");
+    expect(result.exitCode).toBe(0);
+    const loaded = loadRegistry({ path: beforePath });
+    expect(loaded.profiles["builder-pool"]?.routes).toContain("model-c@harness-z/aggregator-a");
+  });
+
+  test("F9 the before and after registries differ only by model-c, its route label and its two figures", () => {
+    const before = readRegistryFile("registry-before-rebuild.json");
+    delete before.models["model-c"];
+    const pool = before.profiles["builder-pool"];
+    if (pool === undefined) {
+      throw new Error("the pre-rebuild registry has no builder-pool profile");
+    }
+    pool.routes = pool.routes.filter((label) => label !== "model-c@harness-z/aggregator-a");
+    delete before.calibration.figures["model-c"];
+    delete before.calibration.figures["model-c@harness-z/aggregator-a"];
+    expect(before).toEqual(readRegistry());
+  });
+
+  test("F9 every console block shows the real digest of the file it checks", () => {
+    const readme = readReadme();
+    const blocks = readme.match(/```console\n([\s\S]*?)```/g) ?? [];
+    expect(blocks.length).toBeGreaterThanOrEqual(2);
+    const seen: string[] = [];
+    for (const block of blocks) {
+      const lines = block.split("\n").slice(1, -1);
+      for (let index = 0; index < lines.length; index += 2) {
+        const file = lines[index]?.match(/--registry (\S+)/)?.[1];
+        expect(file, `console command ${index}: ${lines[index]}`).toBeDefined();
+        const record = JSON.parse(lines[index + 1] ?? "") as {
+          digest?: string;
+          registryDigest?: string;
+        };
+        const result = runBuiltCli(["check", "--registry", join(root, file as string)]);
+        expect(result.exitCode, `check for ${file}`).toBe(0);
+        const digest = (JSON.parse(result.stdout) as { digest: string }).digest;
+        expect(record.digest ?? record.registryDigest, `${file} digest`).toBe(digest);
+        seen.push(file as string);
+      }
+    }
+    // Both the pre-rebuild and the final registry are shown.
+    expect(seen).toContain("registry-before-rebuild.json");
+    expect(seen).toContain("registry.json");
+  });
+
+  test("F9 the README makes no false claim about the check output", () => {
+    const readme = readReadme();
+    expect(readme).not.toContain("empty `warnings`");
+    expect(readme).not.toContain("no longer reaches");
+  });
+
+  test("F11 every route in both walkthrough registries is hosted", () => {
+    for (const name of ["registry.json", "registry-before-rebuild.json"]) {
+      const registry = readRegistryFile(name);
+      for (const [model, definition] of Object.entries(registry.models)) {
+        for (const route of definition.routes ?? []) {
+          expect(route.hosted, `${name} ${model}`).toBe(true);
+        }
+      }
+    }
+  });
+
+  test("F14 the decile oracle: five distinct values give exactly the even tenths", () => {
+    expect(decileBands([1, 2, 3, 4, 5], "higher")).toEqual([
+      { at: 5, score: 10 },
+      { at: 4, score: 8 },
+      { at: 3, score: 6 },
+      { at: 2, score: 4 },
+      { at: 1, score: 2 },
+    ]);
+  });
+
+  test("F14 the decile oracle: two tenths sharing an at keep only the higher score", () => {
+    expect(decileBands([3, 3, 4, 5, 6, 7, 8, 9, 10, 11], "higher")).toEqual([
+      { at: 11, score: 10 },
+      { at: 10, score: 9 },
+      { at: 9, score: 8 },
+      { at: 8, score: 7 },
+      { at: 7, score: 6 },
+      { at: 6, score: 5 },
+      { at: 5, score: 4 },
+      { at: 4, score: 3 },
+      { at: 3, score: 2 },
+    ]);
+  });
+
+  test("F14 the decile oracle: a lower direction case", () => {
+    expect(decileBands([0.3, 0.5, 0.7, 0.9, 1.1], "lower")).toEqual([
+      { at: 0.3, score: 10 },
+      { at: 0.5, score: 8 },
+      { at: 0.7, score: 6 },
+      { at: 0.9, score: 4 },
+      { at: 1.1, score: 2 },
+    ]);
   });
 });
