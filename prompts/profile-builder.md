@@ -297,8 +297,11 @@ decision. For a `profile-gap-unrecorded` warning on the implicit `default`,
 offer the repair choices: add a filling route, declare `default` with a gap
 record, or leave `default` implicit (the check passes), with your
 recommendation. For a `profile-gap-stale` warning on the built profile,
-offer to update or remove the record. A choice that changes the registry is
-a revised proposal, approved before another write.
+offer to update or remove the record. For a `profile-gap-stale` warning on
+another declared profile, name that profile and offer to update or remove
+its record; that profile changes only with the user's explicit approval.
+A choice that changes the registry is a revised proposal, approved before
+another write.
 
 Inside a build, this rule replaces the rating prompt's Step 5 fix loop: a
 finding either check reports, a `rating-mismatch` included, whose repair
@@ -310,8 +313,6 @@ the failing profile is the one being built, return to the proposal and
 close the gap or record its acceptance. When it is another declared
 profile, name it and offer its gap answers - add a filling route, or
 accept a gap with the user's reason - or offer to withdraw the shared
-change, with your recommendation. A `profile-gap-stale` warning on another
-declared profile is named the same way, with the offer to update or remove
-its record. Either way the choice is a revised proposal approved before
-another write, and another profile is never changed without the user's
-explicit approval. Then run the checks again.
+change, with your recommendation. The choice is a revised proposal
+approved before another write, and another profile is never changed
+without the user's explicit approval. Then run the checks again.

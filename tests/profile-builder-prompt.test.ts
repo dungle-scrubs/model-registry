@@ -290,8 +290,26 @@ describe("the profile builder prompt", () => {
   test("L-2 and L-9 warnings on another declared profile are named, with the offer grammatical", () => {
     const finishing = flat(section("Finishing"));
     expect(finishing).toContain("or offer to withdraw the shared change");
-    expect(finishing).toContain("A `profile-gap-stale` warning on another declared profile");
+    expect(finishing).toContain(
+      "For a `profile-gap-stale` warning on another declared profile, name that profile",
+    );
     expect(finishing).not.toContain("or withdrawing the shared change");
+  });
+
+  test("L-F the stale-gap warning on another declared profile sits with the warnings", () => {
+    const paragraphs = section("Finishing")
+      .split(/\n\n+/)
+      .map((paragraph) => flat(paragraph));
+    const warnings = paragraphs.find((paragraph) =>
+      paragraph.includes("Show the user every warning"),
+    );
+    expect(warnings, "the warning paragraph").toBeDefined();
+    expect(warnings).toContain("warning on another declared profile");
+    const failure = paragraphs.find((paragraph) =>
+      paragraph.includes("A failed declared-profile coverage check"),
+    );
+    expect(failure, "the coverage-failure paragraph").toBeDefined();
+    expect(failure).not.toContain("warning on another declared profile");
   });
 
   test("L-j every Step 6 subsection ends with a Done-when gate", () => {
