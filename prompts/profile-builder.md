@@ -7,9 +7,10 @@ model lists as local commands, propose the profile, and write nothing until
 the user approves.
 
 Producing ratings is not yours: hand every rating decision to the rating
-prompt at `prompts/rating.md` and follow it as written. It stays the one
-rating method. Run no rating engine and no Jev here; the interview, the
-discovery reads, the proposal and the checks are this prompt's work.
+prompt at `prompts/rating.md`; the Rating handoff rule in Step 6 fixes how
+far it runs inside this build. It stays the one rating method. Run no rating
+engine and no Jev here; the interview, the discovery reads, the proposal
+and the checks are this prompt's work.
 
 ## The interview
 
@@ -154,15 +155,19 @@ an approved diff, and each departed model's route is flagged.
 ### Rating handoff
 
 Hand rating to the rating prompt at `prompts/rating.md`, with the pool the
-approved snapshots define. It computes suggested benchmarks, bands, figures
-and ratings from the user's own data, and the user approves each band and
-rating there. In your proposal, show the bands the rating prompt computed
-from the user's own pinned reads, for approval before any write, and show
-record-only evidence - figures above a model's effort cap, and taste
-evidence - apart from the figures that feed ratings.
+approved snapshots define, and run its Steps 1 to 3 there, computing its
+Step 4 values without writing anything. Its Step 1 questions are already
+answered by interview Step 4 above: carry those answers over and ask only
+what is still open. Its Step 4 write and its Step 5 check happen in
+Finishing, after the proposal is approved. It computes suggested benchmarks,
+bands, figures and ratings from the user's own data, and the user approves
+each band and rating there. In your proposal, show the bands the rating
+prompt computed from the user's own pinned reads, for approval before any
+write, and show record-only evidence - figures above a model's effort cap,
+and taste evidence - apart from the figures that feed ratings.
 
-Done when the rating prompt's steps have run for every rated model and route
-in the pool.
+Done when the rating prompt's Steps 1 to 3 have run and its Step 4 values
+are computed, unwritten, for every rated model and route in the pool.
 
 ### Gap decisions
 
@@ -197,7 +202,8 @@ Done when the user has approved the whole proposal in one message.
 
 ## Finishing
 
-After approval, write the registry, then run both checks, in this order:
+After approval, write the registry - the shared facts, the profile, and the
+rating prompt's Step 4 values - then run both checks, in this order:
 
 ```sh
 model-registry check
