@@ -35,7 +35,8 @@ Every suggestion is offered, never adopted without the user's approval:
 | Hand-set `taste` | Arena WebDev `overall` | Evidence and a suggested band while the user sets taste by hand; never a feed. |
 
 The package ships no Artificial Analysis figures: a user fetches every
-figure with their own key, for their own registry.
+figure with their own key, for their own registry. Every benchmark read
+runs as a local command on the user's machine, so no key ever reaches you.
 
 ## Step 2 - propose bands, show the ratings they give, wait for approval
 
@@ -50,16 +51,19 @@ For each benchmark, read its table from the source and record:
   `higher`, a figure at or above `at` takes `score`; with `lower`, at or
   below. The first band that matches wins.
 
-When a benchmark has no table, or the source's published version differs
-from the `version` the table records, propose bands computed with the decile
-method below, show the user the ratings those bands would give for each
-model, and write nothing until the user approves. There are no default bands:
-the package ships none, and the table is the user's own choice.
+When a benchmark has no table, or a new pinned read is taken whose
+identity differs from the `version` the table records, propose bands
+computed with the decile method below, show the user the ratings those bands
+would give for each model, and write nothing until the user approves. There
+are no default bands: the package ships none, and the table is the user's
+own choice.
 
-Compute every proposed band from the user's own pinned read of the benchmark:
-a read the user made with their own key, at a recorded revision or date,
-kept beside the registry. The package ships no band numbers; this method is
-all it ships.
+Compute every proposed band from the user's own pinned read of that
+benchmark: a read the user made with their own key, at a recorded revision
+or date, kept as one JSON file per read in `reads/` beside `registry.json`,
+named like a model list snapshot (lowercase letters, digits and hyphens),
+holding the source, the read identity (its revision or date) and every row
+read. The package ships no band numbers; this method is all it ships.
 
 The distribution is every row with a figure in that pinned read, not only
 the models being rated. Sort the n figures worst to best by the benchmark's
@@ -91,6 +95,10 @@ its `notes`. The user approves every band before the registry is written.
 
 ## Step 3 - read and record figures
 
+Every benchmark read runs as a local command on the user's machine: the
+key stays in the local environment, you see the command shape and its
+output, and you never ask for or receive a key.
+
 For each benchmark in each feed, read the figure for every rated model
 and, for `cost`, every route that carries one. Record each figure under
 `calibration.figures`, keyed by model key (or by route label for `cost`),
@@ -114,12 +122,13 @@ duplicates those rows, so pooling both counts the same evidence twice.
 Declare one benchmark key that no feed lists (for example `taste-evidence`)
 and put in its `notes`: the dataset revision, the category, the publication
 date, the CC BY 4.0 attribution with a source link, and an explicit mapping
-from each source row name to its model and effort. A row that names an
+from each source row name to its model and effort, with enough row evidence
+to distinguish duplicate names. A row that names an
 effort may be stored as a figure under that key, with that effort. A row
 with no effort tag stays "effort unspecified" in the mapping and is
-never stored, because a figure needs an effort. Suggest a band for taste with the
-same decile method over the user's pinned `overall` distribution; the user
-still writes the rating by hand.
+never stored, because a figure needs an effort. Suggest a band for taste
+with the same decile method over the user's pinned `overall` distribution;
+the user still writes the rating by hand.
 
 ### Figures above a model's effort cap
 
