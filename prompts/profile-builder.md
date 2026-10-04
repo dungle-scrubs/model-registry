@@ -182,16 +182,19 @@ an approved diff, and each departed model's route is flagged.
 ### Rating handoff
 
 Hand rating to the rating prompt at `prompts/rating.md`, with the pool the
-approved snapshots define, and run its Steps 1 to 3 there, computing its
-Step 4 values without writing anything. Its Step 1 questions are already
-answered by interview Step 4 above: carry those answers over and ask only
-what is still open. Its Step 4 write and its Step 5 check happen in
-Finishing, after the proposal is approved. It computes suggested benchmarks,
-bands, figures and ratings from the user's own data, and the user approves
-each band and rating there. In your proposal, show the bands the rating
-prompt computed from the user's own pinned reads, for approval before any
-write, and show record-only evidence - figures above a model's effort cap,
-and taste evidence - apart from the figures that feed ratings.
+approved snapshots define, and run the rating prompt's Steps 1 to 3 there
+and compute its Step 4 values. Inside a build, everything those steps
+record - the benchmarks with their bands and notes, the figures, the
+ratings, the overrides and the `handSet` entries - goes into the proposal,
+not the file: nothing is written during the handoff. Its Step 1 questions
+are already answered by interview Step 4 above: carry those answers over
+and ask only what is still open. Its Step 4 write and its Step 5 check
+happen in Finishing. It computes suggested benchmarks, bands, figures and
+ratings from the user's own data, and the user approves each band and
+rating there. In your proposal, show the bands the rating prompt computed
+from the user's own pinned reads, for approval before any write, and show
+record-only evidence - figures above a model's effort cap, and taste
+evidence - apart from the figures that feed ratings.
 
 Done when the rating prompt's Steps 1 to 3 have run and its Step 4 values
 are computed, unwritten, for every rated model and route in the pool.
@@ -234,7 +237,8 @@ Show the user, in one place:
    not hosted; a provider, subscription service or aggregator is. Note that
    tasks and floors apply to every profile, including the implicit
    `default`.
-3. The ratings and bands the rating prompt computed, shown for approval.
+3. The ratings, bands, figures and overrides the rating prompt computed,
+   shown for approval.
 4. The accepted gaps with their reasons, and each uncovered item beside its
    decision.
 
@@ -246,8 +250,11 @@ Done when the user has approved the whole proposal in one message.
 
 ## Finishing
 
-After approval, write the registry - the shared facts, the profile, and the
-rating prompt's Step 4 values - then run both checks, in this order:
+After approval, write the registry in one write: the shared facts, the
+profile, and everything the rating prompt's Steps 2 to 4 produced - the
+`calibration` benchmarks with their bands and notes, the figures, the
+ratings, the overrides and the `handSet` entries. Then run both checks, in
+this order:
 
 ```sh
 model-registry check
@@ -267,6 +274,10 @@ record, or leave `default` implicit (the check passes), with your
 recommendation. For a `profile-gap-stale` warning on the built profile,
 offer to update or remove the record. A choice that changes the registry is
 a revised proposal, approved before another write.
+
+Inside a build, this rule replaces the rating prompt's Step 5 fix loop: a
+finding either check reports, a `rating-mismatch` included, becomes a
+revised proposal the user approves before another write.
 
 A failed declared-profile coverage check leaves the build unfinished: return
 to the proposal, close the gap or record its acceptance, and run the checks

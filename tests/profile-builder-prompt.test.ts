@@ -149,8 +149,10 @@ describe("the profile builder prompt", () => {
   test("F1 the rating handoff runs Steps 1 to 3 and computes Step 4 without writing", () => {
     const handoff = flat(subsection("Rating handoff"));
     expect(handoff).not.toBe("");
-    expect(handoff).toContain("run its Steps 1 to 3");
-    expect(handoff).toContain("without writing anything");
+    expect(handoff).toContain("run the rating prompt's Steps 1 to 3");
+    expect(handoff).toContain("compute its Step 4 values");
+    expect(handoff).toContain("goes into the proposal, not the file");
+    expect(handoff).toContain("nothing is written during the handoff");
     expect(handoff).toContain("already answered by interview Step 4");
     expect(handoff).toContain("carry those answers over");
     expect(handoff).toContain("ask only what is still open");
@@ -158,9 +160,20 @@ describe("the profile builder prompt", () => {
     expect(handoff).toContain("are computed, unwritten, for every rated model and route");
   });
 
-  test("F1 Finishing writes the shared facts, the profile and the rating values together", () => {
+  test("N1 Finishing writes everything the rating prompt produced, in one approved write", () => {
     const finishing = flat(section("Finishing"));
-    expect(finishing).toContain("the rating prompt's Step 4 values");
+    expect(finishing).toContain("write the registry in one write");
+    expect(finishing).toContain("everything the rating prompt's Steps 2 to 4 produced");
+    expect(finishing).toContain("`calibration`");
+    expect(finishing).toContain("figures");
+    expect(finishing).toContain("overrides");
+    expect(finishing).toContain("`handSet`");
+  });
+
+  test("N2 the builder's revise rule replaces the rating prompt's Step 5 fix loop", () => {
+    const finishing = flat(section("Finishing"));
+    expect(finishing).toContain("replaces the rating prompt's Step 5 fix loop");
+    expect(finishing).toContain("`rating-mismatch`");
   });
 
   test("F2 check warnings get a user decision before the build finishes", () => {

@@ -234,8 +234,9 @@ The builder shows the whole proposal in one place:
 
 ## The checks
 
-The builder writes the shared facts, the profile, and the rating prompt's
-Step 4 values, then runs both checks. The registry as first approved is kept
+The builder writes the shared facts, the profile, and everything the rating
+prompt's Steps 2 to 4 produced, then runs both checks. The registry as first
+approved is kept
 beside this README as `registry-before-rebuild.json`, and the lines below
 are the checks' output for that file:
 
