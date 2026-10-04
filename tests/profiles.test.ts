@@ -1,5 +1,5 @@
 import { spawnSync } from "node:child_process";
-import { readFileSync } from "node:fs";
+import { readFileSync, writeFileSync } from "node:fs";
 import { pathToFileURL } from "node:url";
 import { Ajv2020 } from "ajv/dist/2020.js";
 import { describe, expect, test } from "vitest";
@@ -84,6 +84,35 @@ describe("profiles", () => {
       expect(Object.keys(loaded.profiles)).toEqual(["budget", "default"]);
       expect(loaded.profileProvenance).toEqual({ budget: "declared", default: "declared" });
       expect(Object.keys(loaded.profileProvenance)).toEqual(["budget", "default"]);
+    });
+  });
+
+  test("index-like profile names enumerate first in ascending numeric order", async () => {
+    await withTempDir((dir) => {
+      const declaredDefault = { description: "Narrow default.", routes: [labelB] };
+      for (const { profilesText, keys, provenance } of [
+        {
+          profilesText: `{"budget":${JSON.stringify(budget)},"1":${JSON.stringify(budget)},"01":${JSON.stringify(budget)}}`,
+          keys: ["1", "default", "budget", "01"],
+          provenance: ["declared", "implicit", "declared", "declared"],
+        },
+        {
+          profilesText: `{"default":${JSON.stringify(declaredDefault)},"2":${JSON.stringify(budget)},"1":${JSON.stringify(budget)}}`,
+          keys: ["1", "2", "default"],
+          provenance: ["declared", "declared", "declared"],
+        },
+      ]) {
+        const path = writeJson(dir, "registry.json", { ...registry, profiles: {} });
+        writeFileSync(
+          path,
+          readFileSync(path, "utf8").replace('"profiles": {}', `"profiles": ${profilesText}`),
+        );
+        expect(readFileSync(path, "utf8")).toContain(`"profiles": ${profilesText}`);
+        const loaded = loadRegistry({ path });
+        expect(Object.keys(loaded.profiles)).toEqual(keys);
+        expect(Object.keys(loaded.profileProvenance)).toEqual(keys);
+        expect(keys.map((name) => loaded.profileProvenance[name])).toEqual(provenance);
+      }
     });
   });
 
