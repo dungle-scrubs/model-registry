@@ -297,14 +297,17 @@ offer to update or remove the record. A choice that changes the registry is
 a revised proposal, approved before another write.
 
 Inside a build, this rule replaces the rating prompt's Step 5 fix loop: a
-finding either check reports, a `rating-mismatch` included, becomes a
-revised proposal the user approves before another write.
+finding either check reports, a `rating-mismatch` included, whose repair
+changes the registry becomes a revised proposal the user approves before
+another write.
 
 A failed declared-profile coverage check leaves the build unfinished. When
 the failing profile is the one being built, return to the proposal and
 close the gap or record its acceptance. When it is another declared
 profile, name it and offer its gap answers - add a filling route, or
-accept a gap with the user's reason - or withdrawing the shared change,
-with your recommendation. Either way the choice is a revised proposal
-approved before another write, and another profile is never changed
-without the user's explicit approval. Then run the checks again.
+accept a gap with the user's reason - or offer to withdraw the shared
+change, with your recommendation. A `profile-gap-stale` warning on another
+declared profile is named the same way, with the offer to update or remove
+its record. Either way the choice is a revised proposal approved before
+another write, and another profile is never changed without the user's
+explicit approval. Then run the checks again.

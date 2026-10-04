@@ -248,8 +248,20 @@ describe("the profile builder prompt", () => {
   test("N5 a coverage failure on another declared profile is the user's choice", () => {
     const finishing = flat(section("Finishing"));
     expect(finishing).toContain("When it is another declared profile");
-    expect(finishing).toContain("withdrawing the shared change");
+    expect(finishing).toContain("or offer to withdraw the shared change");
     expect(finishing).toContain("never changed without the user's explicit approval");
+  });
+
+  test("L-1 only a finding whose repair changes the registry becomes a revised proposal", () => {
+    const finishing = flat(section("Finishing"));
+    expect(finishing).toContain("whose repair changes the registry becomes a revised proposal");
+  });
+
+  test("L-2 and L-9 warnings on another declared profile are named, with the offer grammatical", () => {
+    const finishing = flat(section("Finishing"));
+    expect(finishing).toContain("or offer to withdraw the shared change");
+    expect(finishing).toContain("A `profile-gap-stale` warning on another declared profile");
+    expect(finishing).not.toContain("or withdrawing the shared change");
   });
 
   test("L-j every Step 6 subsection ends with a Done-when gate", () => {
