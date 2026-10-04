@@ -277,7 +277,7 @@ ceiling you accepted.
 ## The rebuild
 
 On 2026-11-02 the user asks to rebuild builder-pool. The builder re-reads
-every source the build used:
+every model list source the build used:
 
 - The harness-x read matches `lists/platform-a-harness.json`. No diff.
 - The harness-y read matches `lists/platform-b-harness.json`. No diff.

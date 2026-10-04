@@ -99,6 +99,12 @@ describe("the profile builder prompt", () => {
     expect(rebuilds).toContain("rename");
   });
 
+  test("M-4 a rebuild re-reads model list sources only", () => {
+    const rebuilds = flat(subsection("Rebuilds and diffs"));
+    expect(rebuilds).toContain("re-reads each model list source the build used");
+    expect(rebuilds).toContain("Benchmark reads in `reads/` are not re-read on a rebuild");
+  });
+
   test("L-e snapshots and reads sit beside the target registry file, whatever its name", () => {
     const rating = readFileSync(join(repoRoot, "prompts", "rating.md"), "utf8");
     for (const text of [prompt, rating]) {

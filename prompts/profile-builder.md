@@ -161,15 +161,18 @@ snapshot records its narrowing.
 
 ### Rebuilds and diffs
 
-Every rebuild re-reads each source the build used and compares the fresh read
-with its snapshot. Show the user the diff: added ids, removed ids, and a
-rename only when the source itself evidences it, such as a deprecation or
-alias notice; without that evidence, report added and removed ids. The user
-must approve the diff before any snapshot is replaced. A failed read or a
-rejected diff pauses the work that depended on it, and the old snapshot
-stays; stale data is never reused silently. A route whose model left its
-platform is flagged for removal from the profile and leaves only when the
-user accepts the flag.
+Every rebuild re-reads each model list source the build used and compares
+the fresh read with its snapshot. Benchmark reads in `reads/` are not
+re-read on a rebuild: a new pinned read follows the rating prompt's rule,
+taken only when the user asks for one or approves your offer. Show the
+user the diff: added ids, removed ids, and a rename only when the source
+itself evidences it, such as a deprecation or alias notice; without that
+evidence, report added and removed ids. The user must approve the diff
+before any snapshot is replaced. A failed read or a rejected diff pauses
+the work that depended on it, and the old snapshot stays; stale data is
+never reused silently. A route whose model left its platform is flagged
+for removal from the profile and leaves only when the user accepts the
+flag.
 
 After a failed read or a rejected diff, offer the user three options: retry
 the read, continue on the old snapshot with the user's explicit approval

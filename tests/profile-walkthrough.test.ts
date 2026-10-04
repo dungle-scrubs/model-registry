@@ -361,6 +361,10 @@ describe("the profile walkthrough", () => {
     expect(step4).toContain("approves taking their pinned reads");
   });
 
+  test("M-4 the walkthrough rebuild re-reads every model list source the build used", () => {
+    expect(flat(readReadme())).toContain("re-reads every model list source the build used");
+  });
+
   test("L-h the untagged leaderboard row is not stored as a figure", () => {
     const flattened = flat(readReadme());
     expect(flattened).toContain("not stored as a figure");
