@@ -60,7 +60,8 @@ read as evidence.
 Approved sources: `engines` feeding `coding`, `cost-per-task` feeding `cost`,
 and the pinned leaderboard read as taste evidence only. Approving these
 sources also approves taking their pinned reads during the rating handoff.
-The numeric bands are computed later and approved before any write.
+The numeric bands are computed later and approved before the registry is
+written.
 
 ## Step 6 - Discovery, rating, then gap decisions
 
@@ -101,8 +102,8 @@ The builder hands rating to `prompts/rating.md` with the pool the approved
 snapshots define: model-a (platform-a), model-c (aggregator-a passing set),
 model-b (platform-b, harness-confirmed). It runs the rating prompt's Steps 1
 to 3 - the Step 1 answers carry over from interview Step 4 - and computes
-the Step 4 values without writing anything. The rating prompt works from the
-user's pinned reads, kept in `reads/`:
+the Step 4 values without writing the registry. The rating prompt works
+from the user's pinned reads, kept in `reads/`:
 
 - `engines` feeds `coding`. Its decile bands over the 20-row pinned read:
 

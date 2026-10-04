@@ -220,6 +220,12 @@ describe("the profile builder prompt", () => {
     );
   });
 
+  test("L-A the handoff approval wording names the registry, not any write", () => {
+    const handoff = flat(subsection("Rating handoff"));
+    expect(handoff).not.toContain("before any write");
+    expect(handoff).toContain("for approval before the registry is written");
+  });
+
   test("M-2 the write list and proposal include the rating prompt's Step 1 output", () => {
     const handoff = flat(subsection("Rating handoff"));
     expect(handoff).toContain("`calibration.feeds`");

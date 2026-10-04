@@ -363,6 +363,14 @@ describe("the profile walkthrough", () => {
     expect(step4).toContain("approves taking their pinned reads");
   });
 
+  test("L-A the walkthrough handoff wording names the registry, not any write or anything", () => {
+    const flattened = flat(readReadme());
+    expect(flattened).not.toContain("before any write");
+    expect(flattened).not.toContain("without writing anything");
+    expect(flattened).toContain("without writing the registry");
+    expect(flattened).toContain("approved before the registry is written");
+  });
+
   test("M-4 the walkthrough rebuild re-reads every model list source the build used", () => {
     expect(flat(readReadme())).toContain("re-reads every model list source the build used");
   });

@@ -203,9 +203,9 @@ still open. Its Step 4 write and its Step 5 check
 happen in Finishing. It computes suggested benchmarks, bands, figures and
 ratings from the user's own data, and the user approves each band and
 rating there. In your proposal, show the bands the rating prompt computed
-from the user's own pinned reads, for approval before any write, and show
-record-only evidence - figures above a model's effort cap, and taste
-evidence - apart from the figures that feed ratings.
+from the user's own pinned reads, for approval before the registry is
+written, and show record-only evidence - figures above a model's effort
+cap, and taste evidence - apart from the figures that feed ratings.
 
 Done when the rating prompt's Steps 1 to 3 have run and its Step 4 values
 are computed, unwritten, for every rated model and route in the pool.
