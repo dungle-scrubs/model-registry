@@ -205,6 +205,21 @@ describe("the profile builder prompt", () => {
     expect(handoff).not.toContain("nothing is written during the handoff");
   });
 
+  test("M-B approving a source reuses an existing matching read, and changed bands reach other profiles", () => {
+    const step4 = flat(section("Step 4 - Ratings and benchmark approval"));
+    expect(step4).toContain("whose benchmark has no matching pinned read in `reads/`");
+    expect(step4).toContain(
+      "an existing matching read is reused unless the user asks for a new one",
+    );
+    expect(step4).toContain("before the registry is written");
+    expect(step4).not.toContain("before anything is written");
+
+    const proposal = flat(section("The proposal"));
+    expect(proposal).toContain(
+      "name every other declared profile whose members' ratings the changed bands alter",
+    );
+  });
+
   test("M-2 the write list and proposal include the rating prompt's Step 1 output", () => {
     const handoff = flat(subsection("Rating handoff"));
     expect(handoff).toContain("`calibration.feeds`");

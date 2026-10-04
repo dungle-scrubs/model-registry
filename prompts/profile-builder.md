@@ -69,8 +69,10 @@ each one. The rating prompt's suggestion table names the offered sources;
 walk the user through it and record which sources they approve. Approval
 here confirms the sources: the numeric bands are computed later by the
 rating prompt from the user's own pinned reads, and the user still approves
-every band before anything is written. Approving a source also approves
-taking its pinned read during the rating handoff.
+every band before the registry is written. Approving a source whose
+benchmark has no matching pinned read in `reads/` also approves taking its
+pinned read during the rating handoff; an existing matching read is reused
+unless the user asks for a new one or approves your offer of one.
 
 Done when each rating has an approved source, and hand-set ratings are marked
 as hand-set.
@@ -258,7 +260,9 @@ Show the user, in one place:
    that these shared changes reach.
 3. The `ratings` declarations and `calibration.feeds` from the rating
    prompt's Step 1, and the ratings, bands, figures and overrides it
-   computed, shown for approval.
+   computed, shown for approval. When a new pinned read changes the bands
+   of a benchmark the target already had, name every other declared profile
+   whose members' ratings the changed bands alter.
 4. The accepted gaps with their reasons, and each uncovered item beside its
    decision.
 
