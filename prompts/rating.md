@@ -108,13 +108,17 @@ that local command.
 
 For each benchmark in each feed, read the figure for every rated model
 and, for `cost`, every route that carries one, from the pinned read in
-`reads/` that the benchmark's `version` names, not from a fresh fetch.
+`reads/` whose source and read identity match the benchmark's `source`
+and `version`, not from a fresh fetch. A read date alone does not
+identify a read: several benchmarks can share one, and a record-only
+key reads from the same pinned read as the benchmark that shares its
+source.
 
-When no file in `reads/` matches a benchmark's `version` - a registry
-rated before `reads/` existed - say so and offer a new pinned read. On
-the user's yes, take it; its identity differs from `version`, so Step 2
-proposes bands again. On a no, record no new figure from that benchmark
-and keep its existing figures and bands.
+When no file in `reads/` matches a benchmark's `source` and `version` -
+a registry rated before `reads/` existed - say so and offer a new pinned
+read. On the user's yes, take it; its identity differs from `version`,
+so Step 2 proposes bands again. On a no, record no new figure from that
+benchmark and keep its existing figures and bands.
 
 Record each figure under `calibration.figures`, keyed by model key (or by
 route label for `cost`), then by benchmark name, with:

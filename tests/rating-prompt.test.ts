@@ -157,9 +157,20 @@ describe("the rating prompt's suggested benchmarks and bands", () => {
     expect(flattened).toContain("not from a fresh fetch");
   });
 
-  test("M-3 a benchmark whose version names no file in reads/ gets an offer of a new read", () => {
+  test("M-A a benchmark's pinned read is matched by source and read identity", () => {
     const flattened = flat(step3);
-    expect(flattened).toContain("When no file in `reads/` matches a benchmark's `version`");
+    expect(flattened).toContain(
+      "whose source and read identity match the benchmark's `source` and `version`",
+    );
+    expect(flattened).toContain("A read date alone does not identify a read");
+    expect(flattened).not.toContain("that the benchmark's `version` names");
+  });
+
+  test("M-3 a benchmark with no matching pinned read gets an offer of a new read", () => {
+    const flattened = flat(step3);
+    expect(flattened).toContain(
+      "When no file in `reads/` matches a benchmark's `source` and `version`",
+    );
     expect(flattened).toContain("offer a new pinned read");
     expect(flattened).toContain("record no new figure from that benchmark");
   });

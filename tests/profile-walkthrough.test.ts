@@ -434,6 +434,34 @@ describe("the profile walkthrough", () => {
     }
   });
 
+  test("M-A every fed or above-cap benchmark has exactly one read matching its source and version", () => {
+    const registry = readRegistry();
+    const fed = new Set(Object.values(registry.calibration.feeds).flat());
+    const reads = readdirSync(join(root, "reads")).map((name) => ({
+      name,
+      data: JSON.parse(readFileSync(join(root, "reads", name), "utf8")) as {
+        source: string;
+        version: string;
+      },
+    }));
+    const covered: string[] = [];
+    for (const [name, benchmark] of Object.entries(registry.calibration.benchmarks)) {
+      if (!fed.has(name) && !name.endsWith("-above-cap")) {
+        continue;
+      }
+      covered.push(name);
+      const matches = reads.filter(
+        (entry) =>
+          entry.data.source === benchmark.source && entry.data.version === benchmark.version,
+      );
+      expect(matches, `${name} pinned reads matching source and version`).toHaveLength(1);
+    }
+    expect(covered.length).toBeGreaterThan(0);
+    // The shared-version case the source-plus-version rule exists for.
+    const versions = covered.map((name) => registry.calibration.benchmarks[name]?.version ?? "");
+    expect(new Set(versions).size).toBeLessThan(versions.length);
+  });
+
   test("the check commands name the file their output reports", () => {
     const readme = readReadme();
     const lines = readme.split("\n");
