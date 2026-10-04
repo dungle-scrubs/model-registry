@@ -176,6 +176,35 @@ describe("the profile builder prompt", () => {
     expect(finishing).toContain("`rating-mismatch`");
   });
 
+  test("N4 new model facts come from cited evidence or the user", () => {
+    const proposal = flat(section("The proposal"));
+    expect(proposal).toContain("`maxEffort`");
+    expect(proposal).toContain("`capabilities`");
+    expect(proposal).toContain("None is guessed");
+  });
+
+  test("N5 the proposal names the other declared profiles the shared changes reach", () => {
+    const proposal = flat(section("The proposal"));
+    expect(proposal).toContain("every other declared profile");
+  });
+
+  test("N5 a coverage failure on another declared profile is the user's choice", () => {
+    const finishing = flat(section("Finishing"));
+    expect(finishing).toContain("When it is another declared profile");
+    expect(finishing).toContain("withdrawing the shared change");
+    expect(finishing).toContain("never changed without the user's explicit approval");
+  });
+
+  test("L-j every Step 6 subsection ends with a Done-when gate", () => {
+    const step6 = section("Step 6 - Discovery, rating, then gap decisions");
+    expect(step6).not.toBe("");
+    const titles = [...step6.matchAll(/^### (.+)$/gm)].map(([, title]) => title as string);
+    expect(titles.length).toBeGreaterThanOrEqual(2);
+    for (const title of titles) {
+      expect(flat(subsection(title)), `### ${title}`).toContain("Done when");
+    }
+  });
+
   test("F2 check warnings get a user decision before the build finishes", () => {
     const finishing = flat(section("Finishing"));
     expect(finishing).toContain("profile-gap-unrecorded");

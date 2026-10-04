@@ -207,6 +207,9 @@ no floors, ask the user for the floors per stakes level, one task per
 question; you may offer suggested values, marked as suggestions. Every new
 or changed shared value the answers produce is listed in The proposal.
 
+Done when every task the profile serves has floors at every stakes level,
+each value one the user gave or approved.
+
 ### Gap decisions
 
 For each task the profile should cover and does not, name the uncovered work
@@ -234,9 +237,16 @@ Show the user, in one place:
    their floors, `rank` and `effort`; `router`; meters and their fields.
    Each new route's `hosted` (and `privacyEligible` when set) is written
    from evidence the user confirms: a local runtime on the user's machine is
-   not hosted; a provider, subscription service or aggregator is. Note that
-   tasks and floors apply to every profile, including the implicit
-   `default`.
+   not hosted; a provider, subscription service or aggregator is. Each new
+   model's `family`, `maxEffort` and `fixedEffort`, and each new route's
+   `capabilities`, `provider` and `meter`, come from cited evidence - the
+   harness or platform documentation, or a read - or from the user's
+   answer, and item 2 shows each with its source. None is guessed; when
+   neither gives a model's `maxEffort`, ask the user, because an absent
+   `maxEffort` means no ceiling and decides which figures feed ratings.
+   Note that tasks and floors apply to every profile, including the
+   implicit `default`. Name every other declared profile in the target
+   that these shared changes reach.
 3. The ratings, bands, figures and overrides the rating prompt computed,
    shown for approval.
 4. The accepted gaps with their reasons, and each uncovered item beside its
@@ -279,6 +289,11 @@ Inside a build, this rule replaces the rating prompt's Step 5 fix loop: a
 finding either check reports, a `rating-mismatch` included, becomes a
 revised proposal the user approves before another write.
 
-A failed declared-profile coverage check leaves the build unfinished: return
-to the proposal, close the gap or record its acceptance, and run the checks
-again.
+A failed declared-profile coverage check leaves the build unfinished. When
+the failing profile is the one being built, return to the proposal and
+close the gap or record its acceptance. When it is another declared
+profile, name it and offer its gap answers - add a filling route, or
+accept a gap with the user's reason - or withdrawing the shared change,
+with your recommendation. Either way the choice is a revised proposal
+approved before another write, and another profile is never changed
+without the user's explicit approval. Then run the checks again.
