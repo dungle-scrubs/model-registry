@@ -58,8 +58,9 @@ route cost at example.org. Taste is mine to set; show me the leaderboard
 read as evidence.
 
 Approved sources: `engines` feeding `coding`, `cost-per-task` feeding `cost`,
-and the pinned leaderboard read as taste evidence only. The numeric bands
-are computed later and approved before any write.
+and the pinned leaderboard read as taste evidence only. Approving these
+sources also approves taking their pinned reads during the rating handoff.
+The numeric bands are computed later and approved before any write.
 
 ## Step 6 - Discovery, rating, then gap decisions
 

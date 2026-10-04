@@ -333,6 +333,16 @@ describe("the profile walkthrough", () => {
     expect(step4).toContain("You named coding and taste");
   });
 
+  test("M-1 approving the sources approves taking their pinned reads", () => {
+    const readme = readReadme();
+    const start = readme.indexOf("## Step 4");
+    const end = readme.indexOf("## Step 6");
+    expect(start).toBeGreaterThanOrEqual(0);
+    expect(end).toBeGreaterThan(start);
+    const step4 = flat(readme.slice(start, end));
+    expect(step4).toContain("approves taking their pinned reads");
+  });
+
   test("L-h the untagged leaderboard row is not stored as a figure", () => {
     const flattened = flat(readReadme());
     expect(flattened).toContain("not stored as a figure");

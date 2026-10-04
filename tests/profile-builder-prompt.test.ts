@@ -155,6 +155,18 @@ describe("the profile builder prompt", () => {
     expect(packageJson.files).toContain("prompts");
   });
 
+  test("M-1 the root README's profile builder paragraph keeps the no-write rule to the registry", () => {
+    const readme = readFileSync(join(repoRoot, "README.md"), "utf8");
+    const start = readme.indexOf("## Profile builder");
+    expect(start).toBeGreaterThanOrEqual(0);
+    const end = readme.indexOf("\n## ", start + 1);
+    const builder = flat(readme.slice(start, end));
+    expect(builder).toContain("beside the target registry file");
+    expect(builder).toContain("approved before the registry is written");
+    expect(builder).not.toContain("beside `registry.json`");
+    expect(builder).not.toContain("approved before anything is written");
+  });
+
   test("F1 the opening hands rating over without following the rating prompt as written", () => {
     const opening = flat(lead);
     expect(opening).toContain("hand every rating decision to the rating prompt");
@@ -167,12 +179,24 @@ describe("the profile builder prompt", () => {
     expect(handoff).toContain("run the rating prompt's Steps 1 to 3");
     expect(handoff).toContain("compute its Step 4 values");
     expect(handoff).toContain("goes into the proposal, not the file");
-    expect(handoff).toContain("nothing is written during the handoff");
+    expect(handoff).toContain("nothing is written to the registry file during the handoff");
     expect(handoff).toContain("already answered by interview Step 4");
     expect(handoff).toContain("carry those answers over");
     expect(handoff).toContain("ask only what is still open");
     expect(handoff).toContain("Its Step 4 write and its Step 5 check happen in Finishing");
     expect(handoff).toContain("are computed, unwritten, for every rated model and route");
+  });
+
+  test("M-1 the no-write rule covers the registry file only, and pinned reads are saved when taken", () => {
+    expect(flat(lead)).toContain("write nothing to the registry file until the user approves");
+
+    const step4 = flat(section("Step 4 - Ratings and benchmark approval"));
+    expect(step4).toContain("approves taking its pinned read");
+
+    const handoff = flat(subsection("Rating handoff"));
+    expect(handoff).toContain("nothing is written to the registry file during the handoff");
+    expect(handoff).toContain("saved in `reads/` when taken");
+    expect(handoff).not.toContain("nothing is written during the handoff");
   });
 
   test("N1 Finishing writes everything the rating prompt produced, in one approved write", () => {

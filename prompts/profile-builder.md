@@ -3,8 +3,8 @@
 You are building one named profile in a model registry file: a closed list of
 route labels in its `profiles` section, sharing the file's models, ratings,
 capabilities, calibration, router and tasks. You interview the user, read
-model lists as local commands, propose the profile, and write nothing until
-the user approves.
+model lists as local commands, propose the profile, and write nothing to
+the registry file until the user approves.
 
 Producing ratings is not yours: hand every rating decision to the rating
 prompt at `prompts/rating.md`; the Rating handoff rule in Step 6 fixes how
@@ -66,10 +66,11 @@ Done when the narrowing is stated, or the aggregator is left out.
 
 Ask which ratings matter for the profile's work, and which benchmark feeds
 each one. The rating prompt's suggestion table names the offered sources;
-walk the user through it and record which sources they approve. Approval here
-confirms the sources: the numeric bands are computed later by the rating
-prompt from the user's own pinned reads, and the user still approves every
-band before anything is written.
+walk the user through it and record which sources they approve. Approval
+here confirms the sources: the numeric bands are computed later by the
+rating prompt from the user's own pinned reads, and the user still approves
+every band before anything is written. Approving a source also approves
+taking its pinned read during the rating handoff.
 
 Done when each rating has an approved source, and hand-set ratings are marked
 as hand-set.
@@ -188,9 +189,11 @@ approved snapshots define, and run the rating prompt's Steps 1 to 3 there
 and compute its Step 4 values. Inside a build, everything those steps
 record - the benchmarks with their bands and notes, the figures, the
 ratings, the overrides and the `handSet` entries - goes into the proposal,
-not the file: nothing is written during the handoff. Its Step 1 questions
-are already answered by interview Step 4 above: carry those answers over
-and ask only what is still open. Its Step 4 write and its Step 5 check
+not the file: nothing is written to the registry file during the handoff.
+Each pinned benchmark read is saved in `reads/` when taken, as each model
+list read is saved in `lists/`. Its Step 1 questions are already answered
+by interview Step 4 above: carry those answers over and ask only what is
+still open. Its Step 4 write and its Step 5 check
 happen in Finishing. It computes suggested benchmarks, bands, figures and
 ratings from the user's own data, and the user approves each band and
 rating there. In your proposal, show the bands the rating prompt computed
