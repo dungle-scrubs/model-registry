@@ -146,8 +146,8 @@ Each snapshot holds exactly these fields:
   `api-key` or `plan-a`. It separates lists read with different access and
   never holds a credential, an account id or an email.
 - `modelIds`: the model id strings read, in source order.
-- `revision`: the pinned catalog's commit. It is required for a pinned catalog read
-  and optional everywhere else.
+- `revision`: the pinned catalog's commit. It is required for a pinned
+  catalog read and is optional everywhere else.
 
 The build works from snapshots, so the same snapshot replays the same list.
 Replacing a snapshot never changes the registry digest; only the registry
