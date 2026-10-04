@@ -166,13 +166,21 @@ describe("the rating prompt's suggested benchmarks and bands", () => {
     expect(flattened).not.toContain("that the benchmark's `version` names");
   });
 
-  test("M-3 a benchmark with no matching pinned read gets an offer of a new read", () => {
+  test("M-3 a benchmark with no matching pinned read gets an offer, both branches pinned", () => {
     const flattened = flat(step3);
     expect(flattened).toContain(
       "When no file in `reads/` matches a benchmark's `source` and `version`",
     );
     expect(flattened).toContain("offer a new pinned read");
     expect(flattened).toContain("record no new figure from that benchmark");
+    // The yes branch re-proposes bands and takes figures from the new read only.
+    expect(flattened).toContain("Step 2 proposes bands again");
+    expect(flattened).toContain("figures are taken from the new read only");
+    // The no branch keeps what exists and computes nothing new without an override.
+    expect(flattened).toContain("keep its existing figures and bands");
+    expect(flattened).toContain(
+      "gets no computed rating from it unless the user writes an override with a reason",
+    );
   });
 
   test("L-5 Step 1 names the pinned read as the figure source", () => {

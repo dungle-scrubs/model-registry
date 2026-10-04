@@ -117,8 +117,12 @@ source.
 When no file in `reads/` matches a benchmark's `source` and `version` -
 a registry rated before `reads/` existed - say so and offer a new pinned
 read. On the user's yes, take it; its identity differs from `version`,
-so Step 2 proposes bands again. On a no, record no new figure from that
-benchmark and keep its existing figures and bands.
+so Step 2 proposes bands again and that benchmark's figures are taken
+from the new read only: a model or route the new read lacks keeps no
+figure from that benchmark. On a no, record no new figure from that
+benchmark and keep its existing figures and bands. A model or route left
+without a figure or band from that benchmark gets no computed rating
+from it unless the user writes an override with a reason.
 
 Record each figure under `calibration.figures`, keyed by model key (or by
 route label for `cost`), then by benchmark name, with:
