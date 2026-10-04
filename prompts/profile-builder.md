@@ -19,14 +19,24 @@ When the opening request already states a fact, skip the step that asks for
 it and say so in one line. A step may also be answered midway; apply the same
 skip. Run the steps in the order below.
 
+## The target file
+
+Before Step 1, settle the target registry file: the path the opening request
+names, else the resolved default that `model-registry check` reports in its
+`path` output (a `registry-missing` error also reports its `path`, the file
+that will be created there). Read the target's existing shared facts there:
+tasks and their floors, route orders, meters and the other profiles.
+`lists/` and `reads/` sit beside that file, and every read and write below
+works on it.
+
 ## Step 1 - Platforms and plans
 
 Ask which platforms the profile draws on, and which plan or account stands
 behind each one. A platform is a provider, a subscription service, an
 aggregator or a local runtime. Several platforms supply one shared pool, and
 the same model reached through two platforms is two routes. Record the
-platforms in the order the user lists them: that order becomes route order in
-the proposal.
+platforms in the order the user lists them: that order sets the order of
+each model's `routes` array, as The proposal writes it.
 
 Done when every platform is named, with its plan where one applies.
 
@@ -40,14 +50,15 @@ Done when the purpose and the budget are both stated.
 
 ## Step 3 - Aggregator narrowing
 
-Run this step only when an aggregator is among the platforms. Ask for a price
-ceiling, a provider subset, or both, before reading anything from the aggregator.
-Record the ceiling's currency, unit and price basis (list price
-or plan price) and the chosen providers with the answer; they also go into
-the aggregator snapshot's `method` later.
+Run this step only when an aggregator is among the platforms. Before
+reading anything from the aggregator, the user must give a price ceiling, a
+provider subset, or both. Record the ceiling's currency, unit and price basis
+(list price or plan price) and the chosen providers with the answer; they
+also go into the aggregator snapshot's `method` later. When the user
+declines both, the aggregator is not read and adds no candidates; say why in
+one line in the proposal.
 
-Done when the narrowing is stated, or the user has confirmed the aggregator
-needs none.
+Done when the narrowing is stated, or the aggregator is left out.
 
 ## Step 4 - Ratings and benchmark approval
 
@@ -100,6 +111,14 @@ harness acceptance that matches the access scope, together with evidence for
 the user's plan; an API catalog is not subscription proof. A model the
 harness cannot reach stays out of the pool.
 
+When the catalog suggests a platform the user did not list, ask about it as
+one question: whether the user has access to it, on which plan or account,
+and where it sits in the platform order. Only on the user's yes does it join
+the platform list, at the position the user gives, with its plan or account
+facts (Step 1) and the Step 3 narrowing when it is an aggregator; an
+endpoint or harness read then confirms its models. Without a yes it is not
+read and supplies no route.
+
 For an aggregator, apply the Step 3 narrowing before its read and read only
 the passing set. When the endpoint cannot apply the ceiling or the provider
 subset, filter the response with the local command before anything is rated;
@@ -149,6 +168,14 @@ stays; stale data is never reused silently. A route whose model left its
 platform is flagged for removal from the profile and leaves only when the
 user accepts the flag.
 
+After a failed read or a rejected diff, offer the user three options: retry
+the read, continue on the old snapshot with the user's explicit approval
+noted in the proposal, or stop. A removal flag the user rejects keeps the
+route, and the proposal notes it as kept on a platform whose latest read no
+longer lists it. A removal that also takes the route or its model out of the
+shared registry is a shared fact change: show it in a revised proposal the
+user approves before another write.
+
 Done when every source is re-read, each differing snapshot is replaced behind
 an approved diff, and each departed model's route is flagged.
 
@@ -184,10 +211,13 @@ user gave.
 
 Show the user, in one place:
 
-1. The proposed membership: the route labels, ordered by the platforms in
-   the order the user listed them. Keep an existing shared route order
-   unless the user approves a global reorder, and before that approval show
-   which other profiles the reorder affects.
+1. The proposed membership: the route labels, which may be grouped by
+   platform in the user's order for reading; the label list carries no
+   ranking. The order that matters is each model's `routes` array, set in
+   Step 1 by the order the user listed the platforms, which breaks ties on
+   equal cost. Keep an existing model's `routes` order unless the user
+   approves a global reorder, and before that approval show which other
+   profiles the reorder affects.
 2. The shared fact changes: new models, routes and declarations the build
    adds to the registry's shared sections.
 3. The ratings and bands the rating prompt computed, shown for approval.
@@ -209,6 +239,11 @@ rating prompt's Step 4 values - then run both checks, in this order:
 model-registry check
 model-router check
 ```
+
+When the target file is not the resolved default, pass `--registry <path>`
+to both checks, and confirm each check's reported path equals the written
+file: `path` from `model-registry check`, `registryPath` from
+`model-router check`.
 
 Show the user every warning either check reports, and get the user's
 decision on each; the build finishes when every warning has the user's
