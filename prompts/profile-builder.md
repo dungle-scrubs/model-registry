@@ -50,13 +50,13 @@ Done when the purpose and the budget are both stated.
 
 ## Step 3 - Aggregator narrowing
 
-Run this step only when an aggregator is among the platforms. Before
-reading anything from the aggregator, the user must give a price ceiling, a
-provider subset, or both. Record the ceiling's currency, unit and price basis
-(list price or plan price) and the chosen providers with the answer; they
-also go into the aggregator snapshot's `method` later. When the user
-declines both, the aggregator is not read and adds no candidates; say why in
-one line in the proposal.
+Run this step only when an aggregator is among the platforms. The user must
+give a price ceiling, a provider subset, or both
+before reading anything from the aggregator. Record the ceiling's currency,
+unit and price basis (list price or plan price) and the chosen providers
+with the answer; they also go into the aggregator snapshot's `method`
+later. When the user declines both, the aggregator is not read and adds
+no candidates; say why in one line in the proposal.
 
 Done when the narrowing is stated, or the aggregator is left out.
 
@@ -146,8 +146,8 @@ Each snapshot holds exactly these fields:
   `api-key` or `plan-a`. It separates lists read with different access and
   never holds a credential, an account id or an email.
 - `modelIds`: the model id strings read, in source order.
-- `revision`: the pinned catalog's commit. It is required for a pinned
-  catalog read and is optional everywhere else.
+- `revision`: the pinned catalog's commit. It is
+  required for a pinned catalog read and is optional everywhere else.
 
 The build works from snapshots, so the same snapshot replays the same list.
 Replacing a snapshot never changes the registry digest; only the registry
@@ -227,7 +227,7 @@ Show the user, in one place:
    approves a global reorder, and before that approval show which other
    profiles the reorder affects.
 2. The shared fact changes: every new or changed shared value the build adds
-   to the registry's shared sections - new models and routes; tasks with
+   to the registry's shared sections - new models and routes; `tasks` with
    their floors, `rank` and `effort`; `router`; meters and their fields.
    Each new route's `hosted` (and `privacyEligible` when set) is written
    from evidence the user confirms: a local runtime on the user's machine is
