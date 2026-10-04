@@ -1,0 +1,7 @@
+{
+  "source": "https://example.org/aggregator-a/models",
+  "method": "local command: aggregator-a models read, filtered locally to input list price at or under 2.50 USD per million input tokens (list price); providers: any; credential supplied by the local environment, never printed",
+  "read": "2026-11-02",
+  "scope": "api-key",
+  "modelIds": ["model-id-f"]
+}

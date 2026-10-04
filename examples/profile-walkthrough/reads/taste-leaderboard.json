@@ -1,0 +1,18 @@
+{
+  "benchmark": "taste-evidence",
+  "source": "https://example.org/taste-leaderboard",
+  "version": "t4st-r3v",
+  "read": "2026-10-06",
+  "rows": [
+    { "id": "model-id-r01", "value": 1440 },
+    { "id": "model-id-r02", "value": 1455 },
+    { "id": "model-id-c", "value": 1470 },
+    { "id": "model-id-r03", "value": 1485 },
+    { "id": "model-id-b (high)", "value": 1495, "effort": "high" },
+    { "id": "model-id-r04", "value": 1505 },
+    { "id": "model-id-r05", "value": 1510 },
+    { "id": "model-id-a (high)", "value": 1520, "effort": "high" },
+    { "id": "model-id-r06", "value": 1530 },
+    { "id": "model-id-r07", "value": 1540 }
+  ]
+}

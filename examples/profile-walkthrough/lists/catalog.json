@@ -1,0 +1,8 @@
+{
+  "source": "https://example.org/catalog",
+  "method": "local command: catalog read pinned at revision r3v-0c4t; suggests platforms and models only; suggested the then-unknown platform-b with model-id-b and model-id-d",
+  "read": "2026-10-06",
+  "scope": "public",
+  "modelIds": ["model-id-b", "model-id-d"],
+  "revision": "r3v-0c4t"
+}

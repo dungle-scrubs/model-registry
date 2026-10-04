@@ -1,0 +1,165 @@
+{
+  "format": 1,
+  "ratings": {
+    "coding": "Writes and changes code to a stated spec.",
+    "taste": "Subjective fit for the work; set by hand."
+  },
+  "capabilities": {
+    "browser": "Can drive a web browser."
+  },
+  "meters": {
+    "plan-a": {
+      "spendToZero": true,
+      "notes": "Drains to zero so the user never runs out."
+    }
+  },
+  "models": {
+    "model-a": {
+      "family": "family-a",
+      "ratings": {
+        "coding": 7,
+        "taste": 6
+      },
+      "maxEffort": "high",
+      "routes": [
+        {
+          "harness": "harness-x",
+          "modelId": "model-id-a",
+          "hosted": false,
+          "cost": 9,
+          "capabilities": ["browser"],
+          "meter": "plan-a"
+        }
+      ]
+    },
+    "model-b": {
+      "family": "family-b",
+      "ratings": {
+        "taste": 5
+      },
+      "maxEffort": "high",
+      "routes": [
+        {
+          "harness": "harness-y",
+          "modelId": "model-id-b",
+          "provider": "provider-2",
+          "hosted": true,
+          "cost": 8
+        }
+      ]
+    }
+  },
+  "calibration": {
+    "notes": "Placeholder walkthrough table; every name, id, price and figure here is a placeholder.",
+    "benchmarks": {
+      "engines": {
+        "source": "https://example.org/engines",
+        "field": "engines",
+        "version": "2026-10-06",
+        "direction": "higher",
+        "bands": [
+          { "at": 49, "score": 10 },
+          { "at": 47, "score": 9 },
+          { "at": 45, "score": 8 },
+          { "at": 43, "score": 7 },
+          { "at": 41, "score": 6 },
+          { "at": 39, "score": 5 },
+          { "at": 37, "score": 4 },
+          { "at": 35, "score": 3 },
+          { "at": 33, "score": 2 },
+          { "at": 31, "score": 1 }
+        ],
+        "notes": "Decile bands over the 20-row pinned read of 2026-10-06, kept at reads/engines.json; the user approved every band."
+      },
+      "cost-per-task": {
+        "source": "https://example.org/cost-per-task",
+        "field": "costPerTask",
+        "version": "2026-10-06",
+        "direction": "lower",
+        "bands": [
+          { "at": 0.3, "score": 10 },
+          { "at": 0.4, "score": 9 },
+          { "at": 0.5, "score": 8 },
+          { "at": 0.6, "score": 7 },
+          { "at": 0.7, "score": 6 },
+          { "at": 0.8, "score": 5 },
+          { "at": 0.9, "score": 4 },
+          { "at": 1, "score": 3 },
+          { "at": 1.1, "score": 2 },
+          { "at": 1.2, "score": 1 }
+        ],
+        "notes": "Decile bands over the 20-row pinned read of 2026-10-06, kept at reads/cost-per-task.json; the user approved every band."
+      },
+      "engines-above-cap": {
+        "source": "https://example.org/engines",
+        "field": "engines",
+        "version": "2026-10-06",
+        "direction": "higher",
+        "bands": [],
+        "notes": "Record-only key for figures measured above a model's maxEffort; no feed lists this key, so nothing under it feeds a rating. Same pinned read as engines (2026-10-06)."
+      },
+      "taste-evidence": {
+        "source": "https://example.org/taste-leaderboard",
+        "field": "overall",
+        "version": "t4st-r3v",
+        "direction": "higher",
+        "bands": [],
+        "notes": "Record-only evidence for the hand-set taste rating; no feed lists this key. Placeholder preference leaderboard, category overall, published 2026-09-20, CC BY 4.0, source https://example.org/taste-leaderboard, pinned revision t4st-r3v. Mapping: row 'model-id-a (high)' maps to model-a at effort high; row 'model-id-b (high)' maps to model-b at effort high; row 'model-id-c' carries no effort tag, stays effort unspecified, and is never stored as a figure."
+      }
+    },
+    "feeds": {
+      "coding": ["engines"],
+      "cost": ["cost-per-task"]
+    },
+    "handSet": ["taste"],
+    "figures": {
+      "model-a": {
+        "engines": { "value": 44, "read": "2026-10-06", "effort": "high" },
+        "taste-evidence": { "value": 1520, "read": "2026-10-06", "effort": "high" }
+      },
+      "model-b": {
+        "engines-above-cap": { "value": 47, "read": "2026-10-06", "effort": "xhigh" },
+        "taste-evidence": { "value": 1495, "read": "2026-10-06", "effort": "high" }
+      },
+      "model-b@harness-y/provider-2": {
+        "cost-per-task": { "value": 0.45, "read": "2026-10-06", "effort": "high" }
+      }
+    },
+    "overrides": [
+      {
+        "rating": "cost",
+        "route": "model-a@harness-x",
+        "value": 9,
+        "reason": "Subscription route on plan-a; no per-task price exists to read."
+      }
+    ]
+  },
+  "profiles": {
+    "builder-pool": {
+      "description": "Platform-a first, then the aggregator ceiling set, plus the catalog-confirmed platform-b route.",
+      "routes": ["model-a@harness-x", "model-b@harness-y/provider-2"],
+      "gaps": [
+        {
+          "rating": "coding",
+          "accepts": 7,
+          "reason": "High-stakes coding 8 sits outside this budget; the set reaches coding 7."
+        }
+      ]
+    }
+  },
+  "router": {
+    "rank": ["coding", "taste"]
+  },
+  "tasks": {
+    "implement": {
+      "description": "Write and change code to a stated spec.",
+      "minimums": {
+        "low": { "coding": 6, "taste": 4 },
+        "normal": { "coding": 7, "taste": 4 },
+        "high": { "coding": 8, "taste": 5 }
+      },
+      "rank": ["coding", "taste"],
+      "effort": "high"
+    }
+  }
+}

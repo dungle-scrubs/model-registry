@@ -1,0 +1,28 @@
+{
+  "benchmark": "engines",
+  "source": "https://example.org/engines",
+  "version": "2026-10-06",
+  "read": "2026-10-06",
+  "rows": [
+    { "id": "model-id-q01", "value": 31 },
+    { "id": "model-id-q02", "value": 32 },
+    { "id": "model-id-q03", "value": 33 },
+    { "id": "model-id-q04", "value": 34 },
+    { "id": "model-id-q05", "value": 35 },
+    { "id": "model-id-q06", "value": 36 },
+    { "id": "model-id-q07", "value": 37 },
+    { "id": "model-id-q08", "value": 38 },
+    { "id": "model-id-q09", "value": 39 },
+    { "id": "model-id-q10", "value": 40 },
+    { "id": "model-id-q11", "value": 41 },
+    { "id": "model-id-q12", "value": 42 },
+    { "id": "model-id-q13", "value": 43 },
+    { "id": "model-id-a", "value": 44, "effort": "high" },
+    { "id": "model-id-q14", "value": 45 },
+    { "id": "model-id-c", "value": 46, "effort": "high" },
+    { "id": "model-id-b", "value": 47, "effort": "xhigh" },
+    { "id": "model-id-q15", "value": 48 },
+    { "id": "model-id-q16", "value": 49 },
+    { "id": "model-id-q17", "value": 50 }
+  ]
+}
