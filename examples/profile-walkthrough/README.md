@@ -241,9 +241,9 @@ are the checks' output for that file:
 
 ```console
 $ model-registry check --registry registry-before-rebuild.json
-{"format":1,"digest":"sha256:90ee5a575129a95de7948609d784c194d8e541466a9f5ea34a85d04226348659","path":".../examples/profile-walkthrough/registry-before-rebuild.json"}
+{"format":1,"digest":"sha256:d4ec02aedf136e326cb57be3d22493aa182e11d52e0b65d7d43c315340291dbb","path":".../examples/profile-walkthrough/registry-before-rebuild.json"}
 $ model-router check --registry registry-before-rebuild.json
-{"configPath":null,"registryDigest":"sha256:90ee5a575129a95de7948609d784c194d8e541466a9f5ea34a85d04226348659","registryPath":".../examples/profile-walkthrough/registry-before-rebuild.json","warnings":[{"code":"profile-gap-unrecorded","field":"$[\"tasks\"][\"implement\"][\"minimums\"][\"high\"][\"coding\"]","message":"profile \"default\", task \"implement\", stakes \"high\": the requirements are reachable only through different routes; no single route clears them together.","fix":"Declare \"default\" in profiles with gap record {\"rating\":\"coding\",\"accepts\":7,\"reason\":\"<why>\"}, or add a route that fills it."},{"code":"profile-gap-unrecorded","field":"$[\"tasks\"][\"implement\"][\"minimums\"][\"high\"][\"taste\"]","message":"profile \"default\", task \"implement\", stakes \"high\": the requirements are reachable only through different routes; no single route clears them together.","fix":"Rate a model in the registry for \"taste\", or add a route that fills it."}]}
+{"configPath":null,"registryDigest":"sha256:d4ec02aedf136e326cb57be3d22493aa182e11d52e0b65d7d43c315340291dbb","registryPath":".../examples/profile-walkthrough/registry-before-rebuild.json","warnings":[{"code":"profile-gap-unrecorded","field":"$[\"tasks\"][\"implement\"][\"minimums\"][\"high\"][\"coding\"]","message":"profile \"default\", task \"implement\", stakes \"high\": the requirements are reachable only through different routes; no single route clears them together.","fix":"Declare \"default\" in profiles with gap record {\"rating\":\"coding\",\"accepts\":7,\"reason\":\"<why>\"}, or add a route that fills it."},{"code":"profile-gap-unrecorded","field":"$[\"tasks\"][\"implement\"][\"minimums\"][\"high\"][\"taste\"]","message":"profile \"default\", task \"implement\", stakes \"high\": the requirements are reachable only through different routes; no single route clears them together.","fix":"Rate a model in the registry for \"taste\", or add a route that fills it."}]}
 ```
 
 Both exit 0. The reported `path` and `registryPath` match the written file.
@@ -322,9 +322,9 @@ again after the edit:
 
 ```console
 $ model-registry check --registry registry.json
-{"format":1,"digest":"sha256:dc9999fc1368245823c5fbc994625e35e960eee27b7d9427e642476cb92a5ee1","path":".../examples/profile-walkthrough/registry.json"}
+{"format":1,"digest":"sha256:7fe16b373819b83744bbbcaa2b6f6ab6fd28f0ff22ea196d597a7869a4c5af72","path":".../examples/profile-walkthrough/registry.json"}
 $ model-router check --registry registry.json
-{"configPath":null,"registryDigest":"sha256:dc9999fc1368245823c5fbc994625e35e960eee27b7d9427e642476cb92a5ee1","registryPath":".../examples/profile-walkthrough/registry.json","warnings":[{"code":"profile-gap-unrecorded","field":"$[\"tasks\"][\"implement\"][\"minimums\"][\"high\"][\"coding\"]","message":"profile \"default\", task \"implement\", stakes \"high\": no route in profile \"default\" reaches coding 8 (best 7).","fix":"Declare \"default\" in profiles with gap record {\"rating\":\"coding\",\"accepts\":7,\"reason\":\"<why>\"}, or add a route that fills it."}]}
+{"configPath":null,"registryDigest":"sha256:7fe16b373819b83744bbbcaa2b6f6ab6fd28f0ff22ea196d597a7869a4c5af72","registryPath":".../examples/profile-walkthrough/registry.json","warnings":[{"code":"profile-gap-unrecorded","field":"$[\"tasks\"][\"implement\"][\"minimums\"][\"high\"][\"coding\"]","message":"profile \"default\", task \"implement\", stakes \"high\": no route in profile \"default\" reaches coding 8 (best 7).","fix":"Declare \"default\" in profiles with gap record {\"rating\":\"coding\",\"accepts\":7,\"reason\":\"<why>\"}, or add a route that fills it."}]}
 ```
 
 Both exit 0. The declared builder-pool profile has no findings at any stakes
