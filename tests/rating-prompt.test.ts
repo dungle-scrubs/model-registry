@@ -157,6 +157,19 @@ describe("the rating prompt's suggested benchmarks and bands", () => {
     expect(flattened).toContain("not from a fresh fetch");
   });
 
+  test("M-3 a benchmark whose version names no file in reads/ gets an offer of a new read", () => {
+    const flattened = flat(step3);
+    expect(flattened).toContain("When no file in `reads/` matches a benchmark's `version`");
+    expect(flattened).toContain("offer a new pinned read");
+    expect(flattened).toContain("record no new figure from that benchmark");
+  });
+
+  test("L-5 Step 1 names the pinned read as the figure source", () => {
+    const step1 = flat(section("Step 1 - ask which ratings, benchmarks and models matter"));
+    expect(step1).toContain("from the user's pinned read of the source");
+    expect(step1).not.toContain("read each figure from the source");
+  });
+
   test("F12 benchmark reads run as local commands with no key in the conversation", () => {
     const step3Flat = flat(step3);
     expect(step3Flat).not.toBe("");

@@ -21,7 +21,8 @@ Ask the user, one question at a time:
 2. Which benchmarks feed each rating? The benchmark's name goes in
    `calibration.feeds` under the rating it feeds; for routes' `cost` the
    feed is named `cost`. The loader never fetches data; you read each
-   figure from the source and record it in `calibration.figures`.
+   figure from the user's pinned read of the source and record it in
+   `calibration.figures`.
 3. Which models should be rated, and which routes carry a cost?
 
 When the user has no source in mind, offer a suggestion from this table.
@@ -108,6 +109,13 @@ that local command.
 For each benchmark in each feed, read the figure for every rated model
 and, for `cost`, every route that carries one, from the pinned read in
 `reads/` that the benchmark's `version` names, not from a fresh fetch.
+
+When no file in `reads/` matches a benchmark's `version` - a registry
+rated before `reads/` existed - say so and offer a new pinned read. On
+the user's yes, take it; its identity differs from `version`, so Step 2
+proposes bands again. On a no, record no new figure from that benchmark
+and keep its existing figures and bands.
+
 Record each figure under `calibration.figures`, keyed by model key (or by
 route label for `cost`), then by benchmark name, with:
 
