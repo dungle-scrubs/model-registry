@@ -281,8 +281,50 @@ describe("the profile walkthrough", () => {
     expect(readme).toContain("carries no ranking");
   });
 
-  test("F7 the walkthrough checks confirm the reported path matches the written file", () => {
-    expect(readReadme()).toContain("match the written file");
+  test("F7 the walkthrough checks confirm the reported path is the file the command names", () => {
+    expect(flat(readReadme())).toContain(
+      "each reported `path` and `registryPath` is the file the command names",
+    );
+  });
+
+  test("L-a the walkthrough names its target file and passes --registry to both checks", () => {
+    const readme = readReadme();
+    const start = readme.indexOf("## The opening request");
+    const end = readme.indexOf("## Step 3");
+    expect(start).toBeGreaterThanOrEqual(0);
+    expect(end).toBeGreaterThan(start);
+    expect(readme.slice(start, end)).toContain("registry.json");
+    expect(flat(readme)).toContain("both checks pass `--registry`");
+  });
+
+  test("N4 the walkthrough proposal shows its model facts with sources", () => {
+    const flattened = flat(readReadme());
+    const item2 = flattened.slice(
+      flattened.indexOf("2. Shared fact changes:"),
+      flattened.indexOf("3. The ratings and bands above"),
+    );
+    expect(item2).not.toBe("");
+    expect(item2).toContain("harness-x documentation");
+    expect(item2).toContain("`maxEffort` high");
+    expect(item2).toContain("provider-2");
+    expect(item2).toContain("platform-b");
+  });
+
+  test("L-b the walkthrough Step 4 asks only for the open facts", () => {
+    const readme = readReadme();
+    const start = readme.indexOf("## Step 4");
+    const end = readme.indexOf("## Step 6");
+    expect(start).toBeGreaterThanOrEqual(0);
+    expect(end).toBeGreaterThan(start);
+    const step4 = flat(readme.slice(start, end));
+    expect(step4).not.toContain("Which ratings matter");
+    expect(step4).toContain("You named coding and taste");
+  });
+
+  test("L-h the untagged leaderboard row is not stored as a figure", () => {
+    const flattened = flat(readReadme());
+    expect(flattened).toContain("not stored as a figure");
+    expect(flattened).not.toContain("not stored as evidence");
   });
 
   test("F8 shared values come from the user, and the proposal shows them", () => {

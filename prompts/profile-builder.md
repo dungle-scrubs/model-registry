@@ -15,6 +15,8 @@ and the checks are this prompt's work.
 ## The interview
 
 Ask one question at a time, and wait for the answer before the next question.
+One question asks for one fact; a fact with parts, such as a platform with
+its plan or a rating with its benchmark source, is asked as one question.
 When the opening request already states a fact, skip the step that asks for
 it and say so in one line. A step may also be answered midway; apply the same
 skip. Run the steps in the order below.

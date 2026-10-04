@@ -63,6 +63,12 @@ describe("the profile builder prompt", () => {
     expect(interview).toContain("skip");
   });
 
+  test("L-b one question asks for one fact, even a fact with parts", () => {
+    const interview = flat(section("The interview"));
+    expect(interview).toContain("a fact with parts");
+    expect(interview).toContain("asked as one question");
+  });
+
   test("DW1 aggregator narrowing runs only when an aggregator is among the platforms", () => {
     const step3 = section("Step 3 - Aggregator narrowing");
     expect(step3).not.toBe("");

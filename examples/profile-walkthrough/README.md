@@ -20,12 +20,14 @@ The kept artifacts beside this README:
 
 > Build me a profile named builder-pool for daily coding. I have platform-a
 > on plan-a and an aggregator-a key. Keep it under 50 USD a month and make it
-> a narrow, cheap set. Rate coding and taste.
+> a narrow, cheap set. Rate coding and taste. Write it to registry.json
+> here.
 
-The opening request names no registry file, so the builder settles on the
-resolved default that `model-registry check` reports in its `path` output,
-with `lists/` and `reads/` beside it. The opening request already answers
-three interview facts, so the builder says so and skips those steps:
+The opening request names `registry.json`, so that file is the target:
+`lists/` and `reads/` sit beside it, and, as it is not the resolved
+default, both checks pass `--registry` with it. The opening request
+already answers three interview facts, so the builder says so and skips
+those steps:
 
 - Step 1 - Platforms and plans: skipped. platform-a on plan-a, plus
   aggregator-a with its key, named in the order that orders each model's
@@ -47,8 +49,9 @@ snapshot's `method` field.
 
 ## Step 4 - Ratings and benchmark approval
 
-**Agent:** Which ratings matter for this pool, and which benchmark feeds
-each one? The suggestion table offers sources; you approve or replace each.
+**Agent:** You named coding and taste, so I will not ask for the ratings
+again. Which benchmark source feeds each one? The suggestion table offers
+sources; you approve or replace each.
 
 **User:** Coding from the engines index at example.org, cost per task for
 route cost at example.org. Taste is mine to set; show me the leaderboard
@@ -160,8 +163,9 @@ Taste is yours to set.
 **User:** model-a taste 6 - I prefer how it plans, whatever the leaderboard
 says. model-b taste 5, as suggested.
 
-**Agent:** And model-c? Its leaderboard row carries no effort tag, so it is
-not stored as evidence. Have you used it enough to set a taste?
+**Agent:** And model-c? Its leaderboard row carries no effort tag, so it
+stays effort unspecified in the mapping and is not stored as a figure.
+Have you used it enough to set a taste?
 
 **User:** I have not used model-c enough; leave its taste unset.
 
@@ -217,9 +221,14 @@ The builder shows the whole proposal in one place:
    there is no route order to write; the label order above carries no
    ranking.
 2. Shared fact changes: models model-a, model-b, model-c with their routes,
-   each route's `hosted` written from evidence (the subscription service and
-   the aggregator are hosted, so every route is `hosted: true`); ratings
-   coding and taste; capability browser; meter plan-a, no fields;
+   model facts from evidence - the harness-x documentation gives model-a
+   family-a, `maxEffort` high and the `browser` capability; the harness-y
+   documentation gives model-b family-b and `maxEffort` high, and its route
+   reaches provider-2; aggregator-a's model page gives model-c family-c
+   and `maxEffort` high. Each route's `hosted` from evidence: platform-a's
+   subscription service, aggregator-a, and platform-b's pay-as-you-go API
+   through provider-2 are all hosted, so every route is `hosted: true`;
+   ratings coding and taste; capability browser; meter plan-a, no fields;
    calibration with the four benchmark keys; the router section with
    `router.rank` coding then taste; the implement task with floors low
    coding 6 taste 4, normal coding 7 taste 4, high coding 8 taste 5, rank
@@ -235,10 +244,9 @@ The builder shows the whole proposal in one place:
 ## The checks
 
 The builder writes the shared facts, the profile, and everything the rating
-prompt's Steps 2 to 4 produced, then runs both checks. The registry as first
-approved is kept
-beside this README as `registry-before-rebuild.json`, and the lines below
-are the checks' output for that file:
+prompt's Steps 2 to 4 produced, then runs both checks. The registry as
+first approved is kept beside this README as `registry-before-rebuild.json`,
+and the lines below are the checks' output for that file:
 
 ```console
 $ model-registry check --registry registry-before-rebuild.json
@@ -247,7 +255,8 @@ $ model-router check --registry registry-before-rebuild.json
 {"configPath":null,"registryDigest":"sha256:d4ec02aedf136e326cb57be3d22493aa182e11d52e0b65d7d43c315340291dbb","registryPath":".../examples/profile-walkthrough/registry-before-rebuild.json","warnings":[{"code":"profile-gap-unrecorded","field":"$[\"tasks\"][\"implement\"][\"minimums\"][\"high\"][\"coding\"]","message":"profile \"default\", task \"implement\", stakes \"high\": the requirements are reachable only through different routes; no single route clears them together.","fix":"Declare \"default\" in profiles with gap record {\"rating\":\"coding\",\"accepts\":7,\"reason\":\"<why>\"}, or add a route that fills it."},{"code":"profile-gap-unrecorded","field":"$[\"tasks\"][\"implement\"][\"minimums\"][\"high\"][\"taste\"]","message":"profile \"default\", task \"implement\", stakes \"high\": the requirements are reachable only through different routes; no single route clears them together.","fix":"Rate a model in the registry for \"taste\", or add a route that fills it."}]}
 ```
 
-Both exit 0. The reported `path` and `registryPath` match the written file.
+Both exit 0, and each reported `path` and `registryPath` is the file the
+command names.
 The router check reports two warnings on the implicit `default` profile: at
 implement, high stakes, no single route clears coding 8 and taste 5
 together.
