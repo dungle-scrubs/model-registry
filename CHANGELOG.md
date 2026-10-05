@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.3.0](https://github.com/dungle-scrubs/model-registry/compare/v0.2.0...v0.3.0) (2026-10-05)
+
+
+### Features
+
+* ship the profile builder prompt and suggested rating bands ([#66](https://github.com/dungle-scrubs/model-registry/issues/66)) ([#83](https://github.com/dungle-scrubs/model-registry/issues/83)) ([0e0144a](https://github.com/dungle-scrubs/model-registry/commit/0e0144a4d1f0349a179890168ac389927d049cf8))
+
 ## [0.2.0](https://github.com/dungle-scrubs/model-registry/compare/v0.1.0...v0.2.0) (2026-10-04)
 
 
