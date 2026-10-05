@@ -129,12 +129,12 @@ describe("the rating prompt's suggested benchmarks and bands", () => {
     expect(lastBlock?.trim()).toBe("```sh\nmodel-registry check\n```");
   });
 
-  test("F3 bands are re-proposed on a new pinned read, never on a published version", () => {
+  test("F3 bands are re-proposed on every new pinned read, never on a published version", () => {
     const reflate = flat(step2);
     expect(reflate).not.toBe("");
     expect(reflate).not.toContain("published version");
-    expect(reflate).toContain("takes a new pinned read whose");
-    expect(reflate).toContain("identity differs from the benchmark's `version`");
+    expect(reflate).toContain("takes a new pinned read");
+    expect(reflate).not.toContain("identity differs from the benchmark's `version`");
   });
 
   test("N3 a benchmark's version is the identity of its pinned read", () => {
@@ -204,7 +204,7 @@ describe("the rating prompt's suggested benchmarks and bands", () => {
     expect(pinned).not.toBe("");
     expect(pinned).toContain("`reads/`");
     expect(pinned).toContain("one JSON file per read");
-    expect(pinned).toContain("named like a model list snapshot");
+    expect(pinned).toContain("<source-name>-<version>-<read-date>.json");
     expect(pinned).toContain("every row read");
   });
 
@@ -212,6 +212,80 @@ describe("the rating prompt's suggested benchmarks and bands", () => {
     const arena = flat(subsection("Taste evidence from Arena WebDev `overall`"));
     expect(arena).not.toBe("");
     expect(arena).toContain("duplicate names");
+  });
+
+  test("82 2a every new-read path replaces all figures and shows all affected ratings", () => {
+    const lifecycle = flat(subsection("New pinned reads"));
+    for (const statement of [
+      "first bands",
+      "the user's request",
+      "an approved offer",
+      "the no-match yes branch",
+      "every model and route in the registry that has one",
+      "not only the rated set",
+      "keeps no figure from that benchmark",
+      "no computed rating from that benchmark",
+      "override with a reason",
+      "Recompute every rating the benchmark feeds",
+      "show the values before the registry is written",
+      "every declared profile whose members' ratings move",
+      "bands or figures",
+    ]) {
+      expect(lifecycle).toContain(statement);
+    }
+  });
+
+  test("82 2b immutable reads have safe source-version-date names and approval-gated removal", () => {
+    const files = flat(subsection("Pinned read files"));
+    for (const statement of [
+      "saved when taken",
+      "never overwritten",
+      "<source-name>-<version>-<read-date>.json",
+      "version appears once when it is the read date",
+      "engines-2026-10-06.json",
+      "lowercase letters, digits and hyphens",
+      "lowercase the version",
+      "replace every other character with a hyphen",
+      "short public name",
+      "never a credential, an account id, an email or a path",
+      "same read identity on the same date",
+      "keep and use the existing read",
+      "say so",
+      "rejected proposal or rejected bands",
+      "registry unchanged",
+      "new read file stays in `reads/`",
+      "only after the user approves",
+      "no benchmark in the registry matches it by source and version",
+      "never before the registry write",
+      "offer removal",
+      "never do it unasked",
+    ]) {
+      expect(files).toContain(statement);
+    }
+  });
+
+  test("82 2c record-only keys keep their own pinned read unless separately approved", () => {
+    const lifecycle = flat(subsection("New pinned reads"));
+    for (const statement of [
+      "record-only key sharing the source keeps its own `version`, figures and read file",
+      "proposal lists each such key and asks whether to move it too",
+      "On yes, its `version` becomes the new read's identity",
+      "its figures move by the same replacement rule",
+      "On no, it stays on its old read",
+    ]) {
+      expect(lifecycle).toContain(statement);
+    }
+    expect(flat(step3)).not.toContain("same pinned read as the benchmark that shares its source");
+  });
+
+  test("82 L-1 the no-match yes branch proposes bands without claiming a different identity", () => {
+    expect(flat(step3)).not.toContain("its identity differs from `version`");
+    expect(flat(step3)).toContain("Step 2 proposes bands again from that read");
+  });
+
+  test("82 L-3 and L-5 approval gates only registry writes and missing subjects keep no figure", () => {
+    expect(flat(step2)).toContain("write nothing to the registry until the user approves");
+    expect(flat(step3.split("\n### ")[0] ?? "")).toContain("keeps no figure from that benchmark");
   });
 
   test("F15 prose lines outside tables and code blocks stay within 80 columns", () => {

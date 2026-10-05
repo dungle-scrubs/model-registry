@@ -225,7 +225,7 @@ describe("the profile builder prompt", () => {
 
     const proposal = flat(section("The proposal"));
     expect(proposal).toContain(
-      "name every other declared profile whose members' ratings the changed bands alter",
+      "name every declared profile whose members' ratings move through changed bands or figures",
     );
   });
 
@@ -405,6 +405,58 @@ describe("the profile builder prompt", () => {
     expect(proposal).toContain("from evidence the user confirms");
     expect(proposal).toContain("a local runtime on the user's machine is not hosted");
     expect(proposal).toContain("a provider, subscription service or aggregator is");
+  });
+
+  test("82 2a the handoff recomputes the whole registry and the proposal names declared profiles", () => {
+    const handoff = flat(subsection("Rating handoff"));
+    expect(handoff).toContain("every model and route in the registry, not only the pool");
+    expect(handoff).toContain("replace every figure under that benchmark");
+    expect(handoff).toContain("recompute every rating it feeds");
+    const proposal = flat(section("The proposal"));
+    expect(proposal).toContain("show every recomputed rating before the write");
+    expect(proposal).toContain(
+      "name every declared profile whose members' ratings move through changed bands or figures",
+    );
+  });
+
+  test("82 2b the handoff saves immutable named reads and rejection preserves them", () => {
+    const handoff = flat(subsection("Rating handoff"));
+    expect(handoff).toContain("never overwritten");
+    expect(handoff).toContain("<source-name>-<version>-<read-date>.json");
+    expect(handoff).toContain("rating prompt's Pinned read files rule");
+    const proposal = flat(section("The proposal"));
+    expect(proposal).toContain("rejected proposal or rejected bands leave the registry unchanged");
+    expect(proposal).toContain("new read file stays in `reads/`");
+    const finishing = flat(section("Finishing"));
+    expect(finishing).toContain("only after the user approves");
+    expect(finishing).toContain("no benchmark in the registry matches it by source and version");
+    expect(finishing).toContain("never before the registry write");
+    expect(finishing).toContain("never remove it unasked");
+  });
+
+  test("82 2c the proposal asks about each record-only key instead of moving it automatically", () => {
+    const handoff = flat(subsection("Rating handoff"));
+    expect(handoff).toContain("record-only key sharing the source keeps its own pinned read");
+    const proposal = flat(section("The proposal"));
+    expect(proposal).toContain("List every record-only key sharing that source");
+    expect(proposal).toContain("ask whether to move it too");
+    expect(proposal).toContain(
+      "On yes, move its `version` and figures by the rating prompt's rule",
+    );
+    expect(proposal).toContain("on no, keep its old `version`, figures and read file");
+  });
+
+  test("82 L-2 source approval uses the rating match rule and answers its no-match offer", () => {
+    const step4 = flat(section("Step 4 - Ratings and benchmark approval"));
+    expect(step4).toContain("rating prompt's Step 3 source-and-version match rule");
+    expect(step4).toContain("Step 4 approval with no matching read is the yes to that offer");
+    expect(step4).toContain("say so in one line");
+  });
+
+  test("82 L-3 the README distinguishes model list snapshots and immutable benchmark reads", () => {
+    const readme = flat(readFileSync(join(repoRoot, "README.md"), "utf8"));
+    expect(readme).toContain("each model list read saved as a JSON snapshot in `lists/`");
+    expect(readme).toContain("Pinned benchmark read files in `reads/` are never overwritten");
   });
 
   test("F15 prose lines outside tables and code blocks stay within 80 columns", () => {

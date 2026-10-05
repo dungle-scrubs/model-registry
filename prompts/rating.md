@@ -55,21 +55,21 @@ For each benchmark, record:
   below. The first band that matches wins.
 
 Propose bands, computed with the decile method below, when a benchmark that
-a feed lists has no bands, or when the user takes a new pinned read whose
-identity differs from the benchmark's `version`; show the ratings those
-bands would give for each model and write nothing until the user approves.
+a feed lists has no bands, or when the user takes a new pinned read; show
+the ratings those bands would give for each model and write nothing to the
+registry until the user approves.
 Take a new pinned read only when the user asks for one or approves your
 offer of one. A record-only key that no feed lists keeps `bands: []` and
-gets no proposal. There are no default bands: the package ships none, and
+gets no band proposal. There are no default bands: the package ships none, and
 the table is the user's own choice.
 
 Compute every proposed band from the user's own pinned read of that
 benchmark: a read the user made with their own key, at a recorded revision
 or date, kept as one JSON file per read in `reads/` beside the registry
-file, named like a model list snapshot (lowercase letters, digits and
-hyphens), holding the source, the read identity (its revision or date) and
-every row read. The package ships no band numbers; this method is all it
-ships.
+file, named `<source-name>-<version>-<read-date>.json` under the Pinned read
+files rule below, holding the source, `version` (its revision or read date),
+read date and every row read. The package ships no band numbers; this
+method is all it ships.
 
 The distribution is every row with a figure in that pinned read, not only
 the models being rated. Sort the n figures worst to best by the benchmark's
@@ -110,16 +110,16 @@ For each benchmark in each feed, read the figure for every rated model
 and, for `cost`, every route that carries one, from the pinned read in
 `reads/` whose source and read identity match the benchmark's `source`
 and `version`, not from a fresh fetch. A read date alone does not
-identify a read: several benchmarks can share one, and a record-only
-key reads from the same pinned read as the benchmark that shares its
-source.
+identify a read: several benchmarks can share one. Match each record-only
+key by its own source and `version`, even when another benchmark shares
+its source.
 
 When no file in `reads/` matches a benchmark's `source` and `version` -
 a registry rated before `reads/` existed - say so and offer a new pinned
-read. On the user's yes, take it; its identity differs from `version`,
-so Step 2 proposes bands again and that benchmark's figures are taken
-from the new read only: a model or route the new read lacks keeps no
-figure from that benchmark. On a no, record no new figure from that
+read. On the user's yes, take it; Step 2 proposes bands again from that
+read and that benchmark's figures are taken from the new read only: a model
+or route the new read lacks keeps no figure from that benchmark. On a no,
+record no new figure from that
 benchmark and keep its existing figures and bands. A model or route left
 without a figure or band from that benchmark gets no computed rating
 from it unless the user writes an override with a reason.
@@ -134,6 +134,43 @@ route label for `cost`), then by benchmark name, with:
 
 Figures may name a model or route the registry does not declare; they are
 checked for shape only and skipped by the rating check.
+
+### Pinned read files
+
+Each read is saved when taken, before registry approval. Reads are never
+overwritten. Use `<source-name>-<version>-<read-date>.json`: the version
+appears once when it is the read date, for example `engines-2026-10-06.json`.
+Filenames use lowercase letters, digits and hyphens only before `.json`:
+lowercase the version and replace every other character with a hyphen.
+The source name is a short public name of the source, never a credential,
+an account id, an email or a path. If a file of that name already exists,
+this is the same read identity on the same date; do not save over it,
+keep and use the existing read and say so.
+
+A rejected proposal or rejected bands leave the registry unchanged; the
+new read file stays in `reads/`. Remove an old read only after the user
+approves and no benchmark in the registry matches it by source and
+version, never before the registry write. You may offer removal, but
+never do it unasked.
+
+### New pinned reads
+
+Whenever a benchmark takes a new pinned read - first bands, the user's
+request, an approved offer, or the no-match yes branch - replace its
+figures for every model and route in the registry that has one, not only
+the rated set. Take every replacement from the new read; a subject it
+lacks keeps no figure from that benchmark and gets no computed rating
+from that benchmark unless the user writes an override with a reason.
+Recompute every rating the benchmark feeds for every model and route in
+the registry and show the values before the registry is written. The
+proposal names every declared profile whose members' ratings move through
+changed bands or figures, even when this prompt runs outside a build.
+
+A record-only key sharing the source keeps its own `version`, figures and
+read file. The proposal lists each such key and asks whether to move it
+too. On yes, its `version` becomes the new read's identity and its figures
+move by the same replacement rule. On no, it stays on its old read; that
+read is still named and stays.
 
 ### Taste evidence from Arena WebDev `overall`
 
