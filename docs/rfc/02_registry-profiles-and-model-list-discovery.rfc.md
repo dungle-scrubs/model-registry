@@ -749,10 +749,11 @@ the same read identity on the same date: keep and use the existing read,
 MUST NOT save over it, and say so.
 
 A rejected proposal or rejected bands leave the registry unchanged; the
-new read file stays in `reads/`. An old read MAY be offered for removal
-only after the user approves and no benchmark in the registry matches
+new read file stays in `reads/`. An old read MAY be removed only after
+the user approves its removal and no benchmark in the registry matches
 it by source and version, never before the registry write. The agent
-MUST NOT remove it unasked.
+MAY offer removal after the registry write and MUST NOT remove it
+unasked.
 
 Source: [Pinned-read lifecycle owner decisions][t82], Kevin,
 2026-10-05; base pinned-read rules from [Profile builder prompt][t66].

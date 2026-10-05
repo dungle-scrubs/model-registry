@@ -51,6 +51,7 @@ describe("the pinned-read RFC amendment", () => {
       "every model and route in the registry",
       "keeps no figure from that benchmark",
       "Recompute every rating the benchmark feeds",
+      "This also applies outside a profile build",
     ])
       expect(amendment).toContain(statement);
   });
@@ -58,6 +59,9 @@ describe("the pinned-read RFC amendment", () => {
   test("82 1 read files are immutable, safely named and removed only behind both gates", () => {
     for (const statement of [
       "reads are never overwritten",
+      "names use lowercase letters, digits and hyphens only",
+      "Lowercase the version and replace every other character with a hyphen",
+      "never a credential, account id, email or path",
       "source, version and date",
       "only after the user approves and nothing in the registry names it",
       "<source-name>-<version>-<read-date>.json",
@@ -66,10 +70,13 @@ describe("the pinned-read RFC amendment", () => {
       "keep and use the existing read",
       "never before the registry write",
       "MUST NOT remove it unasked",
+      "MAY be removed only after the user approves its removal",
+      "MAY offer removal after the registry write",
       "rejected proposal or rejected bands",
       "registry unchanged",
     ])
       expect(amendment).toContain(statement);
+    expect(amendment).not.toContain("MAY be offered for removal only after");
   });
 
   test("82 1 record-only keys keep their pinned read until the user approves moving them", () => {
