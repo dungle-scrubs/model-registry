@@ -107,12 +107,13 @@ output, and you never ask for or receive a key. The pinned read itself is
 that local command.
 
 For each benchmark in each feed, read the figure for every rated model
-and, for `cost`, every route that carries one, from the pinned read in
-`reads/` whose source and read identity match the benchmark's `source`
-and `version`, not from a fresh fetch. A read date alone does not
-identify a read: several benchmarks can share one. Match each record-only
-key by its own source and `version`, even when another benchmark shares
-its source.
+and, for `cost`, every route that carries one (on a new pinned read, every
+model and route in the registry that has one, under New pinned reads
+below), from the pinned read in `reads/` whose source and read identity
+match the benchmark's `source` and `version`, not from a fresh fetch.
+A read date alone does not identify a read: several benchmarks can share
+one. Match each record-only key by its own source and `version`, even when
+another benchmark shares its source.
 
 When no file in `reads/` matches a benchmark's `source` and `version` -
 a registry rated before `reads/` existed - say so and offer a new pinned
@@ -149,9 +150,9 @@ keep and use the existing read and say so.
 
 A rejected proposal or rejected bands leave the registry unchanged; the
 new read file stays in `reads/`. Remove an old read only after the user
-approves and no benchmark in the registry matches it by source and
-version, never before the registry write. You may offer removal, but
-never do it unasked.
+approves its removal and no benchmark in the registry matches it by source
+and version, never before the registry write. You may offer removal after
+the registry write, but never do it unasked.
 
 ### New pinned reads
 

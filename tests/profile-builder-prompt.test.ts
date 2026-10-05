@@ -429,6 +429,9 @@ describe("the profile builder prompt", () => {
     expect(proposal).toContain("new read file stays in `reads/`");
     const finishing = flat(section("Finishing"));
     expect(finishing).toContain("only after the user approves");
+    expect(finishing).toContain("Remove an old read only after the user approves its removal");
+    expect(finishing).toContain("After the registry write you may offer removal");
+    expect(finishing).not.toContain("offer removal of an old read only after");
     expect(finishing).toContain("no benchmark in the registry matches it by source and version");
     expect(finishing).toContain("never before the registry write");
     expect(finishing).toContain("never remove it unasked");

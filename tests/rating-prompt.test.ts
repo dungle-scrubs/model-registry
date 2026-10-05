@@ -230,6 +230,7 @@ describe("the rating prompt's suggested benchmarks and bands", () => {
       "show the values before the registry is written",
       "every declared profile whose members' ratings move",
       "bands or figures",
+      "even when this prompt runs outside a build",
     ]) {
       expect(lifecycle).toContain(statement);
     }
@@ -255,9 +256,11 @@ describe("the rating prompt's suggested benchmarks and bands", () => {
       "registry unchanged",
       "new read file stays in `reads/`",
       "only after the user approves",
+      "only after the user approves its removal",
       "no benchmark in the registry matches it by source and version",
       "never before the registry write",
       "offer removal",
+      "offer removal after the registry write",
       "never do it unasked",
     ]) {
       expect(files).toContain(statement);
@@ -286,6 +289,9 @@ describe("the rating prompt's suggested benchmarks and bands", () => {
   test("82 L-3 and L-5 approval gates only registry writes and missing subjects keep no figure", () => {
     expect(flat(step2)).toContain("write nothing to the registry until the user approves");
     expect(flat(step3.split("\n### ")[0] ?? "")).toContain("keeps no figure from that benchmark");
+    expect(flat(step3.split("\n### ")[0] ?? "")).toContain(
+      "on a new pinned read, every model and route in the registry that has one",
+    );
   });
 
   test("F15 prose lines outside tables and code blocks stay within 80 columns", () => {

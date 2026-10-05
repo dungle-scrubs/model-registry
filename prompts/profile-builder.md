@@ -320,9 +320,10 @@ its record; that profile changes only with the user's explicit approval.
 A choice that changes the registry is a revised proposal, approved before
 another write.
 
-After the registry write, you may offer removal of an old read only after
-the user approves and no benchmark in the registry matches it by source
-and version; never before the registry write, and never remove it unasked.
+Remove an old read only after the user approves its removal and no
+benchmark in the registry matches it by source and version, never before
+the registry write. After the registry write you may offer removal; never
+remove it unasked.
 
 Inside a build, this rule replaces the rating prompt's Step 5 fix loop: a
 finding either check reports, a `rating-mismatch` included, whose repair
