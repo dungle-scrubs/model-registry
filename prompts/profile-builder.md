@@ -72,7 +72,9 @@ rating prompt from the user's own pinned reads, and the user still approves
 every band before the registry is written. Approving a source whose
 benchmark has no matching pinned read in `reads/` also approves taking its
 pinned read during the rating handoff; an existing matching read is reused
-unless the user asks for a new one or approves your offer of one.
+unless the user asks for a new one or approves your offer of one. Use the
+rating prompt's Step 3 source-and-version match rule. A Step 4 approval
+with no matching read is the yes to that offer; say so in one line.
 
 Done when each rating has an approved source, and hand-set ratings are marked
 as hand-set.
@@ -197,9 +199,11 @@ benchmarks with their bands and notes, the figures, the ratings, the
 overrides and the `handSet` entries - goes into the proposal, not the
 file: nothing is written to the registry file during the handoff.
 Each pinned benchmark read is saved in `reads/` when taken, as each model
-list read is saved in `lists/`. Its Step 1 questions are already answered
-by interview Step 4 above: carry those answers over and ask only what is
-still open. Its Step 4 write and its Step 5 check
+list read is saved in `lists/`. Reads are never overwritten: use
+`<source-name>-<version>-<read-date>.json` under the rating prompt's Pinned
+read files rule, including its name-clash handling. Its Step 1 questions
+are already answered by interview Step 4 above: carry those answers over
+and ask only what is still open. Its Step 4 write and its Step 5 check
 happen in Finishing. It computes suggested benchmarks, bands, figures and
 ratings from the user's own data, and the user approves each band and
 rating there. In your proposal, show the bands the rating prompt computed
@@ -207,8 +211,15 @@ from the user's own pinned reads, for approval before the registry is
 written, and show record-only evidence - figures above a model's effort
 cap, and taste evidence - apart from the figures that feed ratings.
 
+For a new pinned read, replace every figure under that benchmark and
+recompute every rating it feeds for every model and route in the registry,
+not only the pool, following the rating prompt's New pinned reads rule.
+A record-only key sharing the source keeps its own pinned read until the
+user approves moving it too.
+
 Done when the rating prompt's Steps 1 to 3 have run and its Step 4 values
-are computed, unwritten, for every rated model and route in the pool.
+are computed, unwritten, for every rated model and route in the pool, and
+for every model and route in the registry affected by a new pinned read.
 
 ### Shared task floors
 
@@ -260,15 +271,21 @@ Show the user, in one place:
    that these shared changes reach.
 3. The `ratings` declarations and `calibration.feeds` from the rating
    prompt's Step 1, and the ratings, bands, figures and overrides it
-   computed, shown for approval. When a new pinned read changes the bands
-   of a benchmark the target already had, name every other declared profile
-   whose members' ratings the changed bands alter.
+   computed, shown for approval. For a new pinned read, show every recomputed
+   rating before the write and name every declared profile whose members'
+   ratings move through changed bands or figures. List every record-only
+   key sharing that source and ask whether to move it too. On yes, move
+   its `version` and figures by the rating prompt's rule; on no, keep its
+   old `version`, figures and read file.
 4. The accepted gaps with their reasons, and each uncovered item beside its
    decision.
 
 The user approves before the registry is written. When a check reports
 findings afterwards, revise the proposal and get approval again before
 another write.
+
+A rejected proposal or rejected bands leave the registry unchanged; the
+new read file stays in `reads/`.
 
 Done when the user has approved the whole proposal in one message.
 
@@ -302,6 +319,11 @@ another declared profile, name that profile and offer to update or remove
 its record; that profile changes only with the user's explicit approval.
 A choice that changes the registry is a revised proposal, approved before
 another write.
+
+Remove an old read only after the user approves its removal and no
+benchmark in the registry matches it by source and version, never before
+the registry write. After the registry write you may offer removal; never
+remove it unasked.
 
 Inside a build, this rule replaces the rating prompt's Step 5 fix loop: a
 finding either check reports, a `rating-mismatch` included, whose repair
