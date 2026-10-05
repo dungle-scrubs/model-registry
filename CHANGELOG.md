@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.4.0](https://github.com/dungle-scrubs/model-registry/compare/v0.3.0...v0.4.0) (2026-10-05)
+
+
+### Features
+
+* settle the pinned-read lifecycle for re-read benchmarks ([#82](https://github.com/dungle-scrubs/model-registry/issues/82)) ([#85](https://github.com/dungle-scrubs/model-registry/issues/85)) ([39aad7f](https://github.com/dungle-scrubs/model-registry/commit/39aad7fb0dceaa6341b32f233bae1a6e0866446b))
+
 ## [0.3.0](https://github.com/dungle-scrubs/model-registry/compare/v0.2.0...v0.3.0) (2026-10-05)
 
 
