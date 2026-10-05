@@ -697,6 +697,66 @@ Source: [Default benchmarks][t54], informed by [Arena evidence][t59];
 [RFC-01, calibration, Rating check and Effort][rfc01];
 Kevin, 2026-10-01, RFC-02 review.
 
+### Pinned benchmark reads
+
+**Amendment, 2026-10-05 (Kevin).** Pinned benchmark reads are one JSON
+file per read in `reads/` beside the target registry, holding source,
+`version` (read identity: revision, else read date), read date and every
+row read. A benchmark's read matches its source and version; its bands
+and figures come from that read. Reads are saved when taken; the
+registry is written only after approval. An existing matching read is
+reused unless the user asks for or approves a new one. With no match,
+the rating prompt offers a new read; source approval in the builder
+with no match is the yes to that offer.
+
+Kevin's three decisions are recorded verbatim:
+
+- **Figures:** a new read of a benchmark replaces that benchmark's
+  figures for every model that has one, not only the pool. The proposal
+  names every declared profile whose ratings move.
+- **Read files:** reads are never overwritten. Each read has its own
+  file named by source, version and date. An old read is removed only
+  after the user approves and nothing in the registry names it.
+- **Record-only keys:** a record-only key keeps its own pinned read
+  when a benchmark sharing its source moves to a new read. The proposal
+  lists it and asks whether to move it too.
+
+Every path to a new read follows this lifecycle: first bands, the user's
+request, an approved offer, or the no-match yes branch. Step 2 proposes
+bands from that read, without claiming its identity differs from the
+old `version`. Every figure under the benchmark for every model and
+route in the registry MUST come from the new read, not only the rated
+set or builder pool. A subject the read lacks keeps no figure from that
+benchmark and gets no computed rating from it unless the user writes
+an override with a reason. Recompute every rating the benchmark feeds
+for every model and route and show it before the write. The proposal
+MUST name every declared profile whose members' ratings move through
+changed bands or figures. This also applies outside a profile build.
+
+A record-only key sharing the source keeps its own `version`, figures
+and read file until the user approves moving it too. On yes, its
+`version` and figures move by the same replacement rule; on no, its
+`version`, figures and read file stay. Match each key by its own source
+and version, not by a shared source alone.
+
+Name each read `<source-name>-<version>-<read-date>.json`; the version
+appears once when it is the read date, for example
+`engines-2026-10-06.json`. Before `.json`, names use lowercase letters,
+digits and hyphens only. Lowercase the version and replace every other
+character with a hyphen. The source name is a short public name, never
+a credential, account id, email or path. If that filename exists, it is
+the same read identity on the same date: keep and use the existing read,
+MUST NOT save over it, and say so.
+
+A rejected proposal or rejected bands leave the registry unchanged; the
+new read file stays in `reads/`. An old read MAY be offered for removal
+only after the user approves and no benchmark in the registry matches
+it by source and version, never before the registry write. The agent
+MUST NOT remove it unasked.
+
+Source: [Pinned-read lifecycle owner decisions][t82], Kevin,
+2026-10-05; base pinned-read rules from [Profile builder prompt][t66].
+
 ### Example registry and adoption
 
 No migration is needed. An operator adds `profiles` to the existing
@@ -763,6 +823,7 @@ version. No decided change requires format 2 or contract 2.
 | Record above-cap figures under existing calibration keys outside active feeds | Packages: The rating method; Message Formats: calibration and Rating check | Prompt guidance patch under #54; loader computation unchanged. A changed valid-file meaning would require a separate major decision |
 | Add discovery and snapshot instructions, pinned catalog and aggregator narrowing | Packages: model-registry documentation; Security Considerations: Credentials | Included with the builder minor; subsequent wording-only changes patch. No loader or discovery API change |
 | Add a declared profile and accepted gap to the example | Packages: model-registry published example and tests | `model-registry` patch for example data |
+| Settle the pinned-read lifecycle for re-read benchmarks | Packages: The rating method; Message Formats: calibration and Rating check | `model-registry` minor; changes what the prompts produce, loader unchanged |
 | Require no profile migration | Cutover; Packages: model-registry migrate | No migration code or release of its own; explanatory documentation patch |
 
 RFC-01's Sort order, Availability rule, route label format, digest,
@@ -1076,6 +1137,7 @@ None remains open after Kevin's 2026-10-01 RFC-02 review.
   - [Choose the default catalog and aggregator scope][t57]
   - [Arena leaderboard data as a taste proxy and effort evidence; Taste-Bench watch][t59]
   - [Decide the move to profiles and the example registry][t60]
+  - [Settle the pinned-read lifecycle for re-read benchmarks][t82]
 
 ### Informative
 
@@ -1111,3 +1173,5 @@ Kevin, 2026-10-01, RFC-02 review.
 [t57]: https://github.com/dungle-scrubs/model-registry/issues/57
 [t59]: https://github.com/dungle-scrubs/model-registry/issues/59
 [t60]: https://github.com/dungle-scrubs/model-registry/issues/60
+[t66]: https://github.com/dungle-scrubs/model-registry/issues/66
+[t82]: https://github.com/dungle-scrubs/model-registry/issues/82
