@@ -499,6 +499,24 @@ describe("the profile walkthrough", () => {
     expect(new Set(versions).size).toBeLessThan(versions.length);
   });
 
+  test("F15 walkthrough prose lines outside tables and code blocks stay within 80 columns", () => {
+    let inCode = false;
+    const long: string[] = [];
+    for (const line of readReadme().split("\n")) {
+      if (line.startsWith("```")) {
+        inCode = !inCode;
+        continue;
+      }
+      if (inCode || line.startsWith("|")) {
+        continue;
+      }
+      if (line.length > 80) {
+        long.push(line);
+      }
+    }
+    expect(long).toEqual([]);
+  });
+
   test("the check commands name the file their output reports", () => {
     const readme = readReadme();
     const lines = readme.split("\n");

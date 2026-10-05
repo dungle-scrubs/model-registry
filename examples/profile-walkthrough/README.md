@@ -153,11 +153,12 @@ from the user's pinned reads, kept in `reads/`:
   The written cost 9 carries an override with that reason.
 
 - Taste stays hand-set, with the pinned leaderboard read
-  (`reads/taste-leaderboard-t4st-r3v-2026-10-06.json`, revision `t4st-r3v`, category `overall`)
-  as evidence under the record-only `taste-evidence` key. The mapping is
-  explicit: row `model-id-a (high)` to model-a at effort high, row
-  `model-id-b (high)` to model-b at effort high, and row `model-id-c`, which
-  carries no effort tag, stays effort unspecified and is never stored.
+  (`reads/taste-leaderboard-t4st-r3v-2026-10-06.json`,
+  revision `t4st-r3v`, category `overall`) as evidence under the record-only
+  `taste-evidence` key. The mapping is explicit: row `model-id-a (high)` to
+  model-a at effort high, row `model-id-b (high)` to model-b at effort high,
+  and row `model-id-c`, which carries no effort tag, stays effort unspecified
+  and is never stored.
 
 **Agent:** The leaderboard suggests band 8 for model-a and 5 for model-b.
 Taste is yours to set.
