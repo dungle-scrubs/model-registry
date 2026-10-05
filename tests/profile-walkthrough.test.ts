@@ -111,6 +111,22 @@ function decileBands(values: readonly number[], direction: "higher" | "lower"): 
 }
 
 describe("the profile walkthrough", () => {
+  test("82 3 every pinned read filename carries its source, version and read date", () => {
+    for (const name of readdirSync(join(root, "reads"))) {
+      const read = JSON.parse(readFileSync(join(root, "reads", name), "utf8")) as {
+        source: string;
+        version: string;
+        read: string;
+      };
+      const sourceName = new URL(read.source).pathname.split("/").at(-1);
+      expect(sourceName).toBeTruthy();
+      const version = read.version.toLowerCase().replace(/[^a-z0-9-]/g, "-");
+      const identity = read.version === read.read ? read.read : `${version}-${read.read}`;
+      expect(name).toBe(`${sourceName}-${identity}.json`);
+      expect(name).toMatch(/^[a-z0-9-]+\.json$/);
+    }
+  });
+
   test("DW8 every snapshot has exactly the contract fields, a safe filename, and a revision on the catalog read", () => {
     for (const dirName of ["lists", "lists-before-rebuild"]) {
       const names = readdirSync(join(root, dirName));
@@ -204,14 +220,24 @@ describe("the profile walkthrough", () => {
     const fed = new Set(Object.values(registry.calibration.feeds).flat());
     expect(fed.size).toBeGreaterThan(0);
     for (const name of fed) {
-      const read = JSON.parse(readFileSync(join(root, "reads", `${name}.json`), "utf8")) as {
-        version: string;
-        rows: Array<{ value: number }>;
-      };
       const benchmark = registry.calibration.benchmarks[name];
       if (benchmark === undefined) {
         throw new Error(`the registry does not declare the fed benchmark ${name}`);
       }
+      const reads = readdirSync(join(root, "reads")).map(
+        (filename) =>
+          JSON.parse(readFileSync(join(root, "reads", filename), "utf8")) as {
+            source: string;
+            version: string;
+            rows: Array<{ value: number }>;
+          },
+      );
+      const matches = reads.filter(
+        (read) => read.source === benchmark.source && read.version === benchmark.version,
+      );
+      expect(matches, `${name} matching pinned read`).toHaveLength(1);
+      const read = matches[0];
+      if (read === undefined) throw new Error(`${name} has no matching pinned read`);
       const values = read.rows.map((row) => row.value);
       expect(values.length, `${name} pinned read rows`).toBeGreaterThanOrEqual(10);
       expect(benchmark.bands, `${name} bands match the decile rule`).toEqual(
@@ -442,9 +468,11 @@ describe("the profile walkthrough", () => {
     }
   });
 
-  test("M-A every fed or above-cap benchmark has exactly one read matching its source and version", () => {
+  test("M-A every benchmark with figures has exactly one read matching its source and version", () => {
     const registry = readRegistry();
-    const fed = new Set(Object.values(registry.calibration.feeds).flat());
+    const withFigures = new Set(
+      Object.values(registry.calibration.figures).flatMap((figures) => Object.keys(figures)),
+    );
     const reads = readdirSync(join(root, "reads")).map((name) => ({
       name,
       data: JSON.parse(readFileSync(join(root, "reads", name), "utf8")) as {
@@ -454,7 +482,7 @@ describe("the profile walkthrough", () => {
     }));
     const covered: string[] = [];
     for (const [name, benchmark] of Object.entries(registry.calibration.benchmarks)) {
-      if (!fed.has(name) && !name.endsWith("-above-cap")) {
+      if (!withFigures.has(name)) {
         continue;
       }
       covered.push(name);
@@ -464,7 +492,8 @@ describe("the profile walkthrough", () => {
       );
       expect(matches, `${name} pinned reads matching source and version`).toHaveLength(1);
     }
-    expect(covered.length).toBeGreaterThan(0);
+    expect(covered.sort()).toEqual([...withFigures].sort());
+    expect(covered).toContain("taste-evidence");
     // The shared-version case the source-plus-version rule exists for.
     const versions = covered.map((name) => registry.calibration.benchmarks[name]?.version ?? "");
     expect(new Set(versions).size).toBeLessThan(versions.length);

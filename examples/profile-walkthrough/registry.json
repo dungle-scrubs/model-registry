@@ -96,7 +96,7 @@
             "score": 1
           }
         ],
-        "notes": "Decile bands over the 20-row pinned read of 2026-10-06, kept at reads/engines.json; the user approved every band."
+        "notes": "Decile bands over the 20-row pinned read of 2026-10-06, kept at reads/engines-2026-10-06.json; the user approved every band."
       },
       "cost-per-task": {
         "source": "https://example.org/cost-per-task",
@@ -145,7 +145,7 @@
             "score": 1
           }
         ],
-        "notes": "Decile bands over the 20-row pinned read of 2026-10-06, kept at reads/cost-per-task.json; the user approved every band."
+        "notes": "Decile bands over the 20-row pinned read of 2026-10-06, kept at reads/cost-per-task-2026-10-06.json; the user approved every band."
       },
       "engines-above-cap": {
         "source": "https://example.org/engines",

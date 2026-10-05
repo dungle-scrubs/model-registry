@@ -153,7 +153,7 @@ from the user's pinned reads, kept in `reads/`:
   The written cost 9 carries an override with that reason.
 
 - Taste stays hand-set, with the pinned leaderboard read
-  (`reads/taste-leaderboard.json`, revision `t4st-r3v`, category `overall`)
+  (`reads/taste-leaderboard-t4st-r3v-2026-10-06.json`, revision `t4st-r3v`, category `overall`)
   as evidence under the record-only `taste-evidence` key. The mapping is
   explicit: row `model-id-a (high)` to model-a at effort high, row
   `model-id-b (high)` to model-b at effort high, and row `model-id-c`, which
@@ -255,9 +255,9 @@ checks' output for that file:
 
 ```console
 $ model-registry check --registry registry-before-rebuild.json
-{"format":1,"digest":"sha256:d4ec02aedf136e326cb57be3d22493aa182e11d52e0b65d7d43c315340291dbb","path":".../examples/profile-walkthrough/registry-before-rebuild.json"}
+{"format":1,"digest":"sha256:10d28a7e2f0107db59b0f51df001c81bccb6820ead307195049997c28965f649","path":".../examples/profile-walkthrough/registry-before-rebuild.json"}
 $ model-router check --registry registry-before-rebuild.json
-{"configPath":null,"registryDigest":"sha256:d4ec02aedf136e326cb57be3d22493aa182e11d52e0b65d7d43c315340291dbb","registryPath":".../examples/profile-walkthrough/registry-before-rebuild.json","warnings":[{"code":"profile-gap-unrecorded","field":"$[\"tasks\"][\"implement\"][\"minimums\"][\"high\"][\"coding\"]","message":"profile \"default\", task \"implement\", stakes \"high\": the requirements are reachable only through different routes; no single route clears them together.","fix":"Declare \"default\" in profiles with gap record {\"rating\":\"coding\",\"accepts\":7,\"reason\":\"<why>\"}, or add a route that fills it."},{"code":"profile-gap-unrecorded","field":"$[\"tasks\"][\"implement\"][\"minimums\"][\"high\"][\"taste\"]","message":"profile \"default\", task \"implement\", stakes \"high\": the requirements are reachable only through different routes; no single route clears them together.","fix":"Rate a model in the registry for \"taste\", or add a route that fills it."}]}
+{"configPath":null,"registryDigest":"sha256:10d28a7e2f0107db59b0f51df001c81bccb6820ead307195049997c28965f649","registryPath":".../examples/profile-walkthrough/registry-before-rebuild.json","warnings":[{"code":"profile-gap-unrecorded","field":"$[\"tasks\"][\"implement\"][\"minimums\"][\"high\"][\"coding\"]","message":"profile \"default\", task \"implement\", stakes \"high\": the requirements are reachable only through different routes; no single route clears them together.","fix":"Declare \"default\" in profiles with gap record {\"rating\":\"coding\",\"accepts\":7,\"reason\":\"<why>\"}, or add a route that fills it."},{"code":"profile-gap-unrecorded","field":"$[\"tasks\"][\"implement\"][\"minimums\"][\"high\"][\"taste\"]","message":"profile \"default\", task \"implement\", stakes \"high\": the requirements are reachable only through different routes; no single route clears them together.","fix":"Rate a model in the registry for \"taste\", or add a route that fills it."}]}
 ```
 
 Both exit 0, and each reported `path` and `registryPath` is the file the
@@ -337,9 +337,9 @@ again after the edit:
 
 ```console
 $ model-registry check --registry registry.json
-{"format":1,"digest":"sha256:7fe16b373819b83744bbbcaa2b6f6ab6fd28f0ff22ea196d597a7869a4c5af72","path":".../examples/profile-walkthrough/registry.json"}
+{"format":1,"digest":"sha256:1a3edf77e95fe5a6338e8da53d2f245e80f018a6ffeb422c9479a437ec873662","path":".../examples/profile-walkthrough/registry.json"}
 $ model-router check --registry registry.json
-{"configPath":null,"registryDigest":"sha256:7fe16b373819b83744bbbcaa2b6f6ab6fd28f0ff22ea196d597a7869a4c5af72","registryPath":".../examples/profile-walkthrough/registry.json","warnings":[{"code":"profile-gap-unrecorded","field":"$[\"tasks\"][\"implement\"][\"minimums\"][\"high\"][\"coding\"]","message":"profile \"default\", task \"implement\", stakes \"high\": no route in profile \"default\" reaches coding 8 (best 7).","fix":"Declare \"default\" in profiles with gap record {\"rating\":\"coding\",\"accepts\":7,\"reason\":\"<why>\"}, or add a route that fills it."}]}
+{"configPath":null,"registryDigest":"sha256:1a3edf77e95fe5a6338e8da53d2f245e80f018a6ffeb422c9479a437ec873662","registryPath":".../examples/profile-walkthrough/registry.json","warnings":[{"code":"profile-gap-unrecorded","field":"$[\"tasks\"][\"implement\"][\"minimums\"][\"high\"][\"coding\"]","message":"profile \"default\", task \"implement\", stakes \"high\": no route in profile \"default\" reaches coding 8 (best 7).","fix":"Declare \"default\" in profiles with gap record {\"rating\":\"coding\",\"accepts\":7,\"reason\":\"<why>\"}, or add a route that fills it."}]}
 ```
 
 Both exit 0. The declared builder-pool profile has no findings at any stakes
