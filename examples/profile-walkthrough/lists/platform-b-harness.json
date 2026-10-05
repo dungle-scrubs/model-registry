@@ -1,0 +1,7 @@
+{
+  "source": "harness-y",
+  "method": "local command: harness-y models list --json --platform platform-b",
+  "read": "2026-10-06",
+  "scope": "api-key",
+  "modelIds": ["model-id-b"]
+}

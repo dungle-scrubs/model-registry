@@ -22,7 +22,8 @@
     },
     "./registry.schema.json": "./registry.schema.json",
     "./examples/registry.json": "./examples/registry.json",
-    "./prompts/rating.md": "./prompts/rating.md"
+    "./prompts/rating.md": "./prompts/rating.md",
+    "./prompts/profile-builder.md": "./prompts/profile-builder.md"
   },
   "files": [
     "dist",

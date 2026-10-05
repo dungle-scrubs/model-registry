@@ -167,7 +167,15 @@ const effort: EffortLevel = "high";
 
 ## Rating method
 
-The package ships no code that produces ratings and no default bands. It ships one agent prompt at `prompts/rating.md` (also published as `@dungle-scrubs/model-registry/prompts/rating.md`). The prompt follows the RFC's five steps: ask which ratings, benchmarks and models matter; propose bands and wait for approval; read and record figures with `value`, `read` and `effort`; write ratings, overrides and handSet entries; run `model-registry check`. Artificial Analysis is the named example source for the upstream figures.
+The package ships no code that produces ratings and no default bands. It ships the rating prompt at `prompts/rating.md` (also published as `@dungle-scrubs/model-registry/prompts/rating.md`). The prompt follows the RFC's five steps: ask which ratings, benchmarks and models matter; propose bands and wait for approval; read and record figures with `value`, `read` and `effort`; write ratings, overrides and handSet entries; run `model-registry check`.
+
+The prompt offers suggested benchmarks, each offered and never adopted without the user's approval: the Artificial Analysis Intelligence and Coding indices for `intelligence` and `coding` (the user fetches every figure with their own key), Artificial Analysis cost per task for route `cost` when the measured provider and effort match the route, and Arena WebDev `overall` as evidence for a hand-set `taste` (a suggested band, never a feed). Suggested bands come from a fixed decile method over the user's own pinned read, with the read identity recorded in the benchmark's `version` and the method in its `notes`; the package ships no band numbers. Figures measured above a model's `maxEffort` are stored under a separate benchmark key that no feed lists, with their measured effort, and never feed a rating.
+
+## Profile builder
+
+The package ships a second agent prompt at `prompts/profile-builder.md` (also published as `@dungle-scrubs/model-registry/prompts/profile-builder.md`). It builds one named profile end to end: an interview that asks one question at a time and skips facts the opening request already answered; model list discovery through local commands only, from harness lists, platform endpoints, local runtimes, the pinned models.dev catalog and cited research, in that order of evidence; aggregator narrowing before any aggregator read; each read saved as a JSON snapshot in `lists/` beside the target registry file under the contract the prompt documents; rebuild diffs approved before a snapshot is replaced; all rating work handed to `prompts/rating.md`; a proposal of membership, shared fact changes, ratings, bands and accepted gaps, approved before the registry is written; and the two finishing checks, `model-registry check` then `model-router check`.
+
+A placeholder walkthrough of one build, from opening request through a rebuild, lives at [`examples/profile-walkthrough/`](examples/profile-walkthrough/) in the repository (not shipped in the package).
 
 ## Error codes
 

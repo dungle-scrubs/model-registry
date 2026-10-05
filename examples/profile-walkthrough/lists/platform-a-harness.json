@@ -1,0 +1,7 @@
+{
+  "source": "harness-x",
+  "method": "local command: harness-x models list --json (platform-a machine, subscription scope)",
+  "read": "2026-10-06",
+  "scope": "plan-a",
+  "modelIds": ["model-id-a"]
+}

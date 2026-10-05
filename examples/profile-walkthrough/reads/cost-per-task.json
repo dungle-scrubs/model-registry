@@ -1,0 +1,28 @@
+{
+  "benchmark": "cost-per-task",
+  "source": "https://example.org/cost-per-task",
+  "version": "2026-10-06",
+  "read": "2026-10-06",
+  "rows": [
+    { "id": "route-q01", "value": 1.2 },
+    { "id": "route-q02", "value": 1.15 },
+    { "id": "route-q03", "value": 1.1 },
+    { "id": "route-q04", "value": 1.05 },
+    { "id": "route-q05", "value": 1 },
+    { "id": "route-q06", "value": 0.95 },
+    { "id": "route-q07", "value": 0.9 },
+    { "id": "route-q08", "value": 0.85 },
+    { "id": "route-q09", "value": 0.8 },
+    { "id": "route-q10", "value": 0.75 },
+    { "id": "route-q11", "value": 0.7 },
+    { "id": "route-q12", "value": 0.65 },
+    { "id": "route-q13", "value": 0.6 },
+    { "id": "route-q14", "value": 0.55 },
+    { "id": "route-q15", "value": 0.5 },
+    { "id": "model-b@harness-y/provider-2", "value": 0.45, "effort": "high" },
+    { "id": "route-q16", "value": 0.4 },
+    { "id": "model-c@harness-z/aggregator-a", "value": 0.35, "effort": "high" },
+    { "id": "route-q17", "value": 0.3 },
+    { "id": "route-q18", "value": 0.25 }
+  ]
+}
