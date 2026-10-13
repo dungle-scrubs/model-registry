@@ -1,7 +1,8 @@
 # Profile walkthrough (placeholder data)
 
-A transcript of one profile build with `prompts/profile-builder.md`, from the
-opening request through the first rebuild. Every name, id, price and figure
+A transcript of one profile build with the `model-registry` skill, which
+follows `skills/model-registry/references/build-profile.md` for a build, from
+the opening request through the first rebuild. Every name, id, price and figure
 here is a placeholder: `platform-a`, `aggregator-a`, `model-a`, `harness-x`,
 `provider-2`, `plan-a`, and `example.org` sources. No figure below is labelled
 with a real benchmark publisher.
@@ -98,12 +99,12 @@ needed.
 
 ### Rating handoff
 
-The builder hands rating to `prompts/rating.md` with the pool the approved
-snapshots define: model-a (platform-a), model-c (aggregator-a passing set),
-model-b (platform-b, harness-confirmed). It runs the rating prompt's Steps 1
-to 3 - the Step 1 answers carry over from interview Step 4 - and computes
-the Step 4 values without writing the registry. The rating prompt works
-from the user's pinned reads, kept in `reads/`:
+The builder hands rating to `skills/model-registry/references/rating.md` with
+the pool the approved snapshots define: model-a (platform-a), model-c
+(aggregator-a passing set), model-b (platform-b, harness-confirmed). It runs the
+rating prompt's Steps 1 to 3 - the Step 1 answers carry over from interview Step
+4 - and computes the Step 4 values without writing the registry. The rating
+prompt works from the user's pinned reads, kept in `reads/`:
 
 - `engines` feeds `coding`. Its decile bands over the 20-row pinned read:
 

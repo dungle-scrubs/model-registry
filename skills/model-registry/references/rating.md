@@ -10,7 +10,8 @@ the table.
 
 Work through the five steps below in order. Never invent a figure, a band
 or a rating the user did not give you: the registry must agree with its own
-table or the loader rejects it.
+table or the loader rejects it. Every command runs with the invocation
+chosen in `SKILL.md` and against the target file settled there.
 
 ## Step 1 - ask which ratings, benchmarks and models matter
 
@@ -111,9 +112,10 @@ and, for `cost`, every route that carries one (on a new pinned read, every
 model and route in the registry that has one, under New pinned reads
 below), from the pinned read in `reads/` whose source and read identity
 match the benchmark's `source` and `version`, not from a fresh fetch.
-A read date alone does not identify a read: several benchmarks can share
-one. Match each record-only key by its own source and `version`, even when
-another benchmark shares its source.
+Match on the source and `version` stored inside each file, never on its
+filename. A read date alone does not identify a read: several benchmarks
+can share one. Match each record-only key by its own source and `version`,
+even when another benchmark shares its source.
 
 When no file in `reads/` matches a benchmark's `source` and `version` -
 a registry rated before `reads/` existed - say so and offer a new pinned
@@ -144,9 +146,17 @@ appears once when it is the read date, for example `engines-2026-10-06.json`.
 Filenames use lowercase letters, digits and hyphens only before `.json`:
 lowercase the version and replace every other character with a hyphen.
 The source name is a short public name of the source, never a credential,
-an account id, an email or a path. If a file of that name already exists,
-this is the same read identity on the same date; do not save over it,
-keep and use the existing read and say so.
+an account id, an email or a path. The JSON inside keeps the exact source
+and `version`; the filename is lossy, since `v1.0` and `v1/0` both become
+`v1-0`.
+
+If a file of that name already exists, open it and compare its stored
+source and exact `version` with the new read's. When both match, this is
+the same read identity on the same date; do not save over it, keep and use
+the existing read and say so. When either differs, the name collided with a
+different read: keep that file, save the new read under the same name with
+the first free numeric suffix before `.json` (`-2`, then `-3`), keep the new
+read's true source and exact `version` in its JSON, and say so.
 
 A rejected proposal or rejected bands leave the registry unchanged; the
 new read file stays in `reads/`. Remove an old read only after the user
@@ -193,14 +203,17 @@ the user still writes the rating by hand.
 
 ### Figures above a model's effort cap
 
-A figure measured above a model's `maxEffort` keeps its measured `effort`
-and never feeds the rating. Store it under a distinct benchmark key that no
-feed lists, for example `engines-above-cap` beside `engines`, declared in
-`calibration.benchmarks` like any other benchmark, so the eligible key can
-feed while the above-cap key only records. When a rating has no eligible
-figure at or below `maxEffort`, the written rating stays absent unless the
-user writes an override with a reason. Show record-only figures apart from
-the figures that feed ratings whenever you present them.
+Settle each model's `maxEffort` before you split its figures: read it from
+the registry, or, for a model a build has not written yet, from the effort
+limits the build settled during discovery. An absent `maxEffort` means no
+ceiling. A figure measured above a model's `maxEffort` keeps its measured
+`effort` and never feeds the rating. Store it under a distinct benchmark key
+that no feed lists, for example `engines-above-cap` beside `engines`,
+declared in `calibration.benchmarks` like any other benchmark, so the
+eligible key can feed while the above-cap key only records. When a rating
+has no eligible figure at or below `maxEffort`, the written rating stays
+absent unless the user writes an override with a reason. Show record-only
+figures apart from the figures that feed ratings whenever you present them.
 
 ## Step 4 - write ratings, overrides and handSet entries
 
@@ -218,15 +231,27 @@ When a rating is written by hand rather than computed, add its name to
 `calibration.handSet` and do not list it in `feeds`. A handSet rating
 needs no override. A rating in `handSet` must not appear in `feeds`.
 
-## Step 5 - run `model-registry check`
+## Step 5 - run both checks
 
 ```sh
 model-registry check
+model-router check
 ```
 
-The check loads the registry through the loader's path order, validates
-the schema and every reference, and compares each written rating with the
-table the file itself stores. A `rating-mismatch` problem names the
-written rating's field, the value the table gives (or that it gives none),
-and the override that would allow the written value. Fix what it names and
-re-run until the check exits 0.
+When the target file is not the resolved default, pass `--registry <path>`
+to both checks, and confirm each check's reported path equals the target
+file: `path` from `model-registry check`, `registryPath` from
+`model-router check`.
+
+`model-registry check` validates the schema and every reference, and
+compares each written rating with the table the file itself stores. A
+`rating-mismatch` problem names the written rating's field, the value the
+table gives (or that it gives none), and the override that would allow the
+written value. `model-router check` tests each declared profile's coverage,
+which a lowered rating can break while `model-registry check` still passes.
+
+Show the user every finding and warning either check reports. A repair that
+changes the registry is shown to the user and approved before the write;
+coverage findings and warnings follow "Check findings" in
+`references/gaps.md`. Re-run both checks until both exit 0 and every warning
+has the user's decision.

@@ -1884,17 +1884,20 @@ describe("the example registry's calibration", () => {
 });
 
 describe("the rating prompt", () => {
-  test("ships in the package, names Artificial Analysis, and ends with model-registry check", () => {
+  test("ships in the package, names Artificial Analysis, and ends with both checks", () => {
     const packageJson = JSON.parse(readFileSync(join(repoRoot, "package.json"), "utf8")) as {
       files: string[];
     };
-    expect(packageJson.files).toContain("prompts");
+    expect(packageJson.files).toContain("skills");
 
-    const prompt = readFileSync(join(repoRoot, "prompts", "rating.md"), "utf8");
+    const prompt = readFileSync(
+      join(repoRoot, "skills", "model-registry", "references", "rating.md"),
+      "utf8",
+    );
     expect(prompt).toContain("Artificial Analysis");
     const blocks = prompt.match(/```sh\n([\s\S]*?)```/g) ?? [];
     const lastBlock = blocks.at(-1);
-    expect(lastBlock?.trim()).toBe("```sh\nmodel-registry check\n```");
+    expect(lastBlock?.trim()).toBe("```sh\nmodel-registry check\nmodel-router check\n```");
     // The five steps of the RFC's rating method.
     for (const step of ["Step 1", "Step 2", "Step 3", "Step 4", "Step 5"]) {
       expect(prompt).toContain(step);

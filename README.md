@@ -19,7 +19,15 @@ A route is one model reached through one harness, labelled `model@harness`, plus
 
 ## Install
 
-model-registry needs Node 22.14 or newer. Install it and start from the example registry, which uses placeholder names:
+model-registry needs Node 22.14 or newer. The quickest setup is the bundled agent skill. Install it for your coding agents:
+
+```sh
+npx skills add dungle-scrubs/model-registry --skill model-registry -g
+```
+
+Then ask your agent to set up a model registry. The skill interviews you, reads the models your platforms offer, and writes the file only after you approve it.
+
+To set it up by hand instead, install the CLI and start from the example registry, which uses placeholder names:
 
 ```sh
 npm install -g @dungle-scrubs/model-registry
@@ -107,15 +115,13 @@ profile "low-cost", task "code-review", stakes "low": no route in profile "low-c
 
 A profile goes under `profiles`, and a run selects it by name. `model-router check` tests each declared profile against every task and stakes. Record each gap you accept in the profile's `gaps`, such as `{ "rating": "taste", "accepts": 5, "reason": "No cheap route has better taste." }`, or add a route that fills it.
 
-### Let an agent rate models or build a profile
+### Let an agent set up or extend your registry
 
-```console
-$ ls "$(npm root -g)/@dungle-scrubs/model-registry/prompts"
-profile-builder.md
-rating.md
+```sh
+npx skills add dungle-scrubs/model-registry --skill model-registry -g
 ```
 
-Point a coding agent at one of these prompts. `rating.md` asks which ratings, benchmarks and models matter, proposes band tables for your approval, records each figure you supply, writes the ratings, and runs `model-registry check`. `profile-builder.md` builds one profile end to end: it interviews you, reads the model lists your platforms offer, works through the gaps with you, and writes nothing to the registry until you approve.
+The `model-registry` skill creates, builds or extends your registry with you. It asks which platforms you use and what the registry is for, reads the model lists those platforms offer, rates the models from benchmarks you choose, works through coverage gaps with you, and writes nothing until you approve. Narrow requests skip the full interview: ask your agent to add a model, record an accepted gap, or re-rate the registry. The same skill ships in the npm package at `skills/model-registry/`.
 
 ### Read the registry from code
 
@@ -204,7 +210,7 @@ A route carries `harness`, `modelId` and `hosted`, and optionally `provider`, `p
 
 ### Library
 
-The package exports `loadRegistry`, `buildRouteLabel`, `RegistryError`, `EFFORT_LADDER` and `ROUTE_RATING_NAME`, with their types. It also ships `registry.schema.json`, `examples/registry.json`, `prompts/rating.md` and `prompts/profile-builder.md`.
+The package exports `loadRegistry`, `buildRouteLabel`, `RegistryError`, `EFFORT_LADDER` and `ROUTE_RATING_NAME`, with their types. It also ships `registry.schema.json`, `examples/registry.json` and the `model-registry` agent skill in `skills/model-registry/`.
 
 ### Security
 
@@ -225,7 +231,7 @@ Commits follow [Conventional Commits](https://www.conventionalcommits.org/), whi
 
 ## Status
 
-model-registry is before 1.0, and the file is format 1. [docs/roadmap.md](docs/roadmap.md) lists planned work. It isn't a router: model-router ranks routes from it. It doesn't rate models or fetch benchmarks for you; its prompts walk an agent through rating, using your sources and with your approval. It isn't a model catalog either, and lists only what you add. If you use one model, you don't need a registry.
+model-registry is before 1.0, and the file is format 1. [docs/roadmap.md](docs/roadmap.md) lists planned work. It isn't a router: model-router ranks routes from it. It doesn't rate models or fetch benchmarks for you; its `model-registry` skill walks an agent through setup and rating, using your sources and with your approval. It isn't a model catalog either, and lists only what you add. If you use one model, you don't need a registry.
 
 ## License
 
