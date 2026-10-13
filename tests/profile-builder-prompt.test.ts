@@ -3,8 +3,19 @@ import { join } from "node:path";
 import { describe, expect, test } from "vitest";
 import { repoRoot } from "./helpers.js";
 
-const promptPath = join(repoRoot, "prompts", "profile-builder.md");
-const prompt = readFileSync(promptPath, "utf8");
+const promptPath = join(repoRoot, "skills", "model-registry", "SKILL.md");
+const rawPrompt = readFileSync(promptPath, "utf8");
+
+/** Strip the YAML frontmatter from a skill file, if present. */
+function stripFrontmatter(text: string): string {
+  if (!text.startsWith("---\n")) {
+    return text;
+  }
+  const end = text.indexOf("\n---", 4);
+  return end >= 0 ? text.slice(end + 4) : text;
+}
+
+const prompt = stripFrontmatter(rawPrompt);
 
 /** The text of one `##` section, from its heading to the next `##` heading. */
 function section(title: string): string {
@@ -115,7 +126,10 @@ describe("the profile builder prompt", () => {
   });
 
   test("L-e snapshots and reads sit beside the target registry file, whatever its name", () => {
-    const rating = readFileSync(join(repoRoot, "prompts", "rating.md"), "utf8");
+    const rating = readFileSync(
+      join(repoRoot, "skills", "model-registry", "references", "rating.md"),
+      "utf8",
+    );
     for (const text of [prompt, rating]) {
       expect(flat(text)).not.toContain("beside `registry.json`");
     }
@@ -140,7 +154,7 @@ describe("the profile builder prompt", () => {
   });
 
   test("DW5 bands from the user's own pinned reads are shown for approval in the proposal", () => {
-    expect(prompt).toContain("prompts/rating.md");
+    expect(prompt).toContain("references/rating.md");
     expect(flat(prompt)).toContain("from the user's own pinned reads");
     expect(prompt).toContain("approval");
     // The builder hands rating over; it restates no band method and no band numbers.
@@ -153,7 +167,7 @@ describe("the profile builder prompt", () => {
   });
 
   test("DW7 rating is handed to the rating prompt and the last sh block runs both checks in order", () => {
-    expect(prompt).toContain("prompts/rating.md");
+    expect(prompt).toContain("references/rating.md");
     const blocks = prompt.match(/```sh\n([\s\S]*?)```/g) ?? [];
     const lastBlock = blocks.at(-1);
     expect(lastBlock?.trim()).toBe("```sh\nmodel-registry check\nmodel-router check\n```");
@@ -164,10 +178,14 @@ describe("the profile builder prompt", () => {
       files: string[];
       exports: Record<string, string>;
     };
-    expect(packageJson.exports["./prompts/profile-builder.md"]).toBe(
-      "./prompts/profile-builder.md",
+    expect(packageJson.exports["./skills/model-registry/SKILL.md"]).toBe(
+      "./skills/model-registry/SKILL.md",
     );
-    expect(packageJson.files).toContain("prompts");
+    expect(packageJson.exports["./skills/model-registry/references/rating.md"]).toBe(
+      "./skills/model-registry/references/rating.md",
+    );
+    expect(packageJson.files).toContain("skills");
+    expect(packageJson.files).not.toContain("prompts");
   });
 
   test("M-1 the reference's profile builder paragraph keeps the no-write rule to the registry", () => {

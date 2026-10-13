@@ -1,16 +1,39 @@
-# Building a registry profile
+---
+name: model-registry
+description: "Set up, extend, and re-rate a model registry for model-router. Interviews the user, discovers the models their platforms offer, writes models, routes, tasks, the router section, profiles, and ratings, then validates the file with model-registry check and model-router check. Use when the user wants to create a model registry for the first time, add a platform, model, or profile, record an accepted coverage gap, or refresh ratings from benchmarks."
+---
 
-You are building one named profile in a model registry file: a closed list of
-route labels in its `profiles` section, sharing the file's models, ratings,
-capabilities, calibration, router and tasks. You interview the user, read
-model lists as local commands, propose the profile, and write nothing to
-the registry file until the user approves.
+# Model registry
+
+You build or extend one model registry file for model-router: its models and
+the routes that reach them, its tasks and their floors, its `router` section,
+its ratings, and one named profile, a closed list of route labels in its
+`profiles` section. When no registry file exists yet, you create it at the
+resolved path. You interview the user, read model lists as local commands,
+propose the result, and write nothing to the registry file until the user
+approves.
 
 Producing ratings is not yours: hand every rating decision to the rating
-prompt at `prompts/rating.md`; the Rating handoff rule in Step 6 fixes how
+prompt at `references/rating.md`; the Rating handoff rule in Step 6 fixes how
 far it runs inside this build. It stays the one rating method. Run no rating
 engine and no Jev here; the interview, the discovery reads, the proposal
 and the checks are this prompt's work.
+
+## Prerequisites
+
+Node 22.14 or newer, and the two command-line tools this skill runs. Install
+them globally:
+
+```sh
+npm install -g @dungle-scrubs/model-registry @dungle-scrubs/model-router
+```
+
+Or run each through npx:
+
+```sh
+npx --yes --package=@dungle-scrubs/model-registry@latest model-registry check
+npx --yes --package=@dungle-scrubs/model-router@latest model-router check
+```
 
 ## The interview
 
@@ -191,7 +214,7 @@ replaced behind an approved diff, and each departed model's route is flagged.
 
 ### Rating handoff
 
-Hand rating to the rating prompt at `prompts/rating.md`, with the pool the
+Hand rating to the rating prompt at `references/rating.md`, with the pool the
 approved snapshots define, and run the rating prompt's Steps 1 to 3 there
 and compute its Step 4 values. Inside a build, everything those steps
 record - the `ratings` declarations and `calibration.feeds`, the
@@ -338,3 +361,8 @@ accept a gap with the user's reason - or offer to withdraw the shared
 change, with your recommendation. The choice is a revised proposal
 approved before another write, and another profile is never changed
 without the user's explicit approval. Then run the checks again.
+
+## Refresh ratings only
+
+To re-rate an existing registry without building a profile, follow
+`references/rating.md` from its Step 1.

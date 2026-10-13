@@ -3,7 +3,10 @@ import { join } from "node:path";
 import { describe, expect, test } from "vitest";
 import { repoRoot } from "./helpers.js";
 
-const prompt = readFileSync(join(repoRoot, "prompts", "rating.md"), "utf8");
+const prompt = readFileSync(
+  join(repoRoot, "skills", "model-registry", "references", "rating.md"),
+  "utf8",
+);
 
 /** The text of one `##` section, from its heading to the next `##` heading. */
 function section(title: string): string {
@@ -88,7 +91,7 @@ describe("the rating prompt's suggested benchmarks and bands", () => {
   });
 
   test("DW5 no band numbers or Arena quartiles ship in either prompt", () => {
-    const builder = readFileSync(join(repoRoot, "prompts", "profile-builder.md"), "utf8");
+    const builder = readFileSync(join(repoRoot, "skills", "model-registry", "SKILL.md"), "utf8");
     for (const text of [prompt, builder]) {
       expect(text).not.toMatch(/"at":\s*[0-9]/);
       for (const quartile of ["1357", "1440", "1556"]) {

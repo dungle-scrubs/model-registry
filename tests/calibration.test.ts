@@ -1888,9 +1888,12 @@ describe("the rating prompt", () => {
     const packageJson = JSON.parse(readFileSync(join(repoRoot, "package.json"), "utf8")) as {
       files: string[];
     };
-    expect(packageJson.files).toContain("prompts");
+    expect(packageJson.files).toContain("skills");
 
-    const prompt = readFileSync(join(repoRoot, "prompts", "rating.md"), "utf8");
+    const prompt = readFileSync(
+      join(repoRoot, "skills", "model-registry", "references", "rating.md"),
+      "utf8",
+    );
     expect(prompt).toContain("Artificial Analysis");
     const blocks = prompt.match(/```sh\n([\s\S]*?)```/g) ?? [];
     const lastBlock = blocks.at(-1);

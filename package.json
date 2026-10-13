@@ -22,14 +22,14 @@
     },
     "./registry.schema.json": "./registry.schema.json",
     "./examples/registry.json": "./examples/registry.json",
-    "./prompts/rating.md": "./prompts/rating.md",
-    "./prompts/profile-builder.md": "./prompts/profile-builder.md"
+    "./skills/model-registry/SKILL.md": "./skills/model-registry/SKILL.md",
+    "./skills/model-registry/references/rating.md": "./skills/model-registry/references/rating.md"
   },
   "files": [
     "dist",
     "registry.schema.json",
     "examples/registry.json",
-    "prompts",
+    "skills",
     "README.md",
     "LICENSE"
   ],
