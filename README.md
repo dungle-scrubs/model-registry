@@ -121,7 +121,7 @@ A profile goes under `profiles`, and a run selects it by name. `model-router che
 npx skills add dungle-scrubs/model-registry --skill model-registry -g
 ```
 
-The `model-registry` skill builds or extends your registry with you. It asks which platforms you use and what the registry is for, reads the model lists those platforms offer, rates the models from benchmarks you choose, works through coverage gaps with you, and writes nothing until you approve. To refresh ratings only, ask your agent to re-rate the registry. The same skill ships in the npm package at `skills/model-registry/`.
+The `model-registry` skill creates, builds or extends your registry with you. It asks which platforms you use and what the registry is for, reads the model lists those platforms offer, rates the models from benchmarks you choose, works through coverage gaps with you, and writes nothing until you approve. Narrow requests skip the full interview: ask your agent to add a model, record an accepted gap, or re-rate the registry. The same skill ships in the npm package at `skills/model-registry/`.
 
 ### Read the registry from code
 

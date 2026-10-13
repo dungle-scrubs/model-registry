@@ -1,6 +1,7 @@
 # Profile walkthrough (placeholder data)
 
-A transcript of one profile build with `skills/model-registry/SKILL.md`, from
+A transcript of one profile build with the `model-registry` skill, which
+follows `skills/model-registry/references/build-profile.md` for a build, from
 the opening request through the first rebuild. Every name, id, price and figure
 here is a placeholder: `platform-a`, `aggregator-a`, `model-a`, `harness-x`,
 `provider-2`, `plan-a`, and `example.org` sources. No figure below is labelled

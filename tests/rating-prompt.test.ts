@@ -2,6 +2,7 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, test } from "vitest";
 import { repoRoot } from "./helpers.js";
+import { readSkillText, skillFiles } from "./skill-text.js";
 
 const prompt = readFileSync(
   join(repoRoot, "skills", "model-registry", "references", "rating.md"),
@@ -90,12 +91,12 @@ describe("the rating prompt's suggested benchmarks and bands", () => {
     expect(decile).toContain("`notes`");
   });
 
-  test("DW5 no band numbers or Arena quartiles ship in either prompt", () => {
-    const builder = readFileSync(join(repoRoot, "skills", "model-registry", "SKILL.md"), "utf8");
-    for (const text of [prompt, builder]) {
-      expect(text).not.toMatch(/"at":\s*[0-9]/);
+  test("DW5 no band numbers or Arena quartiles ship in any skill file", () => {
+    for (const file of skillFiles()) {
+      const text = readSkillText(file).text;
+      expect(text, file).not.toMatch(/"at":\s*[0-9]/);
       for (const quartile of ["1357", "1440", "1556"]) {
-        expect(text).not.toContain(quartile);
+        expect(text, file).not.toContain(quartile);
       }
     }
   });
@@ -127,9 +128,38 @@ describe("the rating prompt's suggested benchmarks and bands", () => {
       expect(prompt).toContain(step);
     }
     expect(prompt).toContain("no default bands");
+    // Finding 2: Step 5 runs both checks, because coverage belongs to model-router.
     const blocks = prompt.match(/```sh\n([\s\S]*?)```/g) ?? [];
     const lastBlock = blocks.at(-1);
-    expect(lastBlock?.trim()).toBe("```sh\nmodel-registry check\n```");
+    expect(lastBlock?.trim()).toBe("```sh\nmodel-registry check\nmodel-router check\n```");
+  });
+
+  test("R2 Step 5 checks the resolved target with both tools and confirms both paths", () => {
+    const step5 = flat(section("Step 5 - run both checks"));
+    expect(step5).not.toBe("");
+    expect(step5).toContain("pass `--registry <path>` to both checks");
+    expect(step5).toContain("`path` from `model-registry check`");
+    expect(step5).toContain("`registryPath` from `model-router check`");
+    expect(step5).toContain("equals the target file");
+    expect(step5).toContain("a lowered rating can break while `model-registry check` still passes");
+    expect(step5).toContain("approved before the write");
+    expect(step5).toContain('"Check findings" in `references/gaps.md`');
+    expect(step5).toContain("until both exit 0");
+    expect(step5).not.toContain("Fix what it names");
+  });
+
+  test("R6 a filename collision is checked against the stored source and version", () => {
+    const files = flat(subsection("Pinned read files"));
+    expect(files).toContain("compare its stored source and exact `version` with the new read's");
+    expect(files).toContain("When both match, this is the same read identity on the same date");
+    expect(files).toContain("When either differs, the name collided with a different read");
+    expect(files).toContain("the first free numeric suffix");
+    expect(files).toContain("true source and exact `version` in its JSON");
+    expect(flat(step3)).toContain("never on its filename");
+  });
+
+  test("R7 every command uses the invocation chosen in SKILL.md", () => {
+    expect(flat(prompt)).toContain("Every command runs with the invocation chosen in `SKILL.md`");
   });
 
   test("F3 bands are re-proposed on every new pinned read, never on a published version", () => {

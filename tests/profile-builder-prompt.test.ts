@@ -2,56 +2,19 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, test } from "vitest";
 import { repoRoot } from "./helpers.js";
+import { flat, longProseLines, readSkillText, skillFiles } from "./skill-text.js";
 
-const promptPath = join(repoRoot, "skills", "model-registry", "SKILL.md");
-const rawPrompt = readFileSync(promptPath, "utf8");
-
-/** Strip the YAML frontmatter from a skill file, if present. */
-function stripFrontmatter(text: string): string {
-  if (!text.startsWith("---\n")) {
-    return text;
-  }
-  const end = text.indexOf("\n---", 4);
-  return end >= 0 ? text.slice(end + 4) : text;
-}
-
-const prompt = stripFrontmatter(rawPrompt);
-
-/** The text of one `##` section, from its heading to the next `##` heading. */
-function section(title: string): string {
-  const start = prompt.indexOf(`## ${title}`);
-  if (start < 0) {
-    return "";
-  }
-  const rest = prompt.slice(start);
-  const next = rest.indexOf("\n## ", 1);
-  return next < 0 ? rest : rest.slice(0, next);
-}
-
-/**
- * The text of one `###` subsection, from its heading to the next `###` or
- * `##` heading.
- */
-function subsection(title: string): string {
-  const start = prompt.indexOf(`### ${title}`);
-  if (start < 0) {
-    return "";
-  }
-  const rest = prompt.slice(start);
-  const nextSub = rest.indexOf("\n### ", 1);
-  const nextSec = rest.indexOf("\n## ", 1);
-  const next = [nextSub, nextSec].filter((index) => index >= 0).sort((a, b) => a - b)[0];
-  return next === undefined ? rest : rest.slice(0, next);
-}
-
-/** The opening, before the first `##` heading. */
-const lead = prompt.split("\n## ")[0] ?? "";
-
-/** Text with runs of whitespace collapsed to single spaces, so assertions
- * survive the prompt's line wrapping. */
-function flat(text: string): string {
-  return text.replace(/\s+/g, " ");
-}
+// The builder's text lives in several skill files: SKILL.md holds the shared
+// rules, references/build-profile.md the build steps, references/snapshots.md
+// the model list snapshots and rebuilds, and references/gaps.md the gap and
+// check-finding rules. Each assertion reads the file its text lives in.
+const skill = readSkillText("SKILL.md");
+const build = readSkillText("references/build-profile.md");
+const snapshots = readSkillText("references/snapshots.md");
+const gaps = readSkillText("references/gaps.md");
+const prompt = build.text;
+const section = (title: string): string => build.section(title);
+const subsection = (title: string): string => build.subsection(title);
 
 describe("the profile builder prompt", () => {
   test("DW1 the interview runs the RFC's six steps in order, one question at a time", () => {
@@ -65,17 +28,18 @@ describe("the profile builder prompt", () => {
       "Desired score range",
       "Discovery, rating, then gap decisions",
     ]);
-    expect(flat(prompt)).toContain("one question at a time");
+    expect(flat(skill.section("The interview"))).toContain("one question at a time");
+    expect(flat(build.lead)).toContain("The interview, approval and finishing rules in `SKILL.md`");
   });
 
   test("DW1 steps whose facts the opening request already gave are skipped, and the prompt says so", () => {
-    const interview = section("The interview");
+    const interview = skill.section("The interview");
     expect(flat(interview)).toContain("opening request");
     expect(interview).toContain("skip");
   });
 
   test("L-b one question asks for one fact, even a fact with parts", () => {
-    const interview = flat(section("The interview"));
+    const interview = flat(skill.section("The interview"));
     expect(interview).toContain("a fact with parts");
     expect(interview).toContain("asked as one question");
   });
@@ -88,39 +52,42 @@ describe("the profile builder prompt", () => {
 
   test("DW2 model lists are read as local commands and saved as lists/ snapshots with the contract fields", () => {
     expect(flat(prompt)).toContain("local command");
-    expect(prompt).toContain("`lists/`");
-    expect(flat(prompt)).toContain("beside the target registry file");
+    expect(prompt).toContain("`references/snapshots.md`");
+    const contract = snapshots.text;
+    expect(flat(contract)).toContain("local command");
+    expect(contract).toContain("`lists/`");
+    expect(flat(contract)).toContain("beside the target registry file");
     for (const field of ["`source`", "`method`", "`read`", "`scope`", "`modelIds`", "`revision`"]) {
-      expect(prompt).toContain(field);
+      expect(contract).toContain(field);
     }
-    expect(prompt).toContain("YYYY-MM-DD");
-    expect(flat(prompt)).toContain("required for a pinned catalog read");
+    expect(contract).toContain("YYYY-MM-DD");
+    expect(flat(contract)).toContain("required for a pinned catalog read");
     // The non-secret source scope, with its examples.
-    expect(prompt).toContain("`public`");
-    expect(prompt).toContain("`api-key`");
-    expect(prompt).toContain("`plan-a`");
+    expect(contract).toContain("`public`");
+    expect(contract).toContain("`api-key`");
+    expect(contract).toContain("`plan-a`");
     // Safe filenames.
-    expect(flat(prompt)).toContain("lowercase letters, digits and hyphens");
+    expect(flat(contract)).toContain("lowercase letters, digits and hyphens");
   });
 
   test("DW2 a rebuild shows a diff the user approves, with evidence-backed renames and flagged departures", () => {
-    const rebuilds = flat(subsection("Rebuilds and diffs"));
+    const rebuilds = flat(snapshots.section("Rebuilds and diffs"));
     expect(rebuilds).toContain("approve the diff");
     expect(rebuilds).toContain("flagged for removal");
     expect(rebuilds).toContain("rename");
   });
 
   test("M-4 a rebuild re-reads model list sources only", () => {
-    const rebuilds = flat(subsection("Rebuilds and diffs"));
+    const rebuilds = flat(snapshots.section("Rebuilds and diffs"));
     expect(rebuilds).toContain("re-reads each model list source the build used");
     expect(rebuilds).toContain("Benchmark reads in `reads/` are not re-read on a rebuild");
   });
 
   test("L-B the snapshot and rebuild gates cover model list sources only", () => {
-    const snapshots = flat(subsection("Snapshots"));
-    expect(snapshots).toContain("every model list read the build uses");
-    expect(snapshots).toContain("each model list source the build used");
-    const rebuilds = flat(subsection("Rebuilds and diffs"));
+    const snapshotRules = flat(snapshots.section("Snapshots"));
+    expect(snapshotRules).toContain("every model list read the build uses");
+    expect(snapshotRules).toContain("each model list source the build used");
+    const rebuilds = flat(snapshots.section("Rebuilds and diffs"));
     expect(rebuilds).toContain("every model list source is re-read");
     expect(rebuilds).not.toContain("every source is re-read");
   });
@@ -130,10 +97,10 @@ describe("the profile builder prompt", () => {
       join(repoRoot, "skills", "model-registry", "references", "rating.md"),
       "utf8",
     );
-    for (const text of [prompt, rating]) {
-      expect(flat(text)).not.toContain("beside `registry.json`");
+    for (const file of skillFiles()) {
+      expect(flat(readSkillText(file).text), file).not.toContain("beside `registry.json`");
     }
-    expect(flat(prompt)).toContain("in `lists/` beside the target registry file");
+    expect(flat(snapshots.text)).toContain("in `lists/` beside the target registry file");
     expect(flat(rating)).toContain("in `reads/` beside the registry file");
   });
 
@@ -157,8 +124,10 @@ describe("the profile builder prompt", () => {
     expect(prompt).toContain("references/rating.md");
     expect(flat(prompt)).toContain("from the user's own pinned reads");
     expect(prompt).toContain("approval");
-    // The builder hands rating over; it restates no band method and no band numbers.
-    expect(flat(prompt)).not.toContain("Lowest tenth");
+    // The builder hands rating over; no other skill file restates the band method.
+    for (const file of skillFiles().filter((name) => name !== "references/rating.md")) {
+      expect(flat(readSkillText(file).text), file).not.toContain("Lowest tenth");
+    }
   });
 
   test("DW6 record-only evidence is shown apart from the figures that feed ratings", () => {
@@ -168,7 +137,8 @@ describe("the profile builder prompt", () => {
 
   test("DW7 rating is handed to the rating prompt and the last sh block runs both checks in order", () => {
     expect(prompt).toContain("references/rating.md");
-    const blocks = prompt.match(/```sh\n([\s\S]*?)```/g) ?? [];
+    expect(flat(section("Finishing"))).toContain("run the finishing checks in `SKILL.md`");
+    const blocks = skill.text.match(/```sh\n([\s\S]*?)```/g) ?? [];
     const lastBlock = blocks.at(-1);
     expect(lastBlock?.trim()).toBe("```sh\nmodel-registry check\nmodel-router check\n```");
   });
@@ -178,12 +148,10 @@ describe("the profile builder prompt", () => {
       files: string[];
       exports: Record<string, string>;
     };
-    expect(packageJson.exports["./skills/model-registry/SKILL.md"]).toBe(
-      "./skills/model-registry/SKILL.md",
-    );
-    expect(packageJson.exports["./skills/model-registry/references/rating.md"]).toBe(
-      "./skills/model-registry/references/rating.md",
-    );
+    for (const file of skillFiles()) {
+      const path = `./skills/model-registry/${file}`;
+      expect(packageJson.exports[path], path).toBe(path);
+    }
     expect(packageJson.files).toContain("skills");
     expect(packageJson.files).not.toContain("prompts");
   });
@@ -201,7 +169,7 @@ describe("the profile builder prompt", () => {
   });
 
   test("F1 the opening hands rating over without following the rating prompt as written", () => {
-    const opening = flat(lead);
+    const opening = flat(skill.lead);
     expect(opening).toContain("hand every rating decision to the rating prompt");
     expect(opening).not.toContain("as written");
   });
@@ -221,7 +189,9 @@ describe("the profile builder prompt", () => {
   });
 
   test("M-1 the no-write rule covers the registry file only, and pinned reads are saved when taken", () => {
-    expect(flat(lead)).toContain("write nothing to the registry file until the user approves");
+    expect(flat(skill.lead)).toContain(
+      "write nothing to the registry file until the user approves",
+    );
 
     const step4 = flat(section("Step 4 - Ratings and benchmark approval"));
     expect(step4).toContain("approves taking its pinned read");
@@ -294,7 +264,7 @@ describe("the profile builder prompt", () => {
   });
 
   test("N5 a coverage failure on another declared profile is the user's choice", () => {
-    const finishing = flat(section("Finishing"));
+    const finishing = flat(gaps.section("Check findings"));
     expect(finishing).toContain("When it is another declared profile");
     expect(finishing).toContain("or offer to withdraw the shared change");
     expect(finishing).toContain("never changed without the user's explicit approval");
@@ -306,7 +276,7 @@ describe("the profile builder prompt", () => {
   });
 
   test("L-2 and L-9 warnings on another declared profile are named, with the offer grammatical", () => {
-    const finishing = flat(section("Finishing"));
+    const finishing = flat(gaps.section("Check findings"));
     expect(finishing).toContain("or offer to withdraw the shared change");
     expect(finishing).toContain(
       "For a `profile-gap-stale` warning on another declared profile, name that profile",
@@ -315,7 +285,8 @@ describe("the profile builder prompt", () => {
   });
 
   test("L-F the stale-gap warning on another declared profile sits with the warnings", () => {
-    const paragraphs = section("Finishing")
+    const paragraphs = gaps
+      .section("Check findings")
       .split(/\n\n+/)
       .map((paragraph) => flat(paragraph));
     const warnings = paragraphs.find((paragraph) =>
@@ -338,15 +309,25 @@ describe("the profile builder prompt", () => {
     for (const title of titles) {
       expect(flat(subsection(title)), `### ${title}`).toContain("Done when");
     }
+    for (const title of ["Snapshots", "Rebuilds and diffs"]) {
+      expect(flat(snapshots.section(title)), `## ${title}`).toContain("Done when");
+    }
   });
 
-  test("F2 check warnings get a user decision before the build finishes", () => {
-    const finishing = flat(section("Finishing"));
+  test("F2 check warnings get a user decision before any path finishes", () => {
+    // Finding 2: the warning rules apply to every path that writes, a ratings
+    // refresh included, so they say "the work" rather than "the build".
+    const finishing = flat(gaps.section("Check findings"));
     expect(finishing).toContain("profile-gap-unrecorded");
     expect(finishing).toContain("profile-gap-stale");
     expect(finishing).toContain("leave `default` implicit");
-    expect(finishing).toContain("the build finishes when every warning has the user's decision");
+    expect(finishing).toContain("the work finishes when every warning has the user's decision");
     expect(finishing).toContain("approved before another write");
+    const checks = flat(skill.section("Finishing checks"));
+    expect(checks).toContain("Every path that writes the registry ends by running both checks");
+    expect(checks).toContain(
+      'Settle coverage findings and warnings under "Check findings" in `references/gaps.md`',
+    );
   });
 
   test("F4 aggregator narrowing is required before an aggregator read", () => {
@@ -378,16 +359,21 @@ describe("the profile builder prompt", () => {
     expect(proposal).toContain("approves a global reorder");
   });
 
-  test("F7 the target registry file is settled before Step 1 and confirmed in Finishing", () => {
-    const target = flat(section("The target file"));
+  test("F7 the target registry file is settled before any path's first step and confirmed in Finishing", () => {
+    // The target rule moved to SKILL.md, ahead of the path dispatch, so it
+    // holds for every path, not only the build's Step 1.
+    const target = flat(skill.section("The target file"));
     expect(target).not.toBe("");
-    expect(prompt.indexOf("## The target file")).toBeLessThan(prompt.indexOf("## Step 1"));
+    expect(skill.text.indexOf("## The target file")).toBeLessThan(
+      skill.text.indexOf("## Choose the path"),
+    );
+    expect(target).toContain("Before the first step of any path");
     expect(target).toContain("the path the opening request names");
     expect(target).toContain("resolved default");
     expect(target).toContain("`path`");
     expect(target).toContain("`lists/` and `reads/`");
 
-    const finishing = flat(section("Finishing"));
+    const finishing = flat(skill.section("Finishing checks"));
     expect(finishing).toContain("--registry <path>");
     expect(finishing).toContain("`path` from `model-registry check`");
     expect(finishing).toContain("`registryPath` from `model-router check`");
@@ -407,7 +393,7 @@ describe("the profile builder prompt", () => {
   });
 
   test("F10 a failed read or rejected diff offers retry, old snapshot or stop; a rejected flag keeps the route", () => {
-    const rebuilds = flat(subsection("Rebuilds and diffs"));
+    const rebuilds = flat(snapshots.section("Rebuilds and diffs"));
     expect(rebuilds).toContain("pauses");
     expect(rebuilds).toContain("old snapshot stays");
     expect(rebuilds).toContain("retry the read");
@@ -480,22 +466,63 @@ describe("the profile builder prompt", () => {
     expect(readme).toContain("Pinned benchmark read files in `reads/` are never overwritten");
   });
 
+  test("R5 each new model's effort limits are settled during discovery, before the rating handoff", () => {
+    const limits = flat(subsection("Model effort limits"));
+    expect(limits).not.toBe("");
+    expect(prompt.indexOf("### Model effort limits")).toBeLessThan(
+      prompt.indexOf("### Rating handoff"),
+    );
+    expect(prompt.indexOf("### Discovery reads")).toBeLessThan(
+      prompt.indexOf("### Model effort limits"),
+    );
+    expect(limits).toContain("Before the rating handoff");
+    expect(limits).toContain("`maxEffort` and `fixedEffort`");
+    expect(limits).toContain("None is guessed");
+    expect(limits).toContain("ask the user");
+    expect(limits).toContain("an absent `maxEffort` means no ceiling");
+    expect(flat(subsection("Rating handoff"))).toContain("the effort limits settled above");
+    const proposal = flat(section("The proposal"));
+    expect(proposal).toContain("settled under Model effort limits");
+    expect(proposal).toContain("item 2 shows each with its source");
+  });
+
+  test("R3 gap answers offer a rating record only when a compatible member can hold it", () => {
+    const coverage = flat(gaps.section("How coverage is checked"));
+    expect(coverage).toContain("Requirements must clear together on one route");
+    const shapes = flat(gaps.section("Gap records"));
+    expect(shapes).toContain('{ "rating": "coding", "accepts": 6, "reason":');
+    expect(shapes).toContain('{ "capability": "browser", "reason":');
+    expect(shapes).toContain("an integer from 1 to 10");
+    expect(shapes).toContain("at most one record per rating and one per capability");
+    const offers = flat(gaps.section("Offering gap answers"));
+    expect(offers).toContain(
+      "Accept a rating gap with a reason, only when a compatible member exists",
+    );
+    expect(offers).toContain("clears every other requirement of the same task and stakes level");
+    expect(offers).toContain("no rating record can make coverage pass. Do not offer one");
+    expect(offers).toContain("obtain the rating through `references/rating.md`");
+    expect(offers).toContain("an override or a hand-set value the user approves");
+    expect(offers).toContain("or a filling route");
+    expect(offers).toContain("A profile borrows no route from another profile");
+    const decisions = flat(subsection("Gap decisions"));
+    expect(decisions).toContain("`references/gaps.md`");
+    expect(decisions).toContain("when a valid record can express it");
+  });
+
+  test("R4 a narrow addition runs only the parts it needs", () => {
+    const adding = flat(section("Adding a platform or model"));
+    expect(adding).not.toBe("");
+    expect(adding).toContain("for the new platform or model only");
+    expect(adding).toContain("Skip Steps 2, 4 and 5 unless a fact they ask for is missing");
+    expect(adding).toContain("Profile membership changes only when the user names a profile");
+    const recording = flat(gaps.section("Recording a gap"));
+    expect(recording).toContain("Ask only for what the request and the file do not give");
+    expect(recording).toContain("When no valid record can express it, say so");
+  });
+
   test("F15 prose lines outside tables and code blocks stay within 80 columns", () => {
-    const lines = prompt.split("\n");
-    let inCode = false;
-    const long: string[] = [];
-    for (const line of lines) {
-      if (line.startsWith("```")) {
-        inCode = !inCode;
-        continue;
-      }
-      if (inCode || line.startsWith("|")) {
-        continue;
-      }
-      if (line.length > 80) {
-        long.push(line);
-      }
+    for (const file of skillFiles()) {
+      expect(longProseLines(readSkillText(file).text), file).toEqual([]);
     }
-    expect(long).toEqual([]);
   });
 });

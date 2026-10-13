@@ -23,7 +23,11 @@
     "./registry.schema.json": "./registry.schema.json",
     "./examples/registry.json": "./examples/registry.json",
     "./skills/model-registry/SKILL.md": "./skills/model-registry/SKILL.md",
-    "./skills/model-registry/references/rating.md": "./skills/model-registry/references/rating.md"
+    "./skills/model-registry/references/build-profile.md": "./skills/model-registry/references/build-profile.md",
+    "./skills/model-registry/references/gaps.md": "./skills/model-registry/references/gaps.md",
+    "./skills/model-registry/references/new-registry.md": "./skills/model-registry/references/new-registry.md",
+    "./skills/model-registry/references/rating.md": "./skills/model-registry/references/rating.md",
+    "./skills/model-registry/references/snapshots.md": "./skills/model-registry/references/snapshots.md"
   },
   "files": [
     "dist",
