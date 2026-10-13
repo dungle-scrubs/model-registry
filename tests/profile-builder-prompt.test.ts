@@ -170,8 +170,8 @@ describe("the profile builder prompt", () => {
     expect(packageJson.files).toContain("prompts");
   });
 
-  test("M-1 the root README's profile builder paragraph keeps the no-write rule to the registry", () => {
-    const readme = readFileSync(join(repoRoot, "README.md"), "utf8");
+  test("M-1 the reference's profile builder paragraph keeps the no-write rule to the registry", () => {
+    const readme = readFileSync(join(repoRoot, "docs", "reference.md"), "utf8");
     const start = readme.indexOf("## Profile builder");
     expect(start).toBeGreaterThanOrEqual(0);
     const end = readme.indexOf("\n## ", start + 1);
@@ -456,8 +456,8 @@ describe("the profile builder prompt", () => {
     expect(step4).toContain("say so in one line");
   });
 
-  test("82 L-3 the README distinguishes model list snapshots and immutable benchmark reads", () => {
-    const readme = flat(readFileSync(join(repoRoot, "README.md"), "utf8"));
+  test("82 L-3 the reference distinguishes model list snapshots and immutable benchmark reads", () => {
+    const readme = flat(readFileSync(join(repoRoot, "docs", "reference.md"), "utf8"));
     expect(readme).toContain("each model list read saved as a JSON snapshot in `lists/`");
     expect(readme).toContain("Pinned benchmark read files in `reads/` are never overwritten");
   });
