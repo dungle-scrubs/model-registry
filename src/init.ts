@@ -163,7 +163,8 @@ async function askKey(prompts: InitPrompts, keyFile: string): Promise<KeyChoice>
   if (!hasKey) {
     return { saved: false };
   }
-  if (existsSync(keyFile)) {
+  const existing = existsSync(keyFile);
+  if (existing) {
     const choice = await prompts.select({
       message: `An Artificial Analysis key is already saved at ${keyFile}.`,
       options: [
@@ -176,10 +177,15 @@ async function askKey(prompts: InitPrompts, keyFile: string): Promise<KeyChoice>
       return { saved: true };
     }
   }
-  const value = await prompts.password({ message: "Artificial Analysis API key" });
+  const value = await prompts.password({
+    message: existing
+      ? "New Artificial Analysis API key (leave empty to keep the saved one)"
+      : "Artificial Analysis API key (leave empty to skip)",
+  });
   const trimmed = value.trim();
   if (trimmed === "") {
-    return { saved: false };
+    // An empty answer changes nothing: a saved key stays saved.
+    return { saved: existing };
   }
   return { saved: true, value: trimmed };
 }
@@ -254,6 +260,17 @@ async function runWizard(
     return { kind: "starter", path: target, harnesses };
   }
 
+  const intakePath = join(dirname(target), INTAKE_FILE_NAME);
+  if (existsSync(intakePath)) {
+    const replace = await prompts.confirm({
+      message: `An intake from an earlier run is at ${intakePath}. Replace it?`,
+      initialValue: false,
+    });
+    if (!replace) {
+      throw new InitCancelled();
+    }
+  }
+
   const intake: InitIntake = {
     format: 1,
     createdAt: now.toISOString(),
@@ -265,7 +282,6 @@ async function runWizard(
   if (key.value !== undefined) {
     writeKeyFile(keyFile, key.value);
   }
-  const intakePath = join(dirname(target), INTAKE_FILE_NAME);
   writeJsonFile(intakePath, intake);
   prompts.outro(
     [

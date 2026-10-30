@@ -77,7 +77,10 @@ ARTIFICIAL_ANALYSIS_API_KEY=<value>
 The file's mode is 0600, its directory's mode is 0700, and the file is
 written atomically through a temporary file in the same directory. The value
 is never printed, never logged, and never recorded in the intake or the
-registry; the intake records only `"saved"` or `"none"`.
+registry; the intake records only `"saved"` or `"none"`. An empty answer at
+the key prompt changes nothing: with a key already saved, the saved key stays
+and the intake records `"saved"`; with none saved, no key file is written and
+the intake records `"none"`.
 
 #### The intake file
 
@@ -99,6 +102,10 @@ The `benchmarks` names are the ids the wizard offers: `aa-intelligence`,
 `openrouter-pricing`, `livebench-cost` and `arena-webdev`. The
 `model-registry` skill reads the intake and takes the harnesses and the
 approved benchmarks from it.
+
+When an `intake.json` from an earlier run is already there, the wizard asks
+before replacing it, defaulting to no. Declining ends the run like a cancel:
+exit 130, and nothing is written, the key file included.
 
 ## Path resolution
 

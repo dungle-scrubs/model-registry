@@ -45,6 +45,7 @@ interface ScriptedAnswers {
   readonly hasKey?: boolean;
   readonly key?: string;
   readonly keepKey?: boolean;
+  readonly replaceIntake?: boolean;
   readonly benchmarks?: readonly string[];
   readonly cancelAt?: "harnesses" | "key" | "benchmarks";
 }
@@ -92,7 +93,13 @@ class ScriptedPrompts implements InitPrompts {
     return ((this.answers.keepKey ?? true) ? "keep" : "replace") as T;
   }
 
-  async confirm(_request: InitConfirmRequest): Promise<boolean> {
+  readonly confirmMessages: string[] = [];
+
+  async confirm(request: InitConfirmRequest): Promise<boolean> {
+    this.confirmMessages.push(request.message);
+    if (request.message.includes("intake")) {
+      return this.answers.replaceIntake ?? false;
+    }
     return this.answers.hasKey ?? false;
   }
 
@@ -317,6 +324,89 @@ describe("the init wizard", () => {
       });
       expect(outcome.kind).toBe("intake");
       expect(readFileSync(keyFile, "utf8")).toBe("ARTIFICIAL_ANALYSIS_API_KEY=kept-key\n");
+    });
+  });
+
+  test("an empty key on replace keeps the saved key and records it as saved", async () => {
+    await withTempDir(async (dir) => {
+      const configHome = join(dir, "xdg");
+      const keyFile = join(configHome, "model-registry", "artificial-analysis.env");
+      mkdirSync(join(configHome, "model-registry"), { recursive: true });
+      writeFileSync(keyFile, "ARTIFICIAL_ANALYSIS_API_KEY=kept-key\n");
+      const outcome = await runInit({
+        registryPath: join(dir, "registry.json"),
+        env: { XDG_CONFIG_HOME: configHome },
+        prompts: new ScriptedPrompts({
+          harnesses: ["claude"],
+          hasKey: true,
+          keepKey: false,
+          key: "   ",
+          benchmarks: ["aa-intelligence"],
+        }),
+        isTty: true,
+      });
+      expect(outcome.kind).toBe("intake");
+      expect(readFileSync(keyFile, "utf8")).toBe("ARTIFICIAL_ANALYSIS_API_KEY=kept-key\n");
+      const intake = JSON.parse(readFileSync(join(dir, "intake.json"), "utf8")) as unknown;
+      expect(intake).toMatchObject({ artificialAnalysisKey: "saved" });
+    });
+  });
+
+  test("an empty key with none saved records no key and writes no key file", async () => {
+    await withTempDir(async (dir) => {
+      const configHome = join(dir, "xdg");
+      const outcome = await runInit({
+        registryPath: join(dir, "registry.json"),
+        env: { XDG_CONFIG_HOME: configHome },
+        prompts: new ScriptedPrompts({
+          harnesses: ["claude"],
+          hasKey: true,
+          key: "",
+          benchmarks: ["livebench-coding"],
+        }),
+        isTty: true,
+      });
+      expect(outcome.kind).toBe("intake");
+      expect(existsSync(join(configHome, "model-registry", "artificial-analysis.env"))).toBe(false);
+      const intake = JSON.parse(readFileSync(join(dir, "intake.json"), "utf8")) as unknown;
+      expect(intake).toMatchObject({ artificialAnalysisKey: "none" });
+    });
+  });
+
+  test("an existing intake is kept, and nothing written, unless the user replaces it", async () => {
+    await withTempDir(async (dir) => {
+      const configHome = join(dir, "xdg");
+      const intakePath = join(dir, "intake.json");
+      const earlier = '{"earlier":true}\n';
+      writeFileSync(intakePath, earlier);
+      const answers = {
+        harnesses: ["claude"],
+        hasKey: true,
+        key: "fresh-fake-key",
+        benchmarks: ["livebench-coding"],
+      };
+      const declined = new ScriptedPrompts(answers);
+      const kept = await runInit({
+        registryPath: join(dir, "registry.json"),
+        env: { XDG_CONFIG_HOME: configHome },
+        prompts: declined,
+        isTty: true,
+      });
+      expect(kept.kind).toBe("cancelled");
+      expect(declined.confirmMessages.at(-1)).toContain(intakePath);
+      expect(readFileSync(intakePath, "utf8")).toBe(earlier);
+      expect(existsSync(join(configHome, "model-registry", "artificial-analysis.env"))).toBe(false);
+
+      const replaced = await runInit({
+        registryPath: join(dir, "registry.json"),
+        env: { XDG_CONFIG_HOME: configHome },
+        prompts: new ScriptedPrompts({ ...answers, replaceIntake: true }),
+        isTty: true,
+      });
+      expect(replaced.kind).toBe("intake");
+      expect(JSON.parse(readFileSync(intakePath, "utf8"))).toMatchObject({
+        benchmarks: ["livebench-coding"],
+      });
     });
   });
 
