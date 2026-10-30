@@ -89,14 +89,19 @@ class ScriptedPrompts implements InitPrompts {
     return [...(this.answers.benchmarks ?? [])] as T[];
   }
 
-  async select<T>(_request: InitSelectRequest<T>): Promise<T> {
+  readonly selectRequests: InitSelectRequest<unknown>[] = [];
+
+  async select<T>(request: InitSelectRequest<T>): Promise<T> {
+    this.selectRequests.push(request as InitSelectRequest<unknown>);
     return ((this.answers.keepKey ?? true) ? "keep" : "replace") as T;
   }
 
   readonly confirmMessages: string[] = [];
+  readonly confirmRequests: InitConfirmRequest[] = [];
 
   async confirm(request: InitConfirmRequest): Promise<boolean> {
     this.confirmMessages.push(request.message);
+    this.confirmRequests.push(request);
     if (request.message.includes("intake")) {
       return this.answers.replaceIntake ?? false;
     }
@@ -331,6 +336,29 @@ describe("the init wizard", () => {
     });
   });
 
+  test("the saved-key question defaults to keeping the key", async () => {
+    await withTempDir(async (dir) => {
+      const configHome = join(dir, "xdg");
+      mkdirSync(join(configHome, "model-registry"), { recursive: true });
+      writeFileSync(
+        join(configHome, "model-registry", "artificial-analysis.env"),
+        "ARTIFICIAL_ANALYSIS_API_KEY=kept-key\n",
+      );
+      const prompts = new ScriptedPrompts({
+        harnesses: ["claude"],
+        hasKey: true,
+        benchmarks: ["aa-intelligence"],
+      });
+      await runInit({
+        registryPath: join(dir, "registry.json"),
+        env: { XDG_CONFIG_HOME: configHome },
+        prompts,
+        isTty: true,
+      });
+      expect(prompts.selectRequests.at(-1)?.initialValue).toBe("keep");
+    });
+  });
+
   test("an empty key on replace keeps the saved key and records it as saved", async () => {
     await withTempDir(async (dir) => {
       const configHome = join(dir, "xdg");
@@ -398,6 +426,8 @@ describe("the init wizard", () => {
       });
       expect(kept.kind).toBe("cancelled");
       expect(declined.confirmMessages.at(-1)).toContain(intakePath);
+      // The documented default is no: Enter keeps the earlier intake.
+      expect(declined.confirmRequests.at(-1)?.initialValue).toBe(false);
       expect(readFileSync(intakePath, "utf8")).toBe(earlier);
       expect(existsSync(join(configHome, "model-registry", "artificial-analysis.env"))).toBe(false);
 
@@ -494,6 +524,27 @@ describe("the init command in the CLI", () => {
       );
       expect(exitCode).toBe(130);
       expect(existsSync(join(dir, "registry.json"))).toBe(false);
+    });
+  });
+
+  test("declining to replace an earlier intake exits 130 and leaves it", async () => {
+    await withTempDir(async (dir) => {
+      const intakePath = join(dir, "intake.json");
+      writeFileSync(intakePath, '{"earlier":true}\n');
+      const exitCode = await runCli(
+        ["init", "--registry", join(dir, "registry.json")],
+        { stdout: captureStream().stream, stderr: captureStream().stream },
+        {
+          prompts: new ScriptedPrompts({
+            harnesses: ["claude"],
+            benchmarks: ["livebench-coding"],
+            replaceIntake: false,
+          }),
+          isTty: true,
+        },
+      );
+      expect(exitCode).toBe(130);
+      expect(readFileSync(intakePath, "utf8")).toBe('{"earlier":true}\n');
     });
   });
 
