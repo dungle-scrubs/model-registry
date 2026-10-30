@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.5.0](https://github.com/dungle-scrubs/model-registry/compare/v0.4.0...v0.5.0) (2026-10-30)
+
+
+### ⚠ BREAKING CHANGES
+
+* prompts/profile-builder.md and prompts/rating.md are removed. Use skills/model-registry/SKILL.md and its references, or install the skill with npx skills add dungle-scrubs/model-registry --skill model-registry.
+
+### Features
+
+* add model-registry init, a setup wizard for new registries ([#93](https://github.com/dungle-scrubs/model-registry/issues/93)) ([c9051fb](https://github.com/dungle-scrubs/model-registry/commit/c9051fb52da6b393db6b8f4fb39d8f32d81c7b3f))
+* ship the profile builder and rating method as the model-registry skill ([#88](https://github.com/dungle-scrubs/model-registry/issues/88)) ([0c81fab](https://github.com/dungle-scrubs/model-registry/commit/0c81fab8311657d2eb99d6357337a30eda1b0fd7))
+
 ## [0.4.0](https://github.com/dungle-scrubs/model-registry/compare/v0.3.0...v0.4.0) (2026-10-05)
 
 
