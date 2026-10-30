@@ -1,5 +1,7 @@
 import { Command, CommanderError, Option } from "commander";
 import { RegistryError } from "./error.js";
+import { type InitOutcome, runInit } from "./init.js";
+import type { InitPrompts } from "./init-prompts.js";
 import { digestOf, loadRegistry } from "./load-registry.js";
 import { runMigrate } from "./migrate.js";
 import type { MigrateStepEntry } from "./migrate-steps.js";
@@ -11,6 +13,7 @@ const EXIT_SUCCESS = 0;
 const EXIT_INTERNAL_FAULT = 1;
 const EXIT_USAGE_OR_REFUSED = 2;
 const EXIT_LOADER_FAILURE = 4;
+const EXIT_CANCELLED = 130;
 
 const USAGE_FIX = "Run model-registry --help for the available commands and options.";
 const NO_COMMAND_FIX =
@@ -22,7 +25,8 @@ const EXIT_CODES_HELP = `Exit codes:
   1  an internal fault (internal-error on stderr)
   2  invalid usage (usage-invalid on stderr), or a migrate refusal because the backup
      already exists (backup-exists on stderr)
-  4  the registry file failed to load or validate (one error envelope on stderr)`;
+  4  the registry file failed to load or validate (one error envelope on stderr)
+  130  the init wizard was cancelled (nothing written)`;
 
 class UsageError extends Error {
   readonly fix: string;
@@ -45,6 +49,15 @@ export interface CliIo {
 
 export interface RunCliOptions {
   readonly steps?: readonly MigrateStepEntry[];
+  /** The wizard UI the init command drives; the real one by default. */
+  readonly prompts?: InitPrompts;
+  /** Whether stdin and stdout are a terminal; the real answer by default. */
+  readonly isTty?: boolean;
+}
+
+/** What the init command decided, so the exit code can follow it. */
+interface CliState {
+  initOutcome?: InitOutcome;
 }
 
 type CliErrorEnvelope =
@@ -88,7 +101,12 @@ function consumeRegistryPath(state: RegistryOptionState, commandName: string): s
   return explicit;
 }
 
-function buildProgram(io: CliIo, steps: readonly MigrateStepEntry[] | undefined): Command {
+function buildProgram(
+  io: CliIo,
+  steps: readonly MigrateStepEntry[] | undefined,
+  options: RunCliOptions,
+  state: CliState,
+): Command {
   const program = new Command();
   program
     .name("model-registry")
@@ -165,6 +183,31 @@ function buildProgram(io: CliIo, steps: readonly MigrateStepEntry[] | undefined)
     );
   });
 
+  const init = program
+    .command("init")
+    .description("Set up a registry with a short terminal wizard.")
+    .allowExcessArguments(false)
+    .exitOverride();
+  init.configureOutput({
+    writeOut: (text) => {
+      io.stdout.write(text);
+    },
+    writeErr: () => {},
+  });
+  const initRegistry = addRegistryOption(init);
+  init.action(async () => {
+    const explicit = consumeRegistryPath(initRegistry, "init");
+    const outcome = await runInit({
+      registryPath: explicit,
+      ...(options.prompts === undefined ? {} : { prompts: options.prompts }),
+      ...(options.isTty === undefined ? {} : { isTty: options.isTty }),
+    });
+    state.initOutcome = outcome;
+    if (outcome.kind === "refused") {
+      throw new UsageError(outcome.message, outcome.fix);
+    }
+  });
+
   return program;
 }
 
@@ -176,10 +219,15 @@ function exitCodeFor(error: RegistryError): number {
   return error.code === "backup-exists" ? EXIT_USAGE_OR_REFUSED : EXIT_LOADER_FAILURE;
 }
 
-export function runCli(argv: string[], io: CliIo, options: RunCliOptions = {}): number {
+export async function runCli(
+  argv: string[],
+  io: CliIo,
+  options: RunCliOptions = {},
+): Promise<number> {
+  const state: CliState = {};
   try {
-    buildProgram(io, options.steps).parse(argv, { from: "user" });
-    return EXIT_SUCCESS;
+    await buildProgram(io, options.steps, options, state).parseAsync(argv, { from: "user" });
+    return state.initOutcome?.kind === "cancelled" ? EXIT_CANCELLED : EXIT_SUCCESS;
   } catch (error) {
     if (error instanceof UsageError) {
       writeErrorEnvelope(io, { code: "usage-invalid", fix: error.fix, message: error.message });

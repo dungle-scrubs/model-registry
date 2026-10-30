@@ -164,7 +164,7 @@ describe("runMigrate error mapping", () => {
 
       const stdout = captureStream();
       const stderr = captureStream();
-      const exitCode = runCli(["migrate", "--registry", path], {
+      const exitCode = await runCli(["migrate", "--registry", path], {
         stdout: stdout.stream,
         stderr: stderr.stream,
       });
@@ -495,7 +495,7 @@ describe("DW5 an invalid migrated result exits 4 and replaces nothing", () => {
           },
         }),
       };
-      const exitCode = runCli(
+      const exitCode = await runCli(
         ["migrate", "--registry", path],
         { stdout: stdout.stream, stderr: stderr.stream },
         { steps: [step] },

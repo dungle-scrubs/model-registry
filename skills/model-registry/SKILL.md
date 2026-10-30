@@ -52,6 +52,10 @@ created there. When the target exists, read its shared facts: tasks
 and their floors, route orders, meters and the other profiles. `lists/` and
 `reads/` sit beside that file, and every read and write works on it.
 
+An `intake.json` beside the target means the init wizard already collected
+the answers this skill would ask for. `references/new-registry.md` reads it
+and takes the harnesses and the approved benchmarks from it.
+
 ## Choose the path
 
 Pick the path that matches the request, then read and follow its reference.
@@ -89,6 +93,12 @@ The user approves before the registry is written. When a check reports
 findings afterwards, revise the proposal and get approval again before
 another write. Saving a model list in `lists/` or a pinned read in `reads/`
 is not a registry write.
+
+Before any registry write, write the draft to a temporary file beside the
+target, run both checks against that draft with `--registry <draft>`, and
+move the draft into place only when both exit 0. A draft that fails is
+fixed and checked again, or reported to the user; it is never written to
+the target.
 
 ## Finishing checks
 

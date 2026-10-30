@@ -20,6 +20,29 @@ snapshots in `lists/` and no reads in `reads/`. So:
 - Create the registry file only at the approved write. `lists/` and
   `reads/` are created beside it when the first read is saved.
 
+## An intake file beside the target
+
+When `intake.json` sits beside the target, the init wizard already asked
+the questions this file asks. Read it, and take the answers from it. It
+matches the shipped `intake.schema.json`, so a file that does not match is
+not an intake and the interview runs as usual.
+
+- `harnesses`: the harnesses to build routes for. Skip the platform
+  question and use these harnesses.
+- `benchmarks`: the benchmarks the user approved. Skip the benchmark
+  question and offer exactly these.
+- `artificialAnalysisKey`: `saved` when the key file holds a key, `none`
+  when it does not.
+
+The intake never holds the key itself. When it says `saved`, the key sits in
+`$XDG_CONFIG_HOME/model-registry/artificial-analysis.env`, and the read
+command for that source runs with the key in its environment only. Load the
+file into the environment of that one command; never read the key, print
+it, or copy it into the conversation.
+
+Every other question this file asks still stands: the ratings, the router
+order, the tasks, the capabilities, the profile identity and the meters.
+
 ## The interview
 
 Run Steps 1 to 6 of `references/build-profile.md` in order, with these
@@ -136,5 +159,9 @@ Where each part comes from:
 
 Use the proposal in `references/build-profile.md`, and show the complete
 draft file in it. There are no other declared profiles for shared changes
-to reach. After approval, write the file in one write at the target path,
-then run the finishing checks in `SKILL.md`.
+to reach. After approval, write the draft to a temporary file beside the
+target, run `model-registry check --registry <draft>` and
+`model-router check --registry <draft>`, and move the draft into place
+only when both exit 0. A draft that fails is fixed and checked again, or
+reported to the user; it is never written to the target. Then run the
+finishing checks in `SKILL.md`.

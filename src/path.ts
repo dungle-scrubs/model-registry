@@ -6,6 +6,21 @@ const CONFIG_DIRECTORY = "model-registry";
 
 type PathEnvironment = { [key: string]: string | undefined };
 
+/**
+ * The directory the package keeps its configuration in:
+ * `$XDG_CONFIG_HOME/model-registry`, or `~/.config/model-registry` when that
+ * variable is unset or empty. It never depends on a registry path.
+ */
+export function resolveConfigDirectory(
+  env: PathEnvironment = process.env,
+  home: string = homedir(),
+): string {
+  const configHome = env.XDG_CONFIG_HOME;
+  const base =
+    configHome !== undefined && configHome !== "" ? resolve(configHome) : resolve(home, ".config");
+  return resolve(base, CONFIG_DIRECTORY);
+}
+
 export function resolveRegistryPath(
   explicitPath: string | undefined,
   env: PathEnvironment = process.env,
@@ -18,8 +33,5 @@ export function resolveRegistryPath(
   if (environmentPath !== undefined && environmentPath !== "") {
     return resolve(environmentPath);
   }
-  const configHome = env.XDG_CONFIG_HOME;
-  const base =
-    configHome !== undefined && configHome !== "" ? resolve(configHome) : resolve(home, ".config");
-  return resolve(base, CONFIG_DIRECTORY, REGISTRY_FILENAME);
+  return resolve(resolveConfigDirectory(env, home), REGISTRY_FILENAME);
 }

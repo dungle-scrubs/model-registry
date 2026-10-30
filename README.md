@@ -46,6 +46,20 @@ $ model-registry check
 
 These examples run against a real registry, so your models and output will differ.
 
+### Set up a registry
+
+`model-registry init` asks three things in your terminal: which harnesses you use, whether you have an Artificial Analysis API key, and which benchmarks your ratings should come from. It is interactive only, and it never overwrites a registry that is already there.
+
+Choose no benchmark and it writes a starter registry you can edit: one model with a route per harness, and every section a real registry holds. Choose a benchmark and it writes an `intake.json` beside the registry instead, for the `model-registry` skill to build the full registry from.
+
+```console
+$ model-registry init
+$ model-registry check
+{"format":1,"digest":"sha256:...","path":".../model-registry/registry.json"}
+```
+
+The Artificial Analysis key is saved to `$XDG_CONFIG_HOME/model-registry/artificial-analysis.env`, readable by you alone. The value never reaches the registry or the intake. The wizard exits 2 without a terminal, and exits 130 when you cancel, writing nothing.
+
 ### Add a model
 
 Add an entry under `models`, and add the new route's label to each profile that should use it. Without a declared `default` profile, `default` already holds every route.
@@ -166,6 +180,7 @@ You declare each rating name in `ratings` with a one-line description, and each 
 ```text
 model-registry check [--registry <path>]               validate the file; print its format, digest and path
 model-registry migrate [--registry <path>] [--dry-run]   bring the file forward to the current format, with a backup
+model-registry init [--registry <path>]                set up a first registry with the terminal wizard
 ```
 
 The registry path is `--registry`, then `MODEL_REGISTRY_FILE`, then `$XDG_CONFIG_HOME/model-registry/registry.json`, then `~/.config/model-registry/registry.json`.
@@ -193,6 +208,7 @@ A route carries `harness`, `modelId` and `hosted`, and optionally `provider`, `p
 | 1 | an internal fault (`internal-error`) |
 | 2 | invalid usage (`usage-invalid`), or `migrate` refused because a backup already exists (`backup-exists`) |
 | 4 | the registry file failed to load or validate |
+| 130 | the `init` wizard was cancelled; nothing was written |
 
 ### Error codes
 
@@ -210,7 +226,7 @@ A route carries `harness`, `modelId` and `hosted`, and optionally `provider`, `p
 
 ### Library
 
-The package exports `loadRegistry`, `buildRouteLabel`, `RegistryError`, `EFFORT_LADDER` and `ROUTE_RATING_NAME`, with their types. It also ships `registry.schema.json`, `examples/registry.json` and the `model-registry` agent skill in `skills/model-registry/`.
+The package exports `loadRegistry`, `buildRouteLabel`, `starterRegistry`, `RegistryError`, `EFFORT_LADDER` and `ROUTE_RATING_NAME`, with their types. It also ships `registry.schema.json`, `intake.schema.json`, `examples/registry.json` and the `model-registry` agent skill in `skills/model-registry/`.
 
 ### Security
 

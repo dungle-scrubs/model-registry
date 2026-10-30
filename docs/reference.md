@@ -26,12 +26,83 @@ Exit codes:
 | 2 | invalid usage (`usage-invalid` on stderr), or a `migrate` refusal because the backup already exists (`backup-exists` on stderr) |
 | 4 | the loader or the migrated result failed; one `{"error": ...}` envelope on stderr lists every problem |
 | 1 | an internal fault (`internal-error` on stderr) |
+| 130 | the `init` wizard was cancelled at a prompt; nothing was written |
 
 Errors print as one JSON line on stderr: `{"error":{"code":"...","message":"...","fix":"...","path":"...","problems":[]}}`.
 
+### init
+
+`model-registry init` sets up a first registry with a terminal wizard. It
+takes the same `--registry` path as `check`, so the target is the path
+`check` resolves: `--registry`, then `MODEL_REGISTRY_FILE`, then the XDG
+default.
+
+The wizard asks three things: which harnesses you use, whether you have an
+Artificial Analysis API key, and which benchmarks the ratings should come
+from. It writes one of two files.
+
+A starter registry at the target, when no benchmark was chosen. The starter
+holds every section a registry has: two ratings, one capability, one model
+with a route per chosen harness, the `router` rank, one task with its
+`low`, `normal` and `high` floors and its rank, and a `default` profile
+listing every route label. It passes `model-registry check` and
+`model-router check` as written.
+
+An `intake.json` beside the target, when benchmarks were chosen. The intake
+holds the answers the skill needs, and the CLI writes no registry on this
+path.
+
+Exit codes for `init`:
+
+| Exit | Meaning |
+|---|---|
+| 0 | the wizard finished; a starter registry or an intake file was written |
+| 2 | the target already exists, or stdin and stdout are not both a terminal (`usage-invalid` on stderr) |
+| 130 | the wizard was cancelled at a prompt; nothing was written |
+
+The wizard never overwrites a registry that is already there: it exits 2,
+names the path, and points at the `model-registry` skill. Cancelling at any
+prompt prints `cancelled, nothing written` and exits 130.
+
+#### The Artificial Analysis key file
+
+The key is stored at `$XDG_CONFIG_HOME/model-registry/artificial-analysis.env`,
+or `~/.config/model-registry/artificial-analysis.env` when `XDG_CONFIG_HOME`
+is unset. This path never depends on `--registry`. The file holds one line:
+
+```text
+ARTIFICIAL_ANALYSIS_API_KEY=<value>
+```
+
+The file's mode is 0600, its directory's mode is 0700, and the file is
+written atomically through a temporary file in the same directory. The value
+is never printed, never logged, and never recorded in the intake or the
+registry; the intake records only `"saved"` or `"none"`.
+
+#### The intake file
+
+`intake.json` sits beside the target registry and matches the shipped
+`intake.schema.json`:
+
+```json
+{
+  "format": 1,
+  "createdAt": "2026-10-30T12:00:00.000Z",
+  "harnesses": ["claude", "pi"],
+  "artificialAnalysisKey": "saved",
+  "benchmarks": ["aa-intelligence", "arena-webdev"]
+}
+```
+
+The `benchmarks` names are the ids the wizard offers: `aa-intelligence`,
+`aa-cost`, `epoch-eci`, `livebench-coding`, `terminal-bench`,
+`openrouter-pricing`, `livebench-cost` and `arena-webdev`. The
+`model-registry` skill reads the intake and takes the harnesses and the
+approved benchmarks from it.
+
 ## Path resolution
 
-`check` and the library resolve the registry file in this order:
+`check`, `init` and the library resolve the registry file in this order:
 
 1. An explicit path: `--registry <path>` or the `path` option.
 2. `MODEL_REGISTRY_FILE`.
