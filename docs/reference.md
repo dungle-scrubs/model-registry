@@ -75,7 +75,9 @@ ARTIFICIAL_ANALYSIS_API_KEY=<value>
 ```
 
 The file's mode is 0600, its directory's mode is 0700, and the file is
-written atomically through a temporary file in the same directory. The value
+written atomically through a temporary file in the same directory. Windows has
+no POSIX permission bits, so there the file is protected only by the
+permissions of the folder it lives in, normally the user's profile. The value
 is never printed, never logged, and never recorded in the intake or the
 registry; the intake records only `"saved"` or `"none"`. An empty answer at
 the key prompt changes nothing: with a key already saved, the saved key stays

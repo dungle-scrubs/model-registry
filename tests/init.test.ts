@@ -299,8 +299,12 @@ describe("the init wizard", () => {
       expect(outcome.kind).toBe("intake");
       const keyFile = join(configHome, "model-registry", "artificial-analysis.env");
       expect(existsSync(keyFile)).toBe(true);
-      expect(statSync(keyFile).mode & 0o777).toBe(0o600);
-      expect(statSync(join(configHome, "model-registry")).mode & 0o777).toBe(0o700);
+      // Windows has no POSIX permission bits: Node reports 0o666 whatever
+      // mode was requested, so only the content is checked there.
+      if (process.platform !== "win32") {
+        expect(statSync(keyFile).mode & 0o777).toBe(0o600);
+        expect(statSync(join(configHome, "model-registry")).mode & 0o777).toBe(0o700);
+      }
       expect(readFileSync(keyFile, "utf8")).toBe("ARTIFICIAL_ANALYSIS_API_KEY=test-key-value\n");
     });
   });
