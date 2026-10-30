@@ -27,18 +27,64 @@ Ask the user, one question at a time:
 3. Which models should be rated, and which routes carry a cost?
 
 When the user has no source in mind, offer a suggestion from this table.
-Every suggestion is offered, never adopted without the user's approval:
+Every suggestion is offered, never adopted without the user's approval. The
+`id` column names the same source the init wizard offers, so an intake's
+`benchmarks` list maps straight onto this table.
 
-| Rating | Suggested evidence | Condition |
-|---|---|---|
-| `intelligence` | Artificial Analysis Intelligence Index | The user fetches the figures with their own key. |
-| `coding` | Artificial Analysis Coding Index | The user fetches the figures with their own key. |
-| Route `cost` | Artificial Analysis cost per task | The measured provider and effort match the route's; when either differs, write an override with a reason instead of using the figure. |
-| Hand-set `taste` | Arena WebDev `overall` | Evidence and a suggested band while the user sets taste by hand; never a feed. |
+| Rating | Suggested evidence | Id | Condition |
+|---|---|---|---|
+| `intelligence` | Artificial Analysis Intelligence Index | `aa-intelligence` | The user fetches the figures with their own key. |
+| `intelligence` | Epoch AI Capabilities Index | `epoch-eci` | Keyless: the Epoch AI benchmark data holds the ECI scores. |
+| `coding` | LiveBench Coding and Agentic Coding | `livebench-coding` | Keyless: the LiveBench release tables hold the category scores. |
+| `coding` | Terminal-Bench 4.0 | `terminal-bench` | Keyless, and the more current of the two when LiveBench lags the frontier. |
+| Route `cost` | Artificial Analysis cost per task | `aa-cost` | The measured provider and effort match the route's; when either differs, write an override with a reason instead of using the figure. |
+| Route `cost` | OpenRouter list prices | `openrouter-pricing` | Keyless: the OpenRouter model list holds the per-token prices. |
+| Route `cost` | LiveBench cost per task | `livebench-cost` | Keyless: the LiveBench cost table holds the measured cost per successful task. |
+| Hand-set `taste` | Arena WebDev `overall` | `arena-webdev` | Evidence and a suggested band while the user sets taste by hand; never a feed. |
+
+The Artificial Analysis Coding Index is gone. Their API docs state that
+`artificial_analysis_coding_index` and `artificial_analysis_agentic_index`
+are always null, because they no longer publish a Coding Index or an
+Agentic Index. Coding comes from LiveBench or Terminal-Bench, with or
+without a key.
 
 The package ships no Artificial Analysis figures: a user fetches every
 figure with their own key, for their own registry. Every benchmark read
 runs as a local command on the user's machine, so no key ever reaches you.
+
+### Where each source is read
+
+- `aa-intelligence` and `aa-cost`: the Artificial Analysis API, called with
+  the user's own key in the `x-api-key` header. Every tier needs a key,
+  including the free one, so there is no keyless read of either.
+- `epoch-eci`: the Epoch AI benchmark data,
+  `https://epoch.ai/data/benchmark_data.zip`. The `eci_scores.csv` inside
+  the archive holds one row per model with `eci`, `eci_ci_low`,
+  `eci_ci_high` and `date`. The archive carries no revision, so the read
+  is pinned by its download date and the copy is kept. CC BY 4.0.
+- `livebench-coding`: the LiveBench release table,
+  `https://livebench.ai/v1/table_<date>.csv`, where the date uses
+  underscores, as in `table_2026_06_25.csv`. The `Coding` and
+  `Agentic Coding` categories give the coding figures. The release date in
+  the file name pins the read.
+- `livebench-cost`: the same release's `cost_<date>.csv`, which holds the
+  cost per successful task for each model and task.
+- `terminal-bench`: the Terminal-Bench 4.0 leaderboard on Harbor Hub, read
+  with `harbor hub leaderboard show "<org>/<dataset>/<name>"`. Its rows
+  carry `accuracy` from 0 to 100 with its confidence interval, and the
+  total cost of the run. A row is a model plus an agent, so pick one agent
+  per model and record which one. The board is a live database with no
+  revision, so the read is pinned by its date.
+- `openrouter-pricing`: the OpenRouter model list,
+  `https://openrouter.ai/api/v1/models`. The `pricing.prompt` and
+  `pricing.completion` fields are US dollars per token. The endpoint is
+  live and has no revision, so the read is pinned by its date, and the
+  site's terms ask that the documented endpoint is called rather than the
+  site scraped.
+- `arena-webdev`: the Arena dataset, read at a pinned revision. Its
+  `webdev` subset now publishes a Bradley-Terry `score` column, not the
+  older `rating`, so the figure is read from `score`. The `document`
+  subset still publishes `rating`.
 
 ## Step 2 - propose bands, show the ratings they give, wait for approval
 
@@ -189,7 +235,10 @@ read is still named and stays.
 `feeds`. Its suggested evidence is Arena WebDev `overall`, read from the
 Hugging Face dataset `lmarena-ai/leaderboard-dataset` at a pinned revision,
 not a scrape of the leaderboard site. Read category `overall` only; `webdev`
-duplicates those rows, so pooling both counts the same evidence twice.
+duplicates those rows, so pooling both counts the same evidence twice. The
+`webdev` subset publishes a Bradley-Terry `score` column, not the older
+`rating`, so the benchmark's `field` is `score` and the figure comes from
+that column.
 Declare one benchmark key that no feed lists (for example `taste-evidence`)
 and put in its `notes`: the dataset revision, the category, the publication
 date, the CC BY 4.0 attribution with a source link, and an explicit mapping

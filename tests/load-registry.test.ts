@@ -1015,7 +1015,7 @@ describe("loadRegistry", () => {
     expect(result.stderr).toBe("");
     expect(result.status).toBe(0);
     expect(result.stdout).toBe(
-      "EFFORT_LADDER,ROUTE_RATING_NAME,RegistryError,buildRouteLabel,loadRegistry",
+      "EFFORT_LADDER,ROUTE_RATING_NAME,RegistryError,buildRouteLabel,loadRegistry,starterRegistry",
     );
     expect(Object.keys(publicApi).sort()).toEqual([
       "EFFORT_LADDER",
@@ -1023,6 +1023,7 @@ describe("loadRegistry", () => {
       "RegistryError",
       "buildRouteLabel",
       "loadRegistry",
+      "starterRegistry",
     ]);
   });
 });

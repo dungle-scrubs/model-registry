@@ -48,12 +48,43 @@ const step3 = section("Step 3 - read and record figures");
 describe("the rating prompt's suggested benchmarks and bands", () => {
   test("DW5 the suggestions table names the offered sources and their conditions", () => {
     expect(prompt).toContain("Artificial Analysis Intelligence Index");
-    expect(prompt).toContain("Artificial Analysis Coding Index");
     expect(prompt).toContain("cost per task");
     expect(prompt).toContain("Arena WebDev `overall`");
     expect(prompt).toContain("their own key");
     expect(prompt).toContain("provider and effort match");
     expect(prompt).toContain("never a feed");
+  });
+
+  test("the dead Artificial Analysis Coding Index is replaced by the keyless sources", () => {
+    expect(prompt).not.toContain("| `coding` | Artificial Analysis Coding Index |");
+    expect(prompt).toContain("no longer publish a Coding Index");
+    expect(prompt).toContain("LiveBench Coding and Agentic Coding");
+    expect(prompt).toContain("Terminal-Bench 4.0");
+    expect(prompt).toContain("Epoch AI Capabilities Index");
+    expect(prompt).toContain("OpenRouter list prices");
+  });
+
+  test("every wizard benchmark id has a suggestion and a read in the prompt", () => {
+    for (const id of [
+      "aa-intelligence",
+      "aa-cost",
+      "epoch-eci",
+      "livebench-coding",
+      "terminal-bench",
+      "openrouter-pricing",
+      "livebench-cost",
+      "arena-webdev",
+    ]) {
+      expect(prompt, id).toContain(`\`${id}\``);
+    }
+    expect(prompt).toContain("Where each source is read");
+  });
+
+  test("the Arena WebDev evidence is read from the score column", () => {
+    const arena = flat(subsection("Taste evidence from Arena WebDev `overall`"));
+    expect(arena).toContain("score");
+    expect(arena).toContain("Bradley-Terry");
+    expect(arena).toContain("not the older `rating`");
   });
 
   test("DW5 suggested bands come from the decile table over the user's own pinned read", () => {

@@ -21,6 +21,7 @@
       "import": "./dist/index.js"
     },
     "./registry.schema.json": "./registry.schema.json",
+    "./intake.schema.json": "./intake.schema.json",
     "./examples/registry.json": "./examples/registry.json",
     "./skills/model-registry/SKILL.md": "./skills/model-registry/SKILL.md",
     "./skills/model-registry/references/build-profile.md": "./skills/model-registry/references/build-profile.md",
@@ -32,6 +33,7 @@
   "files": [
     "dist",
     "registry.schema.json",
+    "intake.schema.json",
     "examples/registry.json",
     "skills",
     "README.md",
@@ -56,6 +58,7 @@
   },
   "devDependencies": {
     "@biomejs/biome": "2.5.14",
+    "@dungle-scrubs/model-router": "0.2.1",
     "@stryker-mutator/core": "10.0.0",
     "@stryker-mutator/typescript-checker": "10.0.0",
     "@stryker-mutator/vitest-runner": "10.0.0",
@@ -66,6 +69,7 @@
     "vitest": "4.1.0"
   },
   "dependencies": {
+    "@clack/prompts": "1.8.1",
     "ajv": "8.20.0",
     "commander": "15.0.0"
   }

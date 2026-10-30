@@ -220,6 +220,31 @@ describe("the new-registry reference", () => {
     }
   });
 
+  test("the draft is checked before it replaces the target", () => {
+    const approval = flat(body.section("Approval"));
+    expect(approval).toContain("temporary file beside the target");
+    expect(approval).toContain("--registry <draft>");
+    expect(approval).toContain("only when both exit 0");
+    expect(approval).toContain("never written to the target");
+    const write = flat(reference.section("The proposal and the write"));
+    expect(write).toContain("temporary file beside the target");
+    expect(write).toContain("model-registry check --registry <draft>");
+    expect(write).toContain("model-router check --registry <draft>");
+    expect(write).toContain("only when both exit 0");
+    expect(write).toContain("never written to the target");
+  });
+
+  test("an intake beside the target supplies the harnesses and the benchmarks", () => {
+    const intake = flat(reference.section("An intake file beside the target"));
+    expect(intake).not.toBe("");
+    expect(intake).toContain("intake.json");
+    expect(intake).toContain("intake.schema.json");
+    expect(intake).toContain("`harnesses`");
+    expect(intake).toContain("`benchmarks`");
+    expect(intake).toContain("artificial-analysis.env");
+    expect(intake).toContain("never read the key");
+  });
+
   test("R1 the reference states the missing-file branch, the label formula and each part's source", () => {
     const text = flat(reference.text);
     expect(text).toContain("`registry-missing`");

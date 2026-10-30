@@ -3,6 +3,7 @@ export { buildRouteLabel } from "./label.js";
 export type { EffortLevel } from "./ladder.js";
 export { EFFORT_LADDER } from "./ladder.js";
 export { loadRegistry } from "./load-registry.js";
+export { starterRegistry } from "./starter.js";
 export type {
   Band,
   BandDirection,

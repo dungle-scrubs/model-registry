@@ -20,13 +20,13 @@ const VALID_REGISTRY = {
   },
 };
 
-function runMigrateCli(
+async function runMigrateCli(
   args: string[],
   steps: readonly MigrateStepEntry[] = [],
-): { exitCode: number; stdout: string; stderr: string } {
+): Promise<{ exitCode: number; stdout: string; stderr: string }> {
   const stdout = captureStream();
   const stderr = captureStream();
-  const exitCode = runCli(args, { stdout: stdout.stream, stderr: stderr.stream }, { steps });
+  const exitCode = await runCli(args, { stdout: stdout.stream, stderr: stderr.stream }, { steps });
   return { exitCode, stdout: stdout.text(), stderr: stderr.text() };
 }
 
@@ -40,7 +40,7 @@ describe("the migrate command's exit-code wiring", () => {
       writeFileSync(join(dir, "registry.json.format-0.bak"), "stale");
       const fileBefore = readFileSync(path);
 
-      const result = runMigrateCli(["migrate", "--registry", path], [FROM_ZERO]);
+      const result = await runMigrateCli(["migrate", "--registry", path], [FROM_ZERO]);
 
       expect(result.exitCode).toBe(2);
       expect(result.stdout).toBe("");
@@ -55,7 +55,7 @@ describe("the migrate command's exit-code wiring", () => {
     await withTempDir(async (dir) => {
       const path = writeJson(dir, "registry.json", { format: 2, models: {} });
 
-      const result = runMigrateCli(["migrate", "--registry", path], [FROM_ZERO]);
+      const result = await runMigrateCli(["migrate", "--registry", path], [FROM_ZERO]);
 
       expect(result.exitCode).toBe(4);
       expect(result.stdout).toBe("");
@@ -74,7 +74,7 @@ describe("the migrate command's exit-code wiring", () => {
         step: (parsed) => ({ ...parsed, format: 1, models: { "model-a": {} } }),
       };
 
-      const result = runMigrateCli(["migrate", "--registry", path], [invalidStep]);
+      const result = await runMigrateCli(["migrate", "--registry", path], [invalidStep]);
 
       expect(result.exitCode).toBe(4);
       expect(result.stdout).toBe("");
@@ -95,7 +95,7 @@ describe("the migrate command's stdout wiring", () => {
       const migrated = `${JSON.stringify({ ...registry, format: 1 }, null, 2)}\n`;
       const digest = `sha256:${sha256Hex(Buffer.from(migrated, "utf8"))}`;
 
-      const result = runMigrateCli(["migrate", "--registry", path], [FROM_ZERO]);
+      const result = await runMigrateCli(["migrate", "--registry", path], [FROM_ZERO]);
 
       expect(result.exitCode).toBe(0);
       expect(result.stderr).toBe("");
@@ -121,7 +121,7 @@ describe("the migrate command's stdout wiring", () => {
       const fileBefore = readFileSync(path);
       const migrated = `${JSON.stringify({ ...registry, format: 1 }, null, 2)}\n`;
 
-      const result = runMigrateCli(["migrate", "--registry", path, "--dry-run"], [FROM_ZERO]);
+      const result = await runMigrateCli(["migrate", "--registry", path, "--dry-run"], [FROM_ZERO]);
 
       expect(result.exitCode).toBe(0);
       expect(result.stderr).toBe("");
@@ -136,7 +136,7 @@ describe("the migrate command's stdout wiring", () => {
       const path = writeJson(dir, "current.json", VALID_REGISTRY);
       const fileBefore = readFileSync(path);
 
-      const result = runMigrateCli(["migrate", "--registry", path, "--dry-run"], []);
+      const result = await runMigrateCli(["migrate", "--registry", path, "--dry-run"], []);
 
       expect(result.exitCode).toBe(0);
       expect(result.stdout).toBe("nothing to do\n");
